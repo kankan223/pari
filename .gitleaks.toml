@@ -1,0 +1,187 @@
+# Gitleaks Configuration for Civic Commons
+# This configuration detects secrets, API keys, and credentials in code
+
+title = "Civic Commons Secret Detection"
+
+# Extend the default gitleaks config
+[extend]
+useDefault = true
+
+# Allowlist for known false positives
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''node_modules''',
+  '''.git''',
+  '''build''',
+  '''dist''',
+  '''vendor''',
+  '''\.terraform''',
+  '''coverage''',
+  '''\.dart_tool''',
+  '''\.flutter-plugins''',
+]
+
+# Custom rules for Civic Commons-specific patterns
+[[rules]]
+description = "Civic Commons API Key Pattern"
+id = "civic-api-key"
+regex = '''(?i)(civic[_-]?(api|secret|token)[_-]?key)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{20,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "civic",
+    "api",
+    "key",
+    "secret",
+    "token",
+]
+
+[[rules]]
+description = "HashiCorp Vault Token"
+id = "vault-token"
+regex = '''(?i)(vault[_-]?token)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{20,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "vault",
+    "token",
+]
+
+[[rules]]
+description = "PostgreSQL Connection String"
+id = "postgres-connection"
+regex = '''postgres(?:ql)?://[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+:[0-9]+/[a-zA-Z0-9._-]+'''
+entropy = 3.0
+keywords = [
+    "postgres",
+    "postgresql",
+]
+
+[[rules]]
+description = "Redis Connection String"
+id = "redis-connection"
+regex = '''redis://[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+:[0-9]+'''
+entropy = 3.0
+keywords = [
+    "redis",
+]
+
+[[rules]]
+description = "MinIO Access Key"
+id = "minio-access-key"
+regex = '''(?i)(minio[_-]?(access|secret)[_-]?key)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{20,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "minio",
+    "access",
+    "secret",
+    "key",
+]
+
+[[rules]]
+description = "NATS Connection String"
+id = "nats-connection"
+regex = '''nats://[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+:[0-9]+'''
+entropy = 3.0
+keywords = [
+    "nats",
+]
+
+[[rules]]
+description = "Signal Protocol Private Key"
+id = "signal-private-key"
+regex = '''(?i)(signal[_-]?private[_-]?key)\s*[:=]\s*['\"]?[a-zA-Z0-9+/]{40,}['\"]?'''
+secretGroup = 1
+entropy = 4.0
+keywords = [
+    "signal",
+    "private",
+    "key",
+]
+
+[[rules]]
+description = "Argon2id Salt"
+id = "argon2-salt"
+regex = '''(?i)(argon2[_-]?salt)\s*[:=]\s*['\"]?[a-zA-Z0-9+/]{32,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "argon2",
+    "salt",
+]
+
+[[rules]]
+description = "Flutter Secure Storage Key"
+id = "flutter-secure-key"
+regex = '''(?i)(flutter[_-]?secure[_-]?key)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{20,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "flutter",
+    "secure",
+    "key",
+]
+
+[[rules]]
+description = "Ed25519 Private Key"
+id = "ed25519-private-key"
+regex = '''(?i)(ed25519[_-]?private[_-]?key)\s*[:=]\s*['\"]?[a-zA-Z0-9+/]{40,}['\"]?'''
+secretGroup = 1
+entropy = 4.0
+keywords = [
+    "ed25519",
+    "private",
+    "key",
+]
+
+[[rules]]
+description = "JWT Signing Key"
+id = "jwt-signing-key"
+regex = '''(?i)(jwt[_-]?(signing|secret)[_-]?key)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{30,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "jwt",
+    "signing",
+    "secret",
+    "key",
+]
+
+[[rules]]
+description = "Twilio API Key"
+id = "twilio-api-key"
+regex = '''(?i)(twilio[_-]?(api|auth)[_-]?token)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{30,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "twilio",
+    "api",
+    "auth",
+    "token",
+]
+
+[[rules]]
+description = "Cloudflare API Token"
+id = "cloudflare-api-token"
+regex = '''(?i)(cloudflare[_-]?api[_-]?token)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{30,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "cloudflare",
+    "api",
+    "token",
+]
+
+[[rules]]
+description = "Bunny.net API Key"
+id = "bunny-api-key"
+regex = '''(?i)(bunny[_-]?api[_-]?key)\s*[:=]\s*['\"]?[a-zA-Z0-9._-]{30,}['\"]?'''
+secretGroup = 1
+entropy = 3.5
+keywords = [
+    "bunny",
+    "api",
+    "key",
+]

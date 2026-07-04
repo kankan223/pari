@@ -1,0 +1,23 @@
+{
+  "name": "civic-commons",
+  "version": "1.0.0",
+  "description": "Civic Commons - A Decentralized Privacy, News, Defense & Education Platform",
+  "private": true,
+  "scripts": {
+    "prepare": "husky install",
+    "lint:dart": "cd client && flutter analyze",
+    "lint:go": "cd services && golangci-lint run",
+    "format:go": "cd services && gofmt -l .",
+    "secret-scan": "gitleaks detect --source . --verbose --redact",
+    "pre-commit": "npm run lint:dart && npm run lint:go && npm run secret-scan"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^18.6.1",
+    "@commitlint/config-conventional": "^18.6.1",
+    "husky": "^8.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

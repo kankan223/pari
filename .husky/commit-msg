@@ -1,0 +1,22 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Civic Commons Commit Message Hook
+# This hook enforces conventional commit standards
+
+echo "📝 Checking commit message format..."
+
+npx --no -- commitlint --edit $1
+if [ $? -ne 0 ]; then
+    echo "❌ Commit message does not follow conventional commit format."
+    echo ""
+    echo "Allowed types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert, security"
+    echo ""
+    echo "Example: feat: implement user authentication"
+    echo "Example: fix: resolve memory leak in sync worker"
+    echo "Example: docs: update API documentation"
+    exit 1
+fi
+
+echo "✅ Commit message format check passed"
+exit 0

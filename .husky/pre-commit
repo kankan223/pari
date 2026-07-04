@@ -1,0 +1,58 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Civic Commons Pre-Commit Hook
+# This hook runs Flutter linting, Go formatting, and secret scanning before allowing commits
+
+echo "🔒 Running Civic Commons pre-commit checks..."
+
+# Note: We use a custom secret scanning script instead of gitleaks
+# to avoid global installation requirements
+
+# Run Flutter linting if client directory exists and Flutter is installed
+if [ -d "client" ]; then
+    if command -v flutter &> /dev/null; then
+        echo "📱 Running Flutter analysis..."
+        cd client && flutter analyze --no-pub
+        if [ $? -ne 0 ]; then
+            echo "❌ Flutter analysis failed. Please fix the issues before committing."
+            exit 1
+        fi
+        cd ..
+        echo "✅ Flutter analysis passed"
+    else
+        echo "⚠️  Flutter not found, skipping Flutter analysis"
+    fi
+else
+    echo "⚠️  Client directory not found, skipping Flutter analysis"
+fi
+
+# Run Go linting if services directory exists
+if [ -d "services" ]; then
+    echo "🔧 Running Go linting..."
+    if command -v golangci-lint &> /dev/null; then
+        cd services && golangci-lint run
+        if [ $? -ne 0 ]; then
+            echo "❌ Go linting failed. Please fix the issues before committing."
+            exit 1
+        fi
+        cd ..
+        echo "✅ Go linting passed"
+    else
+        echo "⚠️  golangci-lint not found, skipping Go linting"
+    fi
+else
+    echo "⚠️  Services directory not found, skipping Go linting"
+fi
+
+# Run secret scanning with custom script
+echo "🔍 Running secret scanning..."
+./scripts/secret-scan.sh
+if [ $? -ne 0 ]; then
+    echo "❌ Secret scanning failed. Potential secrets detected in your changes."
+    echo "Please remove or redact any sensitive data before committing."
+    exit 1
+fi
+
+echo "✅ All pre-commit checks passed. Proceeding with commit..."
+exit 0

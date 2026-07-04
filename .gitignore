@@ -1,0 +1,305 @@
+# Civic Commons - Comprehensive .gitignore
+# This file excludes secrets, build artifacts, and sensitive data from version control
+
+# =============================================================================
+# SECRETS & CREDENTIALS (CRITICAL - NEVER COMMIT THESE)
+# =============================================================================
+*.key
+*.pem
+*.crt
+*.csr
+*.p12
+*.pfx
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.production
+.env.test
+secrets/
+credentials/
+*.secret
+*.credentials
+id_rsa*
+id_ed25519*
+known_hosts
+auth.json
+.npmrc
+.yarnrc
+*.sops.json
+*.vault_password
+
+# =============================================================================
+# DART / FLUTTER
+# =============================================================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+.fvm/
+flutter_*.log
+*.apk
+*.ap_
+*.aab
+*.ipa
+*.app
+iOS/
+Pods/
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+*.hmap
+*.local/
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.xcuserstate
+project.xcworkspace/
+ios/.symlinks/
+ios/Pods/
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/.generated/
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+android/key.properties
+android/*.keystore
+android/*.jks
+android/app/release/
+android/app/debug/
+android/.idea/
+android/.gradle/
+android/build/
+
+# =============================================================================
+# GO
+# =============================================================================
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.txt
+
+# Go workspace file
+go.work
+
+# Vendor directory
+vendor/
+
+# Dependency directories
+bin/
+
+# Go build cache
+.cache/
+
+# =============================================================================
+# NODE.JS / JAVASCRIPT / TYPESCRIPT
+# =============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
+.nuxt/
+.cache/
+.parcel-cache/
+.next/
+out/
+build/
+.server/
+.client/
+.vercel/
+.netlify/
+
+# =============================================================================
+# TERRAFORM
+# =============================================================================
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+terraform.tfplan
+terraform.tfstate.backup
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+tfplan
+
+# =============================================================================
+# KUBERNETES / HELM
+# =============================================================================
+*.kubeconfig
+kubeconfig
+helm-secrets.yaml
+secrets.yaml
+*.secret.yaml
+charts/*.tgz
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+.venv
+
+# =============================================================================
+# DATABASE
+# =============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.sqlcipher
+vault.db
+vault_decoy.db
+*.dump
+*.sql.gz
+
+# =============================================================================
+# LOGS & TEMPORARY FILES
+# =============================================================================
+*.log
+logs/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+*.bak
+*.backup
+
+# =============================================================================
+# IDE & EDITOR FILES
+# =============================================================================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.iml
+*.ipr
+*.iws
+.history/
+.sourcemetadata/
+.externalToolBuilders/
+.recommenders/
+.c9/
+.launch/
+.settings/
+.metadata/
+.loadpath
+.factorypath
+.grails/
+.vscode/
+.codemeta/
+.cache-main/
+.cache-tests/
+
+# =============================================================================
+# OPERATIONS & DEPLOYMENT
+# =============================================================================
+*.pid
+*.seed
+*.pid.lock
+deploy/
+deployment/
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# =============================================================================
+# TESTING & COVERAGE
+# =============================================================================
+.coverage
+coverage/
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+.nyc_output/
+junit/
+test-results/
+
+# =============================================================================
+# DOCUMENTATION TEMPORARIES
+# =============================================================================
+docs/_build/
+docs/.doctrees/
+docs/.cache/
+
+# =============================================================================
+# MISCELLANEOUS
+# =============================================================================
+.sass-cache/
+*.sass-cache
+.rbenv-version
+.rvmrc
+.ruby-gemset
+.ruby-version
+.gemrc
+Gemfile.lock
