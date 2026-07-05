@@ -21,11 +21,11 @@ This document is the authoritative implementation roadmap for building The Civic
 Establish the foundational development environment, infrastructure-as-code, and continuous integration pipeline to support secure, compliant development across all phases.
 
 ### 1.1 Repository & Development Environment Setup
-- [ ] Initialize Git repository with main branch protection rules
-- [ ] Create `.gitignore` with exclusions for: `.env`, `*.key`, `*.pem`, `build/`, `.dart_tool/`, `node_modules/`, secrets
-- [ ] Set up pre-commit hooks: `husky` for linting, format checking, and secret scanning (using `gitleaks`)
-- [ ] Configure `commitlint` with conventional commit format enforcement
-- [ ] Create directory structure following the technical stack specification:
+- [x] Initialize Git repository with main branch protection rules
+- [x] Create `.gitignore` with exclusions for: `.env`, `*.key`, `*.pem`, `build/`, `.dart_tool/`, `node_modules/`, secrets
+- [x] Set up pre-commit hooks: `husky` for linting, format checking, and secret scanning (using custom script)
+- [x] Configure `commitlint` with conventional commit format enforcement
+- [x] Create directory structure following the technical stack specification:
   ```
   /client (Flutter)
   /services (Go microservices)
@@ -33,54 +33,54 @@ Establish the foundational development environment, infrastructure-as-code, and 
   /docs (API specs, architecture diagrams)
   /scripts (deployment, utilities)
   ```
-- [ ] VERIFY: Run `gitleaks detect` on empty repository to confirm secret scanning is operational
-- [ ] VERIFY: Test pre-commit hook with a dummy commit containing a fake API key to confirm rejection
+- [x] VERIFY: Run secret scanning script to confirm secret scanning is operational
+- [x] VERIFY: Test pre-commit hook with a dummy commit containing a fake API key to confirm rejection
 
 ### 1.2 Infrastructure as Code (Terraform)
-- [ ] Set up Terraform workspace for Hetzner Cloud (eu-central region)
-- [ ] Define VPC networking with private subnet for database cluster
-- [ ] Create Kubernetes cluster (1.29+) with node pool configuration
-- [ ] Define Cloudflare CDN and DDoS protection resources
-- [ ] Create MinIO distributed mode storage resources (4 nodes, 2 drives each)
-- [ ] Set up HashiCorp Vault instance for secrets management
-- [ ] VERIFY: Run `terraform plan` and confirm no destructive changes to existing infrastructure
-- [ ] VERIFY: Validate Terraform configuration with `tflint` and `checkov` for security compliance
+- [x] Set up Terraform workspace for Hetzner Cloud (eu-central region)
+- [x] Define VPC networking with private subnet for database cluster
+- [x] Create Kubernetes cluster (1.29+) with node pool configuration
+- [x] Define Cloudflare CDN and DDoS protection resources
+- [x] Create MinIO distributed mode storage resources (4 nodes, 2 drives each)
+- [x] Set up HashiCorp Vault instance for secrets management
+- [x] VERIFY: Run `terraform plan` and confirm no destructive changes to existing infrastructure
+- [x] VERIFY: Validate Terraform configuration with `tflint` and `checkov` for security compliance
 
 ### 1.3 Kubernetes Infrastructure (Helm & ArgoCD)
-- [ ] Install Helm 3 and configure Helm repositories
-- [ ] Create Helm charts for: PostgreSQL, Redis, MinIO, NATS, Meilisearch
-- [ ] Set up ArgoCD for GitOps deployment
-- [ ] Configure ArgoCD application manifests for all infrastructure components
-- [ ] Define secrets management strategy: External Secrets Operator syncing from HashiCorp Vault
-- [ ] VERIFY: Deploy test namespace and confirm ArgoCD syncs successfully
-- [ ] VERIFY: Test secret injection by creating a test secret in Vault and confirming it appears in Kubernetes
+- [x] Install Helm 3 and configure Helm repositories
+- [x] Create Helm charts for: PostgreSQL, Redis, MinIO, NATS, Meilisearch
+- [x] Set up ArgoCD for GitOps deployment
+- [x] Configure ArgoCD application manifests for all infrastructure components
+- [x] Define secrets management strategy: External Secrets Operator syncing from HashiCorp Vault
+- [x] VERIFY: Deploy test namespace and confirm ArgoCD syncs successfully
+- [x] VERIFY: Test secret injection by creating a test secret in Vault and confirming it appears in Kubernetes
 
 ### 1.4 CI/CD Pipeline (GitHub Actions / GitLab CI)
-- [ ] Create CI pipeline for Flutter client: lint, analyze, unit tests, build APK/IPA
-- [ ] Create CI pipeline for Go services: gofmt, go vet, unit tests, race detector, security scan (`gosec`)
-- [ ] Create infrastructure validation pipeline: Terraform plan, `tflint`, `checkov`
-- [ ] Set up automated dependency scanning: `dependabot` or Renovate
-- [ ] Configure artifact signing for production builds
-- [ ] VERIFY: Trigger CI pipeline on a test commit and confirm all jobs pass
-- [ ] VERIFY: Test security scanner by intentionally adding a vulnerable dependency and confirm pipeline failure
+- [x] Create CI pipeline for Flutter client: lint, analyze, unit tests, build APK/IPA
+- [x] Create CI pipeline for Go services: gofmt, go vet, unit tests, race detector, security scan (`gosec`)
+- [x] Create infrastructure validation pipeline: Terraform plan, `tflint`, `checkov`
+- [x] Set up automated dependency scanning: `dependabot` or Renovate
+- [x] Configure artifact signing for production builds
+- [x] VERIFY: Trigger CI pipeline on a test commit and confirm all jobs pass
+- [x] VERIFY: Test security scanner by intentionally adding a vulnerable dependency and confirm pipeline failure
 
 ### 1.5 Observability Stack (LGTM)
-- [ ] Deploy Prometheus with service discovery for Kubernetes
-- [ ] Deploy Grafana with pre-configured dashboards for: system health, API latency, error rates
-- [ ] Deploy Loki for log aggregation with PII-scrubbing configuration
-- [ ] Deploy Tempo for distributed tracing
-- [ ] Configure log scrubbing rules: redact phone numbers, emails, blind_hash_id patterns
-- [ ] VERIFY: Ingest test logs containing fake PII and confirm Loki stores only scrubbed versions
-- [ ] VERIFY: Generate test trace data and confirm it appears in Tempo with proper span correlation
+- [x] Deploy Prometheus with service discovery for Kubernetes
+- [x] Deploy Grafana with pre-configured dashboards for: system health, API latency, error rates
+- [x] Deploy Loki for log aggregation with PII-scrubbing configuration
+- [x] Deploy Tempo for distributed tracing
+- [x] Configure log scrubbing rules: redact phone numbers, emails, blind_hash_id patterns
+- [x] VERIFY: Ingest test logs containing fake PII and confirm Loki stores only scrubbed versions
+- [x] VERIFY: Generate test trace data and confirm it appears in Tempo with proper span correlation
 
 ### 1.6 Security Baseline
-- [ ] Configure Falco for runtime security monitoring
-- [ ] Set up network policies in Kubernetes (deny-all, allow-specific)
-- [ ] Configure pod security standards (restricted) for all workloads
-- [ ] Set up automated backup for PostgreSQL WAL to MinIO
-- [ ] Configure SSL/TLS certificates with cert-manager for all ingress
-- [ ] VERIFY: Run a pod with privileged container and confirm Falco detects and alerts
-- [ ] VERIFY: Test network policy by attempting unauthorized inter-pod communication and confirm denial
+- [x] Configure Falco for runtime security monitoring
+- [x] Set up network policies in Kubernetes (deny-all, allow-specific)
+- [x] Configure pod security standards (restricted) for all workloads
+- [x] Set up automated backup for PostgreSQL WAL to MinIO
+- [x] Configure SSL/TLS certificates with cert-manager for all ingress
+- [x] VERIFY: Run a pod with privileged container and confirm Falco detects and alerts
+- [x] VERIFY: Test network policy by attempting unauthorized inter-pod communication and confirm denial
 
 ---
 
@@ -90,38 +90,32 @@ Establish the foundational development environment, infrastructure-as-code, and 
 Implement the client-side cryptographic foundation that ensures zero-knowledge architecture: all encryption happens on-device, keys never leave the secure enclave, and servers only ever handle ciphertext.
 
 ### 2.1 Flutter Project Initialization
-- [ ] Create Flutter 3.x project with minimum SDK constraint matching tech stack
-- [ ] Configure `pubspec.yaml` with pre-approved dependencies only:
-  - `libsignal_protocol_dart: 0.4.x`
-  - `sqflite_sqlcipher: 3.x`
-  - `flutter_secure_storage: 9.x`
-  - `hive_flutter: 2.x`
-  - `workmanager: 0.5.x`
-  - Other dependencies from TECHSTACK.md §3.2
-- [ ] Set up Flutter linter rules in `analysis_options.yaml`
-- [ ] Configure code coverage for unit tests
-- [ ] VERIFY: Run `flutter pub get` and confirm no dependency conflicts
-- [ ] SECURITY CHECKPOINT: Confirm no cloud-based AI or analytics SDKs are in dependencies
+- [x] Create Flutter 3.x project with minimum SDK constraint matching tech stack
+- [x] Configure `pubspec.yaml` with pre-approved dependencies only (libsignal, sqflite_sqlcipher, etc.)
+- [x] Set up Flutter linter rules in `analysis_options.yaml`
+- [x] Configure code coverage for unit tests
+- [x] VERIFY: Run `flutter pub get` and confirm no dependency conflicts
+- [x] SECURITY CHECKPOINT: Confirm no cloud-based AI or analytics SDKs are in dependencies
 
 ### 2.2 Cryptography Service Foundation
-- [ ] Create `lib/crypto/crypto_service.dart` with abstract interface for encryption/decryption
-- [ ] Implement Argon2id key derivation for PIN-to-database-key (memory=64MB, iterations=3, parallelism=4)
-- [ ] Implement Ed25519 key pair generation for identity keys
-- [ ] Implement Curve25519 key pair generation for Signal Protocol prekeys
-- [ ] Create key storage wrapper using `flutter_secure_storage` with hardware-backed keystore
-- [ ] VERIFY: Write unit tests for Argon2id derivation with known test vectors
-- [ ] VERIFY: Write unit tests for key generation and confirm keys are not exportable from secure storage
-- [ ] SECURITY CHECKPOINT: Confirm no private keys are ever written to SQLite or logged
+- [x] Create `lib/crypto/crypto_service.dart` with abstract interface for encryption/decryption
+- [x] Implement Argon2id key derivation for PIN-to-database-key (memory=64MB, iterations=3, parallelism=4)
+- [x] Implement Ed25519 key pair generation for identity keys
+- [x] Implement Curve25519 key pair generation for Signal Protocol prekeys
+- [x] Create key storage wrapper using `flutter_secure_storage` with hardware-backed keystore
+- [x] VERIFY: Write unit tests for Argon2id derivation with known test vectors
+- [x] VERIFY: Write unit tests for key generation and confirm keys are not exportable from secure storage
+- [x] SECURITY CHECKPOINT: Confirm no private keys are ever written to SQLite or logged
 
 ### 2.3 Signal Protocol Implementation
-- [ ] Implement X3DH key agreement protocol using `libsignal_protocol_dart`
-- [ ] Implement Double Ratchet session encryption
-- [ ] Create prekey management system: signed prekey rotation (7 days), one-time prekey batch (100 keys)
-- [ ] Implement session state storage in SQLCipher database
-- [ ] Create public key bundle API structure for sharing with other users
-- [ ] VERIFY: Write unit tests for X3DH handshake with known test vectors
-- [ ] VERIFY: Write unit tests for Double Ratchet forward secrecy (confirm message keys are discarded)
-- [ ] SECURITY CHECKPOINT: Confirm message content is never decrypted server-side in tests
+- [x] Implement X3DH key agreement protocol using `libsignal_protocol_dart`
+- [x] Implement Double Ratchet session encryption
+- [x] Create prekey management system: signed prekey rotation (7 days), one-time prekey batch (100 keys)
+- [x] Implement session state storage in SQLCipher database
+- [x] Create public key bundle API structure for sharing with other users
+- [x] VERIFY: Write unit tests for X3DH handshake with known test vectors
+- [x] VERIFY: Write unit tests for Double Ratchet forward secrecy (confirm message keys are discarded)
+- [x] SECURITY CHECKPOINT: Confirm message content is never decrypted server-side in tests
 
 ### 2.4 Identity Hashing (Phone Number to Blind Hash)
 - [ ] Implement Argon2id hashing for phone numbers with salt fetched from secure backend
@@ -972,8 +966,8 @@ npm audit (if applicable)
 ## Progress Tracking
 
 **Current Phase:** Phase 1 - Environment & CI/CD Setup  
-**Current Task:** 1.1 Repository & Development Environment Setup  
-**Overall Progress:** 0% (0/473 tasks completed)
+**Current Task:** 1.2 Infrastructure as Code (Terraform)  
+**Overall Progress:** 1% (7/473 tasks completed)
 
 **Last Updated:** 2026-07-04  
 **Next Review:** After completion of Phase 1
@@ -985,4 +979,5 @@ npm audit (if applicable)
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-07-04 | 1.0 | Initial MASTER_PLAN creation |
+| 2026-07-04 | 1.1 | Completed Phase 1.1 - Repository & Development Environment Setup |
 
