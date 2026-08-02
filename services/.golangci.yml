@@ -1,0 +1,58 @@
+# golangci-lint configuration — Civic Commons services (Task 4.1)
+#
+# Strict static-analysis rules for Go code quality and security.
+# Compatible with golangci-lint v1.64.x.
+run:
+  timeout: 5m
+  tests: true
+  # Only analyze the services module tree.
+  issues-exit-code: 1
+
+output:
+  formats:
+    - format: colored-line-number
+
+linters:
+  enable:
+    - errcheck        # unchecked errors
+    - govet           # go vet (std)
+    - staticcheck     # SA checks (gc)
+    - unused          # unused code
+    - ineffassign     # ineffectual assignments
+    - revive          # golint superset (style + quality)
+    - gosec           # security/SAST
+    - bodyclose       # HTTP response bodies must be closed
+    - misspell        # spelling in comments/strings
+    - errorlint       # error wrapping best practices
+    - nilerr          # nil error returns
+    - gocritic        # opinionated style/performance
+    - gofmt           # gofmt compliance
+    - goimports       # import grouping/ordering
+  disable:
+    - exhaustruct     # too noisy for scaffold structs
+    - lll             # long line limit disabled
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+  govet:
+    enable-all: false
+    disable:
+      - fieldalignment
+  gosec:
+    excludes:
+      - G404  # weak random (crypto/rand enforced where security-relevant)
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+  gocritic:
+    disabled-checks:
+      - ifElseChain
+      - singleCaseSwitch
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

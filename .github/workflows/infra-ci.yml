@@ -1,0 +1,41 @@
+name: Infrastructure CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'infrastructure/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'infrastructure/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./infrastructure
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      
+    - name: Terraform Init
+      run: terraform init -backend=false
+      
+    - name: Setup TFLint
+      uses: terraform-linters/setup-tflint@v4
+      
+    - name: Run TFLint
+      run: tflint
+      
+    - name: Terraform Plan
+      run: terraform plan -var-file=terraform.tfvars
+      
+    - name: Run Checkov
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: ./infrastructure

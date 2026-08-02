@@ -1,0 +1,4 @@
+apiVersion: v2
+name: minio
+description: MinIO distributed storage for Civic Commons
+version: 0.1.0

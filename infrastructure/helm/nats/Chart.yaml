@@ -1,0 +1,4 @@
+apiVersion: v2
+name: nats
+description: NATS JetStream event bus for Civic Commons
+version: 0.1.0

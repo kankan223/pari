@@ -1,16 +1,26 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:civic_commons/crypto/secure_key_storage.dart';
 import 'package:cryptography/cryptography.dart';
 
+/// Helper: extract raw public key bytes from a SimpleKeyPair.
+Future<Uint8List> _pubBytes(SimpleKeyPair keyPair) async =>
+    Uint8List.fromList((await keyPair.extractPublicKey()).bytes);
+
 void main() {
+  // flutter_secure_storage talks to a platform MethodChannel; in tests this
+  // requires the Flutter test binding plus the in-memory mock values.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('SecureKeyStorage - Identity Key Storage', () {
     late SecureKeyStorage secureStorage;
     late FlutterSecureStorage mockSecureStorage;
 
     setUp(() async {
       // Use in-memory storage for testing
+      FlutterSecureStorage.setMockInitialValues({});
       mockSecureStorage = FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
@@ -31,8 +41,8 @@ void main() {
       // Assert
       expect(retrievedKeyPair, isNotNull);
       
-      final originalPublicKey = await keyPair.extractPublicKeyBytes();
-      final retrievedPublicKey = await retrievedKeyPair!.extractPublicKeyBytes();
+      final originalPublicKey = await _pubBytes(keyPair);
+      final retrievedPublicKey = await _pubBytes(retrievedKeyPair!);
       expect(retrievedPublicKey, equals(originalPublicKey));
     });
 
@@ -68,8 +78,8 @@ void main() {
 
       // Assert
       expect(retrievedKeyPair, isNotNull);
-      final publicKey2 = await keyPair2.extractPublicKeyBytes();
-      final retrievedPublicKey = await retrievedKeyPair!.extractPublicKeyBytes();
+      final publicKey2 = await _pubBytes(keyPair2);
+      final retrievedPublicKey = await _pubBytes(retrievedKeyPair!);
       expect(retrievedPublicKey, equals(publicKey2));
     });
   });
@@ -79,6 +89,8 @@ void main() {
     late FlutterSecureStorage mockSecureStorage;
 
     setUp(() async {
+      // Use in-memory storage for tests (no device keychain required)
+      FlutterSecureStorage.setMockInitialValues({});
       mockSecureStorage = FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
@@ -100,8 +112,8 @@ void main() {
       // Assert
       expect(retrievedKeyPair, isNotNull);
       
-      final originalPublicKey = await keyPair.extractPublicKeyBytes();
-      final retrievedPublicKey = await retrievedKeyPair!.extractPublicKeyBytes();
+      final originalPublicKey = await _pubBytes(keyPair);
+      final retrievedPublicKey = await _pubBytes(retrievedKeyPair!);
       expect(retrievedPublicKey, equals(originalPublicKey));
     });
 
@@ -129,10 +141,10 @@ void main() {
       expect(retrievedKeyPair1, isNotNull);
       expect(retrievedKeyPair2, isNotNull);
       
-      final publicKey1 = await keyPair1.extractPublicKeyBytes();
-      final publicKey2 = await keyPair2.extractPublicKeyBytes();
-      final retrievedPublicKey1 = await retrievedKeyPair1!.extractPublicKeyBytes();
-      final retrievedPublicKey2 = await retrievedKeyPair2!.extractPublicKeyBytes();
+      final publicKey1 = await _pubBytes(keyPair1);
+      final publicKey2 = await _pubBytes(keyPair2);
+      final retrievedPublicKey1 = await _pubBytes(retrievedKeyPair1!);
+      final retrievedPublicKey2 = await _pubBytes(retrievedKeyPair2!);
       
       expect(retrievedPublicKey1, equals(publicKey1));
       expect(retrievedPublicKey2, equals(publicKey2));
@@ -144,6 +156,8 @@ void main() {
     late FlutterSecureStorage mockSecureStorage;
 
     setUp(() async {
+      // Use in-memory storage for tests (no device keychain required)
+      FlutterSecureStorage.setMockInitialValues({});
       mockSecureStorage = FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
@@ -165,8 +179,8 @@ void main() {
       // Assert
       expect(retrievedKeyPair, isNotNull);
       
-      final originalPublicKey = await keyPair.extractPublicKeyBytes();
-      final retrievedPublicKey = await retrievedKeyPair!.extractPublicKeyBytes();
+      final originalPublicKey = await _pubBytes(keyPair);
+      final retrievedPublicKey = await _pubBytes(retrievedKeyPair!);
       expect(retrievedPublicKey, equals(originalPublicKey));
     });
 
@@ -198,6 +212,8 @@ void main() {
     late FlutterSecureStorage mockSecureStorage;
 
     setUp(() async {
+      // Use in-memory storage for tests (no device keychain required)
+      FlutterSecureStorage.setMockInitialValues({});
       mockSecureStorage = FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
@@ -229,6 +245,8 @@ void main() {
     late FlutterSecureStorage mockSecureStorage;
 
     setUp(() async {
+      // Use in-memory storage for tests (no device keychain required)
+      FlutterSecureStorage.setMockInitialValues({});
       mockSecureStorage = FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);

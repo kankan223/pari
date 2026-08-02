@@ -1,0 +1,4 @@
+apiVersion: v2
+name: redis
+description: Redis cache and queue for Civic Commons
+version: 0.1.0

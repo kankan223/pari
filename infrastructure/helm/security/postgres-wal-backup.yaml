@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-wal-backup
+  namespace: data
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: wal-g
+            image: walg/wal-g:latest
+            command: ["wal-g", "backup-push", "/var/lib/postgresql/data"]
+            env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-creds
+                  key: accesskey
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-creds
+                  key: secretkey
+            - name: WALE_S3_PREFIX
+              value: "s3://pg-backups/"
+            - name: AWS_ENDPOINT
+              value: "http://minio:9000"
+          restartPolicy: OnFailure

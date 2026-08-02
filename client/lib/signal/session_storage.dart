@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart';
@@ -30,7 +31,8 @@ class SessionStorage {
     
     _database = await openDatabase(
       path,
-      password: _encryptionKey,
+      // SQLCipher requires a String password; encode the derived 256-bit key.
+      password: base64Encode(_encryptionKey),
       version: 1,
       onCreate: _onCreate,
     );
@@ -271,13 +273,11 @@ class SessionStorage {
 
   /// Base64 encode helper
   String _base64Encode(Uint8List data) {
-    // Using dart:convert base64
-    return 'base64_encoded_placeholder'; // Will be replaced with actual implementation
+    return base64Encode(data);
   }
 
   /// Base64 decode helper
   Uint8List _base64Decode(String data) {
-    // Using dart:convert base64
-    return Uint8List(0); // Will be replaced with actual implementation
+    return Uint8List.fromList(base64Decode(data));
   }
 }

@@ -1,0 +1,20 @@
+# Example Terraform variables file
+# Copy this to terraform.tfvars and fill in your actual values
+# DO NOT commit terraform.tfvars to version control
+
+hcloud_token           = "your_hetzner_cloud_api_token"
+cloudflare_api_token    = "your_cloudflare_api_token"
+cloudflare_zone_id      = "your_cloudflare_zone_id"
+cloudflare_account_id   = "your_cloudflare_account_id"
+domain_name             = "civiccommons.example.com"
+kubeconfig_path         = "./kubeconfig"
+region                  = "fsn1"
+cluster_name            = "civic-commons"
+kubernetes_version      = "1.29.0"
+node_count              = 3
+server_type             = "cpx21"
+database_node_type      = "cpx31"
+minio_node_count        = 4
+minio_drives_per_node   = 2
+ssh_public_key          = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."
+vault_token_initial     = "your_vault_initial_root_token"

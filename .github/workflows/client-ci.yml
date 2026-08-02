@@ -1,0 +1,51 @@
+name: Client CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'client/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'client/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./client
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+        
+    - name: Install dependencies
+      run: flutter pub get
+      
+    - name: Analyze project
+      run: flutter analyze
+      
+    - name: Run tests
+      run: flutter test
+      
+    - name: Build APK
+      run: flutter build apk --release
+      
+    - name: Build IPA (No Signing)
+      run: flutter build ios --release --no-codesign
+      
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@v3.5.0
+      
+    - name: Sign Artifacts
+      env:
+        COSIGN_PASSWORD: ""
+      run: |
+        cosign sign-blob --key env://COSIGN_PRIVATE_KEY build/app/outputs/flutter-apk/app-release.apk

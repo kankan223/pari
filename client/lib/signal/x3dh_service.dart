@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'package:libsignal_protocol_dart/libsignal_protocol_dart.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:civic_commons/crypto/crypto_service.dart';
 import 'package:civic_commons/crypto/secure_key_storage.dart';
 import 'models.dart';
@@ -29,30 +29,26 @@ class X3DHService {
   /// Security: All computations are performed client-side
   Future<Uint8List> initiateX3DH(
     PreKeyBundle bundle,
-    KeyPair identityKeyPair,
+    SimpleKeyPair identityKeyPair,
   ) async {
     // Generate ephemeral key pair for this session
     final ephemeralKeyPair = await _cryptoService.generateCurve25519KeyPair();
 
-    // Extract public keys
-    final identityPublicKey = await identityKeyPair.extractPublicKeyBytes();
-    final ephemeralPublicKey = await ephemeralKeyPair.extractPublicKeyBytes();
-
     // Perform DH1: DH(identityKeyPrivate, signedPreKeyPublic)
     final dh1 = await _performDH(
-      await identityKeyPair.extractPrivateKeyBytes(),
+      Uint8List.fromList(await identityKeyPair.extractPrivateKeyBytes()),
       bundle.signedPreKey,
     );
 
     // Perform DH2: DH(ephemeralKeyPrivate, identityKeyPublic)
     final dh2 = await _performDH(
-      await ephemeralKeyPair.extractPrivateKeyBytes(),
+      Uint8List.fromList(await ephemeralKeyPair.extractPrivateKeyBytes()),
       bundle.identityKey,
     );
 
     // Perform DH3: DH(ephemeralKeyPrivate, signedPreKeyPublic)
     final dh3 = await _performDH(
-      await ephemeralKeyPair.extractPrivateKeyBytes(),
+      Uint8List.fromList(await ephemeralKeyPair.extractPrivateKeyBytes()),
       bundle.signedPreKey,
     );
 
@@ -60,7 +56,7 @@ class X3DHService {
     Uint8List? dh4;
     if (bundle.oneTimePreKey != null) {
       dh4 = await _performDH(
-        await ephemeralKeyPair.extractPrivateKeyBytes(),
+        Uint8List.fromList(await ephemeralKeyPair.extractPrivateKeyBytes()),
         bundle.oneTimePreKey!,
       );
     }
@@ -68,8 +64,10 @@ class X3DHService {
     // Combine DH outputs to create shared secret
     final sharedSecret = _combineDhOutputs([dh1, dh2, dh3, if (dh4 != null) dh4]);
 
-    // Securely wipe ephemeral private key
-    final ephemeralPrivateKey = await ephemeralKeyPair.extractPrivateKeyBytes();
+    // Securely wipe ephemeral private key (extractPrivateKeyBytes() returns
+    // an unmodifiable SensitiveBytes-backed list, so wipe a mutable copy -
+    // best-effort cleanup, consistent with the rest of the codebase).
+    final ephemeralPrivateKey = Uint8List.fromList(await ephemeralKeyPair.extractPrivateKeyBytes());
     ephemeralPrivateKey.fillRange(0, ephemeralPrivateKey.length, 0);
 
     return sharedSecret;
@@ -88,13 +86,13 @@ class X3DHService {
   /// Security: All computations are performed client-side
   Future<Uint8List> respondToX3DH(
     Uint8List initiatorEphemeralPublicKey,
-    KeyPair identityKeyPair,
+    SimpleKeyPair identityKeyPair,
     SignedPreKey signedPreKey,
     OneTimePreKey? oneTimePreKey,
   ) async {
     // Perform DH1: DH(identityKeyPrivate, initiatorEphemeralPublic)
     final dh1 = await _performDH(
-      await identityKeyPair.extractPrivateKeyBytes(),
+      Uint8List.fromList(await identityKeyPair.extractPrivateKeyBytes()),
       initiatorEphemeralPublicKey,
     );
 

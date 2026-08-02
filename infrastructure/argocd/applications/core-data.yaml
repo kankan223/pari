@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: data-infrastructure
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/Ken/civic-commons.git'
+    path: infrastructure/helm
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: data
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 /// Public key bundle for sharing with other users
@@ -51,14 +52,12 @@ class PreKeyBundle {
     );
   }
 
-  String _base64Encode(Uint8List data) {
-    // Using dart:convert base64
-    return 'base64_encoded_placeholder'; // Will be replaced with actual implementation
+  static String _base64Encode(Uint8List data) {
+    return base64Encode(data);
   }
 
-  Uint8List _base64Decode(String data) {
-    // Using dart:convert base64
-    return Uint8List(0); // Will be replaced with actual implementation
+  static Uint8List _base64Decode(String data) {
+    return Uint8List.fromList(base64Decode(data));
   }
 }
 

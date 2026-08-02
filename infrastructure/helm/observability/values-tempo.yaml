@@ -1,0 +1,11 @@
+tempo:
+  repository: grafana/tempo
+  tag: latest
+  search:
+    enabled: true
+  traces:
+    otlp:
+      http:
+        enabled: true
+      grpc:
+        enabled: true

@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: "pub"
+    directory: "/client"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gomod"
+    directory: "/services"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "terraform"
+    directory: "/infrastructure"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

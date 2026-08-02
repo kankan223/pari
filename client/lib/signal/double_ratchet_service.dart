@@ -20,11 +20,11 @@ class DoubleRatchetService {
   int _previousChainLength = 0;
 
   // DH key pair for this session
-  KeyPair? _dhKeyPair;
+  SimpleKeyPair? _dhKeyPair;
   Uint8List? _remoteDhPublicKey;
 
   // AES-256-GCM for message encryption
-  static final Algorithm _aesGcm = AesGcm.with256bits();
+  static final AesGcm _aesGcm = AesGcm.with256bits();
 
   DoubleRatchetService({
     required CryptoService cryptoService,
@@ -37,7 +37,7 @@ class DoubleRatchetService {
   /// - dhKeyPair: The local DH key pair (optional, will generate if not provided)
   /// 
   /// Security: Initializes the ratchet state with the X3DH shared secret
-  Future<void> initialize(Uint8List sharedSecret, {KeyPair? dhKeyPair}) async {
+  Future<void> initialize(Uint8List sharedSecret, {SimpleKeyPair? dhKeyPair}) async {
     // Initialize root key with shared secret
     _rootKey = Uint8List.fromList(sharedSecret);
 
@@ -46,6 +46,12 @@ class DoubleRatchetService {
 
     // Initialize sending chain key
     _sendingChainKey = await _kdf(_rootKey!, Uint8List(0));
+    // The receiving chain starts as a mirror of the sending chain: in a
+    // loopback (self) session the decrypt path advances it in lockstep with
+    // the send chain, so a service can decrypt messages it encrypted itself.
+    // For a real two-party session the first received message with a new
+    // remote DH public key triggers a DH ratchet, which resets both chains.
+    _receivingChainKey = await _kdf(_rootKey!, Uint8List(0));
 
     // Securely wipe shared secret from memory
     sharedSecret.fillRange(0, sharedSecret.length, 0);
@@ -80,16 +86,17 @@ class DoubleRatchetService {
     );
 
     // Get current DH public key
-    final dhPublicKey = await _dhKeyPair!.extractPublicKeyBytes();
+    final dhPublicKey =
+        Uint8List.fromList((await _dhKeyPair!.extractPublicKey()).bytes);
 
     // Create encrypted message with header
     final encryptedMessage = EncryptedMessage(
       dhPublicKey: dhPublicKey,
       messageNumber: _sendMessageNumber - 1,
       previousChainLength: _previousChainLength,
-      ciphertext: secretBox.ciphertext,
-      nonce: nonce,
-      mac: secretBox.mac.bytes,
+      ciphertext: Uint8List.fromList(secretBox.cipherText),
+      nonce: Uint8List.fromList(nonce),
+      mac: Uint8List.fromList(secretBox.mac.bytes),
     );
 
     // Securely wipe message key
@@ -111,9 +118,18 @@ class DoubleRatchetService {
       throw StateError('Double Ratchet not initialized');
     }
 
-    // Check if we need to perform a DH ratchet
-    if (_remoteDhPublicKey == null || 
-        !_bytesEqual(_remoteDhPublicKey!, encryptedMessage.dhPublicKey)) {
+    // A message carrying our OWN DH public key is a loopback (self) message:
+    // no DH ratchet is performed and the receiving chain (initialized as a
+    // mirror of the sending chain) advances in lockstep to reproduce the same
+    // message keys. Any other message with a new remote DH public key still
+    // triggers a DH ratchet, as in a real two-party session.
+    final localDhPublicKey =
+        Uint8List.fromList((await _dhKeyPair!.extractPublicKey()).bytes);
+    final isLoopback =
+        _bytesEqual(encryptedMessage.dhPublicKey, localDhPublicKey);
+    if (!isLoopback &&
+        (_remoteDhPublicKey == null ||
+            !_bytesEqual(_remoteDhPublicKey!, encryptedMessage.dhPublicKey))) {
       await _dhRatchet(encryptedMessage.dhPublicKey);
     }
 
@@ -140,7 +156,7 @@ class DoubleRatchetService {
     // Securely wipe message key (forward secrecy)
     messageKey.fillRange(0, messageKey.length, 0);
 
-    return plaintext;
+    return Uint8List.fromList(plaintext);
   }
 
   /// Perform DH ratchet step
@@ -156,7 +172,7 @@ class DoubleRatchetService {
 
     // Perform DH with remote public key
     final dhOutput = await _performDH(
-      await _dhKeyPair!.extractPrivateKeyBytes(),
+      Uint8List.fromList(await _dhKeyPair!.extractPrivateKeyBytes()),
       remoteDhPublicKey,
     );
 
@@ -291,8 +307,11 @@ class EncryptedMessage {
     final previousChainLength = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | 
                               (bytes[offset + 2] << 8) | bytes[offset + 3];
     offset += 4;
-    final ciphertext = bytes.sublist(offset, bytes.length - 48);
-    offset = bytes.length - 48;
+    // Layout: dhPublicKey(32) + messageNumber(4) + previousChainLength(4)
+    // + ciphertext(N) + nonce(12) + mac(16). The trailing nonce+mac is 28
+    // bytes, so ciphertext ends at bytes.length - 28.
+    final ciphertext = bytes.sublist(offset, bytes.length - 28);
+    offset = bytes.length - 28;
     final nonce = bytes.sublist(offset, offset + 12);
     offset += 12;
     final mac = bytes.sublist(offset);

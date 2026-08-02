@@ -14,17 +14,19 @@ dependencies:
   cupertino_icons: ^1.0.2
 
   # Security & Storage Layer
-  libsignal_protocol_dart: ^0.4.0
+  libsignal_protocol_dart: ^0.8.0
   sqflite_sqlcipher: ^3.0.0
   flutter_secure_storage: ^9.0.0
-  hive_flutter: ^2.0.0
+  # hive_flutter was discontinued (no Dart 3 support); hive_ce_flutter is the
+  # maintained community fork with the same API (offline Hive boxes, Phase 3)
+  hive_ce_flutter: ^2.3.4
   workmanager: ^0.5.0
   flutter_dotenv: ^5.0.0
   
   # Cryptography
-  argon2_dart: ^1.0.0
   convert: ^3.1.1
-  cryptography: ^2.0.5
+  # Argon2id (RFC 9106) requires cryptography >= 2.7.0
+  cryptography: ^2.7.0
 
   # Device & Media
   geolocator: ^11.0.0

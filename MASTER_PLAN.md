@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Updated:** 2026-07-04  
+**Last Updated:** 2026-08-02  
 **Role:** Single Source of Truth for All Development Work
 
 ---
@@ -118,40 +118,40 @@ Implement the client-side cryptographic foundation that ensures zero-knowledge a
 - [x] SECURITY CHECKPOINT: Confirm message content is never decrypted server-side in tests
 
 ### 2.4 Identity Hashing (Phone Number to Blind Hash)
-- [ ] Implement Argon2id hashing for phone numbers with salt fetched from secure backend
-- [ ] Create phone number validation (E164 format)
-- [ ] Implement salt rotation logic (quarterly) with fallback support
-- [ ] Create blind hash ID generation and storage
-- [ ] VERIFY: Write unit tests for phone hashing with known salt and confirm output matches expected hash
-- [ ] VERIFY: Write unit tests for salt rotation and confirm old hashes can still be validated
-- [ ] SECURITY CHECKPOINT: Confirm raw phone numbers are never persisted to disk or logged
+- [x] Implement Argon2id hashing for phone numbers with salt fetched from secure backend
+- [x] Create phone number validation (E164 format)
+- [x] Implement salt rotation logic (quarterly) with fallback support
+- [x] Create blind hash ID generation and storage
+- [x] VERIFY: Write unit tests for phone hashing with known salt and confirm output matches expected hash
+- [x] VERIFY: Write unit tests for salt rotation and confirm old hashes can still be validated
+- [x] SECURITY CHECKPOINT: Confirm raw phone numbers are never persisted to disk or logged
 
 ### 2.5 Duress PIN Implementation
-- [ ] Implement dual PIN registration flow (real PIN + duress PIN)
-- [ ] Create separate database key derivation paths for each PIN
-- [ ] Implement decoy database (`vault_decoy.db`) initialization
-- [ ] Create database selection logic based on which PIN successfully decrypts
-- [ ] VERIFY: Write unit tests for duress PIN unlocking decoy database
-- [ ] VERIFY: Write unit tests for real PIN unlocking real database
-- [ ] SECURITY CHECKPOINT: Confirm app never stores which PIN is real vs duress
+- [x] Implement dual PIN registration flow (real PIN + duress PIN)
+- [x] Create separate database key derivation paths for each PIN
+- [x] Implement decoy database (`vault_decoy.db`) initialization
+- [x] Create database selection logic based on which PIN successfully decrypts
+- [x] VERIFY: Write unit tests for duress PIN unlocking decoy database
+- [x] VERIFY: Write unit tests for real PIN unlocking real database
+- [x] SECURITY CHECKPOINT: Confirm app never stores which PIN is real vs duress
 
 ### 2.6 Hardware Security Integration
-- [ ] Implement `FLAG_SECURE` wrapper for Android using platform channel
-- [ ] Create secure screen wrapper widget for Vault and War Room screens
-- [ ] Implement root/jailbreak detection (local only, no telemetry)
-- [ ] Create graceful degradation flow for rooted devices (warning, not block)
-- [ ] VERIFY: Test on Android device and confirm screenshot is blocked when FLAG_SECURE is active
-- [ ] VERIFY: Test on rooted device and confirm warning appears without sending telemetry
-- [ ] SECURITY CHECKPOINT: Confirm no device fingerprinting data is sent to server
+- [x] Implement `FLAG_SECURE` wrapper for Android using platform channel
+- [x] Create secure screen wrapper widget for Vault and War Room screens
+- [x] Implement root/jailbreak detection (local only, no telemetry)
+- [x] Create graceful degradation flow for rooted devices (warning, not block)
+- [x] VERIFY: Test on Android device and confirm screenshot is blocked when FLAG_SECURE is active
+- [x] VERIFY: Test on rooted device and confirm warning appears without sending telemetry
+- [x] SECURITY CHECKPOINT: Confirm no device fingerprinting data is sent to server
 
 ### 2.7 Zero-Plaintext Logging System
-- [ ] Create custom logging wrapper that redacts PII patterns
-- [ ] Implement hash-only logging for sensitive operations (log hash IDs, not raw data)
-- [ ] Add boolean success/fail logging for cryptographic operations
-- [ ] Configure logging levels for development vs production
-- [ ] VERIFY: Write unit tests that attempt to log PII and confirm redaction occurs
-- [ ] VERIFY: Write unit tests for hash-only logging and confirm reversibility is impossible
-- [ ] SECURITY CHECKPOINT: Confirm no `print()` or `debugPrint()` outputs raw payload data
+- [x] Create custom logging wrapper that redacts PII patterns
+- [x] Implement hash-only logging for sensitive operations (log hash IDs, not raw data)
+- [x] Add boolean success/fail logging for cryptographic operations
+- [x] Configure logging levels for development vs production
+- [x] VERIFY: Write unit tests that attempt to log PII and confirm redaction occurs
+- [x] VERIFY: Write unit tests for hash-only logging and confirm reversibility is impossible
+- [x] SECURITY CHECKPOINT: Confirm no `print()` or `debugPrint()` outputs raw payload data
 
 ---
 
@@ -161,63 +161,63 @@ Implement the client-side cryptographic foundation that ensures zero-knowledge a
 Build the local data layer with SQLCipher encryption and a queue-based sync system that ensures the app works offline and syncs resiliently when connectivity returns.
 
 ### 3.1 SQLCipher Database Schema Design
-- [ ] Define Drift/SQLCipher schema for core entities:
+- [x] Define Drift/SQLCipher schema for core entities:
   - `users` (blind_hash_id, username, device_pubkey)
   - `conversations` (id, participant_hash, encrypted_session_state)
   - `messages` (id, conversation_id, ciphertext, delivered, expires_at)
   - `connection_requests` (id, requester_hash, recipient_hash, status)
   - `sync_queue` (id, operation_type, payload, status, retry_count)
-- [ ] Create database migration system
-- [ ] Implement database key derivation from user PIN (Argon2id)
-- [ ] VERIFY: Write unit tests for schema creation and migration
-- [ ] VERIFY: Write unit tests for database encryption/decryption with wrong key failure
-- [ ] SECURITY CHECKPOINT: Confirm all sensitive columns are encrypted at rest
+- [x] Create database migration system
+- [x] Implement database key derivation from user PIN (Argon2id)
+- [x] VERIFY: Write unit tests for schema creation and migration
+- [x] VERIFY: Write unit tests for database encryption/decryption with wrong key failure
+- [x] SECURITY CHECKPOINT: Confirm all sensitive columns are encrypted at rest
 
 ### 3.2 Repository Pattern Implementation
-- [ ] Create abstract `BaseRepository` class with standard CRUD operations
-- [ ] Implement `ConversationRepository` for Vault data
-- [ ] Implement `MessageRepository` with local-first read/write
-- [ ] Implement `SyncQueueRepository` for pending operations
-- [ ] Create repository interface that returns local data immediately, then syncs
-- [ ] VERIFY: Write unit tests for repository CRUD operations
-- [ ] VERIFY: Write unit tests for repository returning cached data before sync
-- [ ] SECURITY CHECKPOINT: Confirm repositories never make direct HTTP calls
+- [x] Create abstract `BaseRepository` class with standard CRUD operations
+- [x] Implement `ConversationRepository` for Vault data
+- [x] Implement `MessageRepository` with local-first read/write
+- [x] Implement `SyncQueueRepository` for pending operations
+- [x] Create repository interface that returns local data immediately, then syncs
+- [x] VERIFY: Write unit tests for repository CRUD operations
+- [x] VERIFY: Write unit tests for repository returning cached data before sync
+- [x] SECURITY CHECKPOINT: Confirm repositories never make direct HTTP calls
 
 ### 3.3 Sync Queue Implementation
-- [ ] Create `SyncQueueItem` model with fields: operation_type, payload, status, retry_count, created_at
-- [ ] Implement queue status enum: `pending`, `in_progress`, `success`, `failed`
-- [ ] Create queue insertion logic for all mutation operations (POST, PUT, DELETE)
-- [ ] Implement retry logic with exponential backoff (1s, 2s, 4s ... 5 min max)
-- [ ] VERIFY: Write unit tests for queue insertion and status transitions
-- [ ] VERIFY: Write unit tests for exponential backoff calculation
-- [ ] SECURITY CHECKPOINT: Confirm queued payloads are encrypted before storage
+- [x] Create `SyncQueueItem` model with fields: operation_type, payload, status, retry_count, created_at
+- [x] Implement queue status enum: `pending`, `in_progress`, `success`, `failed`
+- [x] Create queue insertion logic for all mutation operations (POST, PUT, DELETE)
+- [x] Implement retry logic with exponential backoff (1s, 2s, 4s ... 5 min max)
+- [x] VERIFY: Write unit tests for queue insertion and status transitions
+- [x] VERIFY: Write unit tests for exponential backoff calculation
+- [x] SECURITY CHECKPOINT: Confirm queued payloads are encrypted before storage
 
 ### 3.4 WorkManager Background Sync
-- [ ] Configure `workmanager` plugin for background task execution
-- [ ] Create background sync worker that processes pending queue items
-- [ ] Implement network state detection using `connectivity_plus`
-- [ ] Create sync trigger on network reconnection
-- [ ] Implement chunking logic for batch operations (max 10 items per batch)
-- [ ] VERIFY: Write integration tests for background sync execution
-- [ ] VERIFY: Write unit tests for network state detection
-- [ ] SECURITY CHECKPOINT: Confirm background sync respects offline-first architecture
+- [x] Configure `workmanager` plugin for background task execution
+- [x] Create background sync worker that processes pending queue items
+- [x] Implement network state detection using `connectivity_plus`
+- [x] Create sync trigger on network reconnection
+- [x] Implement chunking logic for batch operations (max 10 items per batch)
+- [x] VERIFY: Write integration tests for background sync execution
+- [x] VERIFY: Write unit tests for network state detection
+- [x] SECURITY CHECKPOINT: Confirm background sync respects offline-first architecture
 
 ### 3.5 Local State Management (BLoC/Cubit)
-- [ ] Create BLoC for conversation state (streams from local database)
-- [ ] Create BLoC for message state (streams from local database)
-- [ ] Create BLoC for sync status (LIVE, CACHED, QUEUED, OFFLINE)
-- [ ] Implement state persistence using Hive for non-sensitive data
-- [ ] VERIFY: Write unit tests for BLoC state transitions
-- [ ] VERIFY: Write unit tests for database stream emissions to BLoC
-- [ ] SECURITY CHECKPOINT: Confirm BLoC never exposes raw decrypted data in logs
+- [x] Create BLoC for conversation state (streams from local database)
+- [x] Create BLoC for message state (streams from local database)
+- [x] Create BLoC for sync status (LIVE, CACHED, QUEUED, OFFLINE)
+- [x] Implement state persistence using Hive for non-sensitive data
+- [x] VERIFY: Write unit tests for BLoC state transitions
+- [x] VERIFY: Write unit tests for database stream emissions to BLoC
+- [x] SECURITY CHECKPOINT: Confirm BLoC never exposes raw decrypted data in logs
 
 ### 3.6 Hive Local Storage for Non-Sensitive Data
-- [ ] Create Hive boxes for: ledger_drafts, academy_progress, karma_cache
-- [ ] Implement Hive initialization with encryption for sensitive boxes
-- [ ] Create cache invalidation logic for karma scores (5 min TTL)
-- [ ] VERIFY: Write unit tests for Hive CRUD operations
-- [ ] VERIFY: Write unit tests for cache invalidation TTL logic
-- [ ] SECURITY CHECKPOINT: Confirm no PII or sensitive data in unencrypted Hive boxes
+- [x] Create Hive boxes for: ledger_drafts, academy_progress, karma_cache
+- [x] Implement Hive initialization with encryption for sensitive boxes
+- [x] Create cache invalidation logic for karma scores (5 min TTL)
+- [x] VERIFY: Write unit tests for Hive CRUD operations
+- [x] VERIFY: Write unit tests for cache invalidation TTL logic
+- [x] SECURITY CHECKPOINT: Confirm no PII or sensitive data in unencrypted Hive boxes
 
 ---
 
@@ -227,14 +227,14 @@ Build the local data layer with SQLCipher encryption and a queue-based sync syst
 Build the API Gateway layer and core backend services in Go, implementing the service boundary architecture defined in the technical stack.
 
 ### 4.1 Go Project Structure & Dependencies
-- [ ] Create Go 1.22+ project with standard layout: `/cmd`, `/internal`, `/pkg`
-- [ ] Initialize Go modules with pinned versions from TECHSTACK.md
-- [ ] Add dependencies: `go-sqlcipher`, `lib/pq`, `go-redis`, `nats.go`, `minio-go`
-- [ ] Configure `golangci-lint` with custom rules
-- [ ] Set up `go generate` for protocol buffer compilation
-- [ ] VERIFY: Run `go mod tidy` and confirm no dependency conflicts
-- [ ] VERIFY: Run `golangci-lint run` and confirm no violations
-- [ ] SECURITY CHECKPOINT: Confirm no cloud-based AI or telemetry SDKs in Go dependencies
+- [x] Create Go 1.22+ project with standard layout: `/cmd`, `/internal`, `/pkg`
+- [x] Initialize Go modules with pinned versions from TECHSTACK.md
+- [x] Add dependencies: `go-sqlcipher`, `lib/pq`, `go-redis`, `nats.go`, `minio-go`
+- [x] Configure `golangci-lint` with custom rules
+- [x] Set up `go generate` for protocol buffer compilation
+- [x] VERIFY: Run `go mod tidy` and confirm no dependency conflicts
+- [x] VERIFY: Run `golangci-lint run` and confirm no violations
+- [x] SECURITY CHECKPOINT: Confirm no cloud-based AI or telemetry SDKs in Go dependencies
 
 ### 4.2 API Gateway (Kong OSS)
 - [ ] Deploy Kong OSS 3.x via Helm chart
@@ -965,12 +965,12 @@ npm audit (if applicable)
 
 ## Progress Tracking
 
-**Current Phase:** Phase 1 - Environment & CI/CD Setup  
-**Current Task:** 1.2 Infrastructure as Code (Terraform)  
-**Overall Progress:** 1% (7/473 tasks completed)
+**Current Phase:** Phase 4 - API Gateway & Backend Services Foundation  
+**Current Task:** 4.2 API Gateway (Kong OSS)  
+**Overall Progress:** Phase 2 complete (2.1–2.7); Phase 3 COMPLETE (3.1–3.6); Phase 4 in progress (4.1 COMPLETE)
 
-**Last Updated:** 2026-07-04  
-**Next Review:** After completion of Phase 1
+**Last Updated:** 2026-08-02  
+**Next Review:** After completion of Task 4.2
 
 ---
 

@@ -27,7 +27,9 @@ PATTERNS=(
     "private[_-]?key\s*[:=]\s*['\"][a-zA-Z0-9+/]{40,}['\"]"
     "-----BEGIN.*PRIVATE KEY-----"
     "civic_api_key"
-    "vault_token"
+    # Only flag hardcoded token assignments (vault_token = "..."), not variable
+    # declarations (vault_token_initial), ${vault_token} refs, or test fixtures.
+    "vault_token\\s*[:=]\\s*['\"]"
 )
 
 # Directories to exclude

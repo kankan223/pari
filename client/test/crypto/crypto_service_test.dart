@@ -195,8 +195,10 @@ void main() {
 
       // Assert
       expect(keyPair, isNotNull);
-      expect(keyPair.publicKey, isNotNull);
-      expect(keyPair.privateKey, isNotNull);
+      final publicKey = await keyPair.extractPublicKey();
+      final privateKey = await keyPair.extractPrivateKeyBytes();
+      expect(publicKey, isNotNull);
+      expect(privateKey, isNotNull);
     });
 
     test('should generate unique Ed25519 key pairs', () async {
@@ -205,15 +207,15 @@ void main() {
       final keyPair2 = await cryptoService.generateEd25519KeyPair();
 
       // Assert
-      final publicKey1 = await keyPair1.extractPublicKeyBytes();
-      final publicKey2 = await keyPair2.extractPublicKeyBytes();
+      final publicKey1 = (await keyPair1.extractPublicKey()).bytes;
+      final publicKey2 = (await keyPair2.extractPublicKey()).bytes;
       expect(publicKey1, isNot(equals(publicKey2)));
     });
 
     test('should generate Ed25519 public key of correct length', () async {
       // Act
       final keyPair = await cryptoService.generateEd25519KeyPair();
-      final publicKey = await keyPair.extractPublicKeyBytes();
+      final publicKey = (await keyPair.extractPublicKey()).bytes;
 
       // Assert
       expect(publicKey.length, equals(32)); // Ed25519 public key is 32 bytes
@@ -233,8 +235,10 @@ void main() {
 
       // Assert
       expect(keyPair, isNotNull);
-      expect(keyPair.publicKey, isNotNull);
-      expect(keyPair.privateKey, isNotNull);
+      final publicKey = await keyPair.extractPublicKey();
+      final privateKey = await keyPair.extractPrivateKeyBytes();
+      expect(publicKey, isNotNull);
+      expect(privateKey, isNotNull);
     });
 
     test('should generate unique Curve25519 key pairs', () async {
@@ -243,15 +247,15 @@ void main() {
       final keyPair2 = await cryptoService.generateCurve25519KeyPair();
 
       // Assert
-      final publicKey1 = await keyPair1.extractPublicKeyBytes();
-      final publicKey2 = await keyPair2.extractPublicKeyBytes();
+      final publicKey1 = (await keyPair1.extractPublicKey()).bytes;
+      final publicKey2 = (await keyPair2.extractPublicKey()).bytes;
       expect(publicKey1, isNot(equals(publicKey2)));
     });
 
     test('should generate Curve25519 public key of correct length', () async {
       // Act
       final keyPair = await cryptoService.generateCurve25519KeyPair();
-      final publicKey = await keyPair.extractPublicKeyBytes();
+      final publicKey = (await keyPair.extractPublicKey()).bytes;
 
       // Assert
       expect(publicKey.length, equals(32)); // Curve25519 public key is 32 bytes

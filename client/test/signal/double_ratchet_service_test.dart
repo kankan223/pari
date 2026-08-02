@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:civic_commons/crypto/crypto_service.dart';
+import 'package:civic_commons/crypto/crypto_service_impl.dart';
 import 'package:civic_commons/signal/double_ratchet_service.dart';
 
 void main() {

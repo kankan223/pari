@@ -36,8 +36,8 @@ class PrekeyManager {
     final keyPair = await _cryptoService.generateCurve25519KeyPair();
     
     // Extract keys
-    final publicKey = await keyPair.extractPublicKeyBytes();
-    final privateKey = await keyPair.extractPrivateKeyBytes();
+    final publicKey = Uint8List.fromList((await keyPair.extractPublicKey()).bytes);
+    final privateKey = Uint8List.fromList(await keyPair.extractPrivateKeyBytes());
 
     // Create signed prekey with metadata
     final now = DateTime.now();
@@ -71,8 +71,8 @@ class PrekeyManager {
       final keyPair = await _cryptoService.generateCurve25519KeyPair();
       
       // Extract keys
-      final publicKey = await keyPair.extractPublicKeyBytes();
-      final privateKey = await keyPair.extractPrivateKeyBytes();
+      final publicKey = Uint8List.fromList((await keyPair.extractPublicKey()).bytes);
+      final privateKey = Uint8List.fromList(await keyPair.extractPrivateKeyBytes());
 
       // Create one-time prekey
       final prekey = OneTimePreKey(
@@ -103,8 +103,8 @@ class PrekeyManager {
       return null;
     }
 
-    final publicKey = await keyPair.extractPublicKeyBytes();
-    final privateKey = await keyPair.extractPrivateKeyBytes();
+    final publicKey = Uint8List.fromList((await keyPair.extractPublicKey()).bytes);
+    final privateKey = Uint8List.fromList(await keyPair.extractPrivateKeyBytes());
 
     final now = DateTime.now();
     final signedPreKey = SignedPreKey(
@@ -157,8 +157,8 @@ class PrekeyManager {
     for (int i = 0; i < _oneTimePreKeyId; i++) {
       final keyPair = await _secureStorage.consumeOneTimePreKey(i);
       if (keyPair != null) {
-        final publicKey = await keyPair.extractPublicKeyBytes();
-        final privateKey = await keyPair.extractPrivateKeyBytes();
+        final publicKey = Uint8List.fromList((await keyPair.extractPublicKey()).bytes);
+        final privateKey = Uint8List.fromList(await keyPair.extractPrivateKeyBytes());
 
         final prekey = OneTimePreKey(
           keyId: i,

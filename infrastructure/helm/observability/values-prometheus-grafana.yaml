@@ -1,0 +1,17 @@
+grafana:
+  enabled: true
+  adminPassword: "admin"
+  dashboards:
+    default:
+      sys-health:
+        url: https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/dashboards/system-health.json
+      api-latency:
+        url: https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/dashboards/api-latency.json
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}

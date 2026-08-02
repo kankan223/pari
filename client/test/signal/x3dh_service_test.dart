@@ -1,10 +1,16 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:civic_commons/crypto/crypto_service.dart';
+import 'package:civic_commons/crypto/crypto_service_impl.dart';
 import 'package:civic_commons/crypto/secure_key_storage.dart';
 import 'package:civic_commons/signal/x3dh_service.dart';
 import 'package:civic_commons/signal/models.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+/// Helper: extract raw public key bytes from a SimpleKeyPair.
+Future<Uint8List> _pubBytes(SimpleKeyPair keyPair) async =>
+    Uint8List.fromList((await keyPair.extractPublicKey()).bytes);
 
 void main() {
   group('X3DHService - X3DH Handshake', () {
@@ -13,6 +19,8 @@ void main() {
     late SecureKeyStorage secureStorage;
 
     setUp(() async {
+      // Use in-memory storage for tests (no device keychain required)
+      FlutterSecureStorage.setMockInitialValues({});
       cryptoService = CryptoServiceImpl();
       secureStorage = SecureKeyStorage();
       await secureStorage.deleteAllKeys();
@@ -34,12 +42,12 @@ void main() {
       
       final bundle = PreKeyBundle(
         registrationId: '12345',
-        identityKey: await recipientIdentityKey.extractPublicKeyBytes(),
+        identityKey: await _pubBytes(recipientIdentityKey),
         signedPreKeyId: 1,
-        signedPreKey: await recipientSignedPreKey.extractPublicKeyBytes(),
+        signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
         oneTimePreKeyId: 1,
-        oneTimePreKey: await recipientOneTimePreKey.extractPublicKeyBytes(),
+        oneTimePreKey: await _pubBytes(recipientOneTimePreKey),
       );
       
       final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
@@ -59,9 +67,9 @@ void main() {
       
       final bundle = PreKeyBundle(
         registrationId: '12345',
-        identityKey: await recipientIdentityKey.extractPublicKeyBytes(),
+        identityKey: await _pubBytes(recipientIdentityKey),
         signedPreKeyId: 1,
-        signedPreKey: await recipientSignedPreKey.extractPublicKeyBytes(),
+        signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
       
@@ -163,9 +171,9 @@ void main() {
       
       final bundle = PreKeyBundle(
         registrationId: '12345',
-        identityKey: await recipientIdentityKey.extractPublicKeyBytes(),
+        identityKey: await _pubBytes(recipientIdentityKey),
         signedPreKeyId: 1,
-        signedPreKey: await recipientSignedPreKey.extractPublicKeyBytes(),
+        signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
       
@@ -187,6 +195,8 @@ void main() {
     late SecureKeyStorage secureStorage;
 
     setUp(() async {
+      // Use in-memory storage for tests (no device keychain required)
+      FlutterSecureStorage.setMockInitialValues({});
       cryptoService = CryptoServiceImpl();
       secureStorage = SecureKeyStorage();
       await secureStorage.deleteAllKeys();
@@ -207,14 +217,15 @@ void main() {
       
       final bundle = PreKeyBundle(
         registrationId: '12345',
-        identityKey: await recipientIdentityKey.extractPublicKeyBytes(),
+        identityKey: await _pubBytes(recipientIdentityKey),
         signedPreKeyId: 1,
-        signedPreKey: await recipientSignedPreKey.extractPublicKeyBytes(),
+        signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
       
       final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
-      final initiatorPrivateKey = await initiatorIdentityKey.extractPrivateKeyBytes();
+      final initiatorPrivateKey =
+          Uint8List.fromList(await initiatorIdentityKey.extractPrivateKeyBytes());
 
       // Act
       final sharedSecret = await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
@@ -235,9 +246,9 @@ void main() {
       
       final bundle = PreKeyBundle(
         registrationId: '12345',
-        identityKey: await recipientIdentityKey.extractPublicKeyBytes(),
+        identityKey: await _pubBytes(recipientIdentityKey),
         signedPreKeyId: 1,
-        signedPreKey: await recipientSignedPreKey.extractPublicKeyBytes(),
+        signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
       
