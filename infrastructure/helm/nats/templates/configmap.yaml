@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+data:
+  # NATS server config with JetStream enabled (Task 4.7). Auth is optional:
+  # when `existingSecret` is set, the StatefulSet appends a user/password
+  # block at startup (K8s secrets are injected as env, not rendered here).
+  nats-server.conf: |
+    port: {{ .Values.ports.client }}
+    http: {{ .Values.ports.monitor }}
+    {{- if .Values.jetstream.enabled }}
+    jetstream {
+      store_dir: "{{ .Values.jetstream.store_dir }}"
+      max_file_store: "{{ .Values.jetstream.max_file_store }}"
+      {{- if ne .Values.jetstream.max_memory_store "0" }}
+      max_memory_store: "{{ .Values.jetstream.max_memory_store }}"
+      {{- end }}
+    }
+    {{- end }}
+    max_payload: 1048576

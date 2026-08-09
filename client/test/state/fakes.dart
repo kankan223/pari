@@ -80,9 +80,7 @@ class FakeMessageRepository implements MessageRepository {
 
   @override
   Future<List<Message>> getByConversation(String conversationId) async =>
-      _store.values
-          .where((m) => m.conversationId == conversationId)
-          .toList();
+      _store.values.where((m) => m.conversationId == conversationId).toList();
 
   @override
   Future<List<Message>> getUndelivered() async =>
@@ -139,9 +137,26 @@ class FakeSyncQueueRepository implements SyncQueueRepository {
   }
 
   @override
-  Future<List<SyncQueueItem>> getPending() async => _store.values
-      .where((i) => i.status == SyncQueueStatus.pending)
-      .toList();
+  Future<List<SyncQueueItem>> getPending() async =>
+      _store.values.where((i) => i.status == SyncQueueStatus.pending).toList();
+
+  @override
+  Future<List<SyncQueueItem>> getRetryable({
+    required DateTime now,
+    required Duration Function(int retryCount) retryDelay,
+  }) async {
+    final eligible = _store.values
+        .where((i) => i.status == SyncQueueStatus.failed)
+        .where((i) {
+      final last = i.lastAttemptAt;
+      if (last == null) {
+        return true;
+      }
+      return !now.isBefore(last.add(retryDelay(i.retryCount)));
+    }).toList();
+    eligible.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return eligible;
+  }
 
   @override
   Future<void> markInProgress(String id) async {
@@ -168,6 +183,30 @@ class FakeSyncQueueRepository implements SyncQueueRepository {
         retryCount: item.retryCount + 1,
       );
     }
+  }
+
+  @override
+  Future<void> recoverInterrupted() async {
+    final stranded = _store.values
+        .where((i) => i.status == SyncQueueStatus.inProgress)
+        .toList();
+    for (final item in stranded) {
+      _store[item.id] = item.copyWith(status: SyncQueueStatus.pending);
+    }
+  }
+
+  @override
+  Future<int> purgeExpired({
+    DateTime? now,
+    Duration maxAge = const Duration(days: 30),
+  }) async {
+    final cutoff = (now ?? DateTime.now()).subtract(maxAge);
+    final stale =
+        _store.values.where((i) => i.createdAt.isBefore(cutoff)).toList();
+    for (final item in stale) {
+      _store.remove(item.id);
+    }
+    return stale.length;
   }
 
   @override

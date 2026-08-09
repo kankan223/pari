@@ -1,5 +1,52 @@
+# Redis 7 Sentinel chart values — Civic Commons (techstack §7.2).
+#
+# Topology: 1 primary + 2 replicas + 3 sentinels (Sentinel quorum 2).
+# Persistence: AOF (appendfsync everysec) + RDB snapshots on a PVC.
+#
+# SECURITY: the Redis password is supplied at runtime via the secret named by
+# `existingSecret` (External Secrets Operator syncs it from Vault). It is
+# never stored in this file.
+
+image:
+  repository: redis
+  tag: "7.4-alpine"
+  pullPolicy: IfNotPresent
+
+# Deployment topology.
+replicas: 3        # 1 primary + 2 replicas (pod ordinal 0 is the primary)
+sentinels: 3       # Sentinel nodes (quorum below)
+quorum: 2          # sentinel monitor quorum
+masterName: civic-master
+
+# Auth: point at a Kubernetes Secret with key `redis-password`.
+existingSecret: ""       # e.g. "redis-password"
+redisPasswordKey: redis-password
+
+# Persistence (AOF + RDB). Disable only for ephemeral dev.
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 8Gi
+  accessMode: ReadWriteOnce
+
+# AOF + RDB tuning (Task 4.6 VERIFY: "Configure Redis persistence (AOF+RDB)").
+aof:
+  appendonly: "yes"
+  appendfsync: everysec
+rdb:
+  save: "3600 1 300 100 60 10000"   # default RDB save points
+maxmemoryPolicy: noeviction          # never evict messages/tokens
+
 securityContext:
   runAsNonRoot: true
   runAsUser: 1001
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

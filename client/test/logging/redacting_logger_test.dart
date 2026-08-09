@@ -30,7 +30,7 @@ void main() {
     test('redacts phone numbers before they reach the sink', () {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
       );
 
@@ -43,7 +43,7 @@ void main() {
     test('redacts emails in error logs too', () {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
       );
 
@@ -93,7 +93,7 @@ void main() {
     test('logs success as operation=success with no key material', () async {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
       );
 
@@ -108,7 +108,7 @@ void main() {
     test('logs failure as operation=failure', () async {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
       );
 
@@ -123,7 +123,7 @@ void main() {
     test('boolean crypto log never includes payloads or keys', () async {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
       );
 
@@ -142,7 +142,7 @@ void main() {
     test('debug messages are dropped in production config', () {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
         config: LogLevelConfig.production,
       );
@@ -155,7 +155,7 @@ void main() {
     test('info and above are kept in production config', () {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
         config: LogLevelConfig.production,
       );
@@ -170,7 +170,7 @@ void main() {
     test('debug messages are kept in development config', () {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: sink,
         config: LogLevelConfig.development,
       );
@@ -190,8 +190,8 @@ void main() {
       );
 
       // Attempt to log fake PII via every path.
-      logger.info(
-          'Phone +14155552671 email victim@example.com SSN 123-45-6789');
+      logger
+          .info('Phone +14155552671 email victim@example.com SSN 123-45-6789');
       logger.error(
           'Card 4111 1111 1111 1111 token=5a45a983c75655ae014d09052fc80545d7b422fd47ba6640dae2a00a5fbc55b2');
       await logger.logHashOnly(description: 'secret', value: 'raw-payload-abc');
@@ -215,7 +215,7 @@ void main() {
     test('a throwing sink never crashes the logger', () {
       final logger = RedactingLogger(
         redactor: const DefaultPiiRedactor(),
-        hashProvider: _FakeHashProvider(),
+        hashProvider: const _FakeHashProvider(),
         sink: _ThrowingSink(),
       );
 

@@ -1,0 +1,66 @@
+// Civic Commons Messaging Relay wire protocol (Task 4.4).
+//
+// Protocol Buffers over WebSocket frames (techstack §5.3). The client MUST
+// authenticate in the FIRST frame (AuthRequest) — never in the URL, since
+// query strings are logged by proxies.
+//
+// ZERO-KNOWLEDGE CONSTRAINT: the Envelope.ciphertext field is OPAQUE. The
+// relay MUST never deserialize, decrypt, or inspect it — it routes bytes.
+syntax = "proto3";
+
+package civic.relay.v1;
+
+option go_package = "github.com/kankan223/pari/services/proto;proto";
+
+// ClientFrame is every message a client sends to the relay.
+message ClientFrame {
+  oneof payload {
+    AuthRequest auth = 1;
+    Envelope envelope = 2;
+    DeliveryAck ack = 3;
+  }
+}
+
+// ServerFrame is every message the relay sends to a client.
+message ServerFrame {
+  oneof payload {
+    AuthAck auth_ack = 1;
+    Envelope envelope = 2;
+    DeliveryAck ack = 3;
+    ErrorMessage error = 4;
+  }
+}
+
+// First frame from the client: the access token and the client's device ID,
+// carried in the frame body so they never appear in URLs or access logs.
+message AuthRequest {
+  string access_token = 1;
+  string device_id = 2;  // client-generated device identifier (its public-key ID)
+}
+
+message AuthAck {
+  bool authenticated = 1;
+  string blind_hash_id = 2;
+}
+
+// Ciphertext envelope. [ciphertext] is the E2EE payload produced by the
+// client (Signal Protocol) — the relay routes it untouched.
+message Envelope {
+  string msg_id = 1;          // client-generated UUID v4
+  string sender_hash = 2;     // authenticated blind_hash_id (server-validated)
+  string recipient_hash = 3;  // target blind_hash_id
+  bytes ciphertext = 4;       // opaque — relay never inspects
+  uint64 sent_at_ms = 5;
+  string sender_device_id = 6;
+}
+
+// Delivery acknowledgement for a routed message (enables queue purge).
+message DeliveryAck {
+  string msg_id = 1;
+}
+
+// Relay error.
+message ErrorMessage {
+  string code = 1;
+  string message = 2;
+}

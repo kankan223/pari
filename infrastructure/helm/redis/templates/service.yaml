@@ -1,0 +1,53 @@
+{{- $redisName := .Chart.Name -}}
+
+# Headless service: stable per-pod DNS for replicaof + Sentinel discovery.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $redisName }}-headless
+  labels:
+    app: {{ $redisName }}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ $redisName }}
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+
+---
+# Sentinel service: applications connect here (port 26379) and the go-redis
+# failover client discovers the elected primary through it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $redisName }}-sentinel
+  labels:
+    app: {{ $redisName }}-sentinel
+spec:
+  clusterIP: None
+  selector:
+    app: {{ $redisName }}-sentinel
+  ports:
+  - name: sentinel
+    port: 26379
+    targetPort: 26379
+
+---
+# Headless service for sentinel pods (not strictly required; kept for
+# symmetric DNS and future stateful interactions).
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $redisName }}-sentinel-headless
+  labels:
+    app: {{ $redisName }}-sentinel
+spec:
+  clusterIP: None
+  selector:
+    app: {{ $redisName }}-sentinel
+  ports:
+  - name: sentinel
+    port: 26379
+    targetPort: 26379

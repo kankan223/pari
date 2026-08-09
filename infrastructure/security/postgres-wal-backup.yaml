@@ -1,0 +1,79 @@
+# Civic Commons — PostgreSQL backup job (Task 4.5)
+# =================================================
+# Daily base backup + continuous WAL archiving to MinIO for Point-in-Time
+# Recovery. WAL segments are archived continuously by the primary's
+# archive_command (wal-archive-to-minio.sh); this CronJob adds the periodic
+# full/base backup so PITR has an anchor to replay from.
+#
+# Requires a wal-g image (or a postgres image with wal-g installed). Secrets
+# come from Vault via External Secrets Operator (see eso/).
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: civic-postgres-wal-backup
+  namespace: civic-infra
+  labels:
+    app: civic-commons
+    component: postgres-backup
+spec:
+  # 02:00 daily — base backup window before the morning write peak.
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            readOnlyRootFilesystem: true
+          containers:
+            - name: wal-g-backup
+              image: wal-g/wal-g:latest # must bundle wal-g
+              imagePullPolicy: IfNotPresent
+              command: ["/usr/bin/env", "bash", "-c"]
+              args:
+                - |
+                  wal-g backup-push "$PGDATA" &&
+                  wal-g delete before FIND_FULL $(wal-g backup-list --json | jq -r '.[-14].backup_name') --confirm
+              env:
+                - name: PGHOST
+                  value: civic-postgres.civic-infra.svc.cluster.local
+                - name: PGUSER
+                  value: civic_backup
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: civic-postgres-backup
+                      key: password
+                - name: PGDATABASE
+                  value: civic
+                - name: WALG_S3_PREFIX
+                  value: s3://civic-db-backups/wal
+                - name: AWS_ENDPOINT
+                  value: http://minio.civic-infra.svc.cluster.local:9000
+                - name: AWS_S3_FORCE_PATH_STYLE
+                  value: "true"
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: civic-minio-credentials
+                      key: accessKey
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: civic-minio-credentials
+                      key: secretKey
+              # wal-g needs the data directory to push base backups.
+              volumeMounts:
+                - name: pgdata
+                  mountPath: /var/lib/postgresql/data
+          volumes:
+            - name: pgdata
+              persistentVolumeClaim:
+                claimName: civic-postgres-data

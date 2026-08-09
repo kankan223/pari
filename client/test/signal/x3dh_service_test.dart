@@ -26,7 +26,6 @@ void main() {
       await secureStorage.deleteAllKeys();
       x3dhService = X3DHService(
         cryptoService: cryptoService,
-        secureStorage: secureStorage,
       );
     });
 
@@ -37,9 +36,11 @@ void main() {
     test('should perform X3DH initiation successfully', () async {
       // Arrange
       final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
-      final recipientSignedPreKey = await cryptoService.generateCurve25519KeyPair();
-      final recipientOneTimePreKey = await cryptoService.generateCurve25519KeyPair();
-      
+      final recipientSignedPreKey =
+          await cryptoService.generateCurve25519KeyPair();
+      final recipientOneTimePreKey =
+          await cryptoService.generateCurve25519KeyPair();
+
       final bundle = PreKeyBundle(
         registrationId: '12345',
         identityKey: await _pubBytes(recipientIdentityKey),
@@ -49,11 +50,12 @@ void main() {
         oneTimePreKeyId: 1,
         oneTimePreKey: await _pubBytes(recipientOneTimePreKey),
       );
-      
+
       final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
 
       // Act
-      final sharedSecret = await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
+      final sharedSecret =
+          await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
 
       // Assert
       expect(sharedSecret, isNotNull);
@@ -63,8 +65,9 @@ void main() {
     test('should perform X3DH initiation without one-time prekey', () async {
       // Arrange
       final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
-      final recipientSignedPreKey = await cryptoService.generateCurve25519KeyPair();
-      
+      final recipientSignedPreKey =
+          await cryptoService.generateCurve25519KeyPair();
+
       final bundle = PreKeyBundle(
         registrationId: '12345',
         identityKey: await _pubBytes(recipientIdentityKey),
@@ -72,11 +75,12 @@ void main() {
         signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
-      
+
       final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
 
       // Act
-      final sharedSecret = await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
+      final sharedSecret =
+          await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
 
       // Assert
       expect(sharedSecret, isNotNull);
@@ -89,16 +93,16 @@ void main() {
       for (int i = 0; i < 32; i++) {
         initiatorEphemeralPublicKey[i] = i;
       }
-      
+
       final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
       final recipientSignedPreKey = SignedPreKey(
         keyId: 1,
         publicKey: Uint8List(32),
         privateKey: Uint8List(32),
         createdAt: DateTime.now(),
-        expiresAt: DateTime.now().add(Duration(days: 7)),
+        expiresAt: DateTime.now().add(const Duration(days: 7)),
       );
-      
+
       final recipientOneTimePreKey = OneTimePreKey(
         keyId: 1,
         publicKey: Uint8List(32),
@@ -124,14 +128,14 @@ void main() {
       for (int i = 0; i < 32; i++) {
         initiatorEphemeralPublicKey[i] = i;
       }
-      
+
       final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
       final recipientSignedPreKey = SignedPreKey(
         keyId: 1,
         publicKey: Uint8List(32),
         privateKey: Uint8List(32),
         createdAt: DateTime.now(),
-        expiresAt: DateTime.now().add(Duration(days: 7)),
+        expiresAt: DateTime.now().add(const Duration(days: 7)),
       );
 
       // Act
@@ -164,11 +168,13 @@ void main() {
       expect(isValid, isTrue);
     });
 
-    test('should produce different shared secrets for different sessions', () async {
+    test('should produce different shared secrets for different sessions',
+        () async {
       // Arrange
       final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
-      final recipientSignedPreKey = await cryptoService.generateCurve25519KeyPair();
-      
+      final recipientSignedPreKey =
+          await cryptoService.generateCurve25519KeyPair();
+
       final bundle = PreKeyBundle(
         registrationId: '12345',
         identityKey: await _pubBytes(recipientIdentityKey),
@@ -176,13 +182,17 @@ void main() {
         signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
-      
-      final initiatorIdentityKey1 = await cryptoService.generateEd25519KeyPair();
-      final initiatorIdentityKey2 = await cryptoService.generateEd25519KeyPair();
+
+      final initiatorIdentityKey1 =
+          await cryptoService.generateEd25519KeyPair();
+      final initiatorIdentityKey2 =
+          await cryptoService.generateEd25519KeyPair();
 
       // Act
-      final sharedSecret1 = await x3dhService.initiateX3DH(bundle, initiatorIdentityKey1);
-      final sharedSecret2 = await x3dhService.initiateX3DH(bundle, initiatorIdentityKey2);
+      final sharedSecret1 =
+          await x3dhService.initiateX3DH(bundle, initiatorIdentityKey1);
+      final sharedSecret2 =
+          await x3dhService.initiateX3DH(bundle, initiatorIdentityKey2);
 
       // Assert
       expect(sharedSecret1, isNot(equals(sharedSecret2)));
@@ -202,7 +212,6 @@ void main() {
       await secureStorage.deleteAllKeys();
       x3dhService = X3DHService(
         cryptoService: cryptoService,
-        secureStorage: secureStorage,
       );
     });
 
@@ -213,8 +222,9 @@ void main() {
     test('should not expose private keys in shared secret', () async {
       // Arrange
       final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
-      final recipientSignedPreKey = await cryptoService.generateCurve25519KeyPair();
-      
+      final recipientSignedPreKey =
+          await cryptoService.generateCurve25519KeyPair();
+
       final bundle = PreKeyBundle(
         registrationId: '12345',
         identityKey: await _pubBytes(recipientIdentityKey),
@@ -222,28 +232,31 @@ void main() {
         signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
-      
+
       final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
-      final initiatorPrivateKey =
-          Uint8List.fromList(await initiatorIdentityKey.extractPrivateKeyBytes());
+      final initiatorPrivateKey = Uint8List.fromList(
+          await initiatorIdentityKey.extractPrivateKeyBytes());
 
       // Act
-      final sharedSecret = await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
+      final sharedSecret =
+          await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
 
       // Assert
       // Shared secret should not equal the private key
       expect(sharedSecret, isNot(equals(initiatorPrivateKey)));
     });
 
-    test('should confirm message content is never decrypted server-side', () async {
+    test('should confirm message content is never decrypted server-side',
+        () async {
       // This test verifies that all X3DH operations are performed client-side
       // The X3DHService does not make any network calls or server-side operations
       // All cryptographic operations are local
-      
+
       // Arrange
       final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
-      final recipientSignedPreKey = await cryptoService.generateCurve25519KeyPair();
-      
+      final recipientSignedPreKey =
+          await cryptoService.generateCurve25519KeyPair();
+
       final bundle = PreKeyBundle(
         registrationId: '12345',
         identityKey: await _pubBytes(recipientIdentityKey),
@@ -251,11 +264,12 @@ void main() {
         signedPreKey: await _pubBytes(recipientSignedPreKey),
         signedPreKeySignature: Uint8List(64),
       );
-      
+
       final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
 
       // Act
-      final sharedSecret = await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
+      final sharedSecret =
+          await x3dhService.initiateX3DH(bundle, initiatorIdentityKey);
 
       // Assert
       // The operation completed successfully without any server-side decryption

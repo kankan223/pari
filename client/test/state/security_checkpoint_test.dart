@@ -77,8 +77,7 @@ void main() {
             !file.endsWith('sync_status.dart')) {
           continue;
         }
-        final source =
-            _codeOnly(File(file).readAsStringSync());
+        final source = _codeOnly(File(file).readAsStringSync());
         for (final token in sensitiveTokens) {
           expect(source.contains(token), isFalse,
               reason: '$file must not declare raw data field "$token"');

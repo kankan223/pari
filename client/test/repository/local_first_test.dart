@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:civic_commons/repository/data/local_conversation_repository.dart';
 import 'package:civic_commons/repository/data/local_message_repository.dart';
 import 'package:civic_commons/repository/data/local_sync_queue_repository.dart';
+import 'package:civic_commons/repository/domain/conflict_resolution.dart';
 import 'package:civic_commons/repository/domain/conversation.dart';
 import 'package:civic_commons/repository/domain/message.dart';
+import 'package:civic_commons/repository/domain/sync_conflict_resolver.dart';
 import 'package:civic_commons/repository/domain/sync_queue_item.dart';
 
 import 'fakes.dart';
@@ -19,8 +21,7 @@ LocalSyncQueueRepository testQueue() => LocalSyncQueueRepository(
 /// before any sync attempt — and NEVER touches the network during local reads.
 void main() {
   group('LocalFirstRepository - cached data before sync', () {
-    test(
-        'fetchLocal returns the locally cached snapshot with zero network I/O',
+    test('fetchLocal returns the locally cached snapshot with zero network I/O',
         () async {
       final store = InMemoryEntityStore<Message>((m) => m.id);
       final repo = LocalMessageRepository(
@@ -150,5 +151,79 @@ void main() {
       expect(result.failed, 0);
       expect(sink.pushed, isEmpty);
     });
+
+    test('sync drops a 409-conflicted item (remote wins) and counts it',
+        () async {
+      final queue = testQueue();
+      final item = await queue.create(pendingItem('q1'));
+      final sink = RecordingSyncSink()
+        ..scriptConflict = MutationVersion(
+          entityId: 'q1',
+          timestamp: DateTime(2026, 8, 4, 13),
+          serverAcknowledged: true,
+          authorHash: 'hash-remote',
+        );
+      final repo = LocalMessageRepository(
+        store: InMemoryEntityStore<Message>((m) => m.id),
+        syncQueue: queue,
+        sink: sink,
+      );
+
+      final result = await repo.sync();
+
+      expect(result.pushed, 0);
+      expect(result.failed, 0);
+      expect(result.conflicts, 1);
+      expect(result.allSucceeded, isFalse);
+      // The superseded local mutation is dropped, not retried.
+      expect(await queue.getById(item.id), isNull);
+    });
+
+    test('sync counts a local-wins conflict as a retry, not a loss', () async {
+      final queue = testQueue();
+      final item = await queue.create(pendingItem('q1'));
+      final sink = RecordingSyncSink()
+        ..scriptConflict = MutationVersion(
+          entityId: 'q1',
+          timestamp: DateTime(2026, 8, 1, 10), // older than the local edit
+          serverAcknowledged: true,
+          authorHash: 'hash-remote',
+        );
+      final repo = LocalMessageRepository(
+        store: InMemoryEntityStore<Message>((m) => m.id),
+        syncQueue: queue,
+        sink: sink,
+        conflictResolver: const SyncConflictResolver(
+          policy: _TimestampFirstPolicy(),
+        ),
+      );
+
+      final result = await repo.sync();
+
+      expect(result.pushed, 0);
+      expect(result.failed, 1);
+      expect(result.conflicts, 0);
+      final after = await queue.getById(item.id);
+      expect(after!.status, SyncQueueStatus.failed);
+    });
   });
+}
+
+/// Deterministic newer-timestamp-wins policy for local-wins conflict tests.
+class _TimestampFirstPolicy implements ConflictResolutionPolicy {
+  const _TimestampFirstPolicy();
+
+  @override
+  ConflictResolution resolve({
+    required MutationVersion local,
+    required MutationVersion remote,
+  }) {
+    final winner = local.timestamp.isAfter(remote.timestamp) ? local : remote;
+    return ConflictResolution(
+      winner == local
+          ? ConflictDecision.applyLocal
+          : ConflictDecision.applyRemote,
+      winner,
+    );
+  }
 }

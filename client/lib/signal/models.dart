@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 /// Public key bundle for sharing with other users
-/// 
+///
 /// This structure contains all public keys needed for X3DH handshake
 /// and is shared via the backend server (never contains private keys)
 class PreKeyBundle {
@@ -44,10 +44,11 @@ class PreKeyBundle {
       identityKey: _base64Decode(json['identityKey'] as String),
       signedPreKeyId: json['signedPreKeyId'] as int,
       signedPreKey: _base64Decode(json['signedPreKey'] as String),
-      signedPreKeySignature: _base64Decode(json['signedPreKeySignature'] as String),
+      signedPreKeySignature:
+          _base64Decode(json['signedPreKeySignature'] as String),
       oneTimePreKeyId: json['oneTimePreKeyId'] as int?,
-      oneTimePreKey: json['oneTimePreKey'] != null 
-          ? _base64Decode(json['oneTimePreKey'] as String) 
+      oneTimePreKey: json['oneTimePreKey'] != null
+          ? _base64Decode(json['oneTimePreKey'] as String)
           : null,
     );
   }

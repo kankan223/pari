@@ -73,7 +73,8 @@ void main() {
       expect(allSalts[1], equals(currentSalt)); // Previous after rotation
     });
 
-    test('should return only current salt when no previous salt exists', () async {
+    test('should return only current salt when no previous salt exists',
+        () async {
       // Arrange
       const currentSalt = 'current_salt_12345';
       await saltManager.setCurrentSalt(currentSalt);
@@ -118,8 +119,14 @@ void main() {
 
       // Assert
       expect(rotationDate, isNotNull);
-      expect(rotationDate!.isAfter(beforeSet) || rotationDate.isAtSameMomentAs(beforeSet), isTrue);
-      expect(rotationDate.isBefore(afterSet) || rotationDate.isAtSameMomentAs(afterSet), isTrue);
+      expect(
+          rotationDate!.isAfter(beforeSet) ||
+              rotationDate.isAtSameMomentAs(beforeSet),
+          isTrue);
+      expect(
+          rotationDate.isBefore(afterSet) ||
+              rotationDate.isAtSameMomentAs(afterSet),
+          isTrue);
     });
 
     test('should return null when no rotation date is set', () async {
@@ -135,7 +142,7 @@ void main() {
       const phoneNumber = '+14155552671';
       const currentSalt = 'current_salt_12345';
       const previousSalt = 'previous_salt_67890';
-      
+
       // Simulate hash verification function (async as required by the API)
       Future<bool> verifyFunction(String phone, String salt) async {
         return salt == previousSalt; // Only valid with previous salt
@@ -163,7 +170,8 @@ void main() {
 
       // Hash the phone number with the current salt
       await saltManager.setCurrentSalt(currentSalt);
-      final blindHashId = await PhoneHasher.hashPhoneNumber(phoneNumber, currentSalt);
+      final blindHashId =
+          await PhoneHasher.hashPhoneNumber(phoneNumber, currentSalt);
 
       // Rotate to a new salt (old salt becomes the fallback)
       await saltManager.rotateSalt(newSalt);
@@ -191,11 +199,13 @@ void main() {
       await saltManager.setCurrentSalt(currentSalt);
 
       // Act: hash with a totally different salt and try to validate
-      final differentHash = await PhoneHasher.hashPhoneNumber(phoneNumber, 'other_salt');
+      final differentHash =
+          await PhoneHasher.hashPhoneNumber(phoneNumber, 'other_salt');
       final isValid = await saltManager.validateHashWithFallback(
         phoneNumber,
         differentHash,
-        (phone, salt) => PhoneHasher.verifyPhoneHash(phone, salt, differentHash),
+        (phone, salt) =>
+            PhoneHasher.verifyPhoneHash(phone, salt, differentHash),
       );
 
       // Assert
@@ -229,10 +239,14 @@ void main() {
     });
 
     test('should get correct quarter key for date', () {
-      expect(SaltManager.getQuarterKey(DateTime(2024, 1, 15)), equals('2024Q1'));
-      expect(SaltManager.getQuarterKey(DateTime(2024, 4, 15)), equals('2024Q2'));
-      expect(SaltManager.getQuarterKey(DateTime(2024, 7, 15)), equals('2024Q3'));
-      expect(SaltManager.getQuarterKey(DateTime(2024, 10, 15)), equals('2024Q4'));
+      expect(
+          SaltManager.getQuarterKey(DateTime(2024, 1, 15)), equals('2024Q1'));
+      expect(
+          SaltManager.getQuarterKey(DateTime(2024, 4, 15)), equals('2024Q2'));
+      expect(
+          SaltManager.getQuarterKey(DateTime(2024, 7, 15)), equals('2024Q3'));
+      expect(
+          SaltManager.getQuarterKey(DateTime(2024, 10, 15)), equals('2024Q4'));
     });
   });
 
@@ -255,7 +269,7 @@ void main() {
     test('should not expose salt in logs', () async {
       // This test verifies that salt operations do not log raw salt values
       // The implementation does not use any logging functions for salts
-      
+
       // Arrange
       const salt = 'current_salt_12345';
 

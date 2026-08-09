@@ -1,31 +1,27 @@
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:civic_commons/crypto/crypto_service.dart';
-import 'package:civic_commons/crypto/secure_key_storage.dart';
 import 'models.dart';
 
 /// X3DH (Extended Triple Diffie-Hellman) key agreement protocol
-/// 
+///
 /// This service implements the X3DH protocol for initial key exchange
 /// between two users, establishing a shared secret for Double Ratchet.
 class X3DHService {
   final CryptoService _cryptoService;
-  final SecureKeyStorage _secureStorage;
 
   X3DHService({
     required CryptoService cryptoService,
-    required SecureKeyStorage secureStorage,
-  })  : _cryptoService = cryptoService,
-        _secureStorage = secureStorage;
+  }) : _cryptoService = cryptoService;
 
   /// Perform X3DH initialization as the initiator
-  /// 
+  ///
   /// Parameters:
   /// - bundle: The recipient's PreKeyBundle
   /// - identityKeyPair: The initiator's identity key pair
-  /// 
+  ///
   /// Returns: The shared secret for Double Ratchet initialization
-  /// 
+  ///
   /// Security: All computations are performed client-side
   Future<Uint8List> initiateX3DH(
     PreKeyBundle bundle,
@@ -62,27 +58,29 @@ class X3DHService {
     }
 
     // Combine DH outputs to create shared secret
-    final sharedSecret = _combineDhOutputs([dh1, dh2, dh3, if (dh4 != null) dh4]);
+    final sharedSecret =
+        _combineDhOutputs([dh1, dh2, dh3, if (dh4 != null) dh4]);
 
     // Securely wipe ephemeral private key (extractPrivateKeyBytes() returns
     // an unmodifiable SensitiveBytes-backed list, so wipe a mutable copy -
     // best-effort cleanup, consistent with the rest of the codebase).
-    final ephemeralPrivateKey = Uint8List.fromList(await ephemeralKeyPair.extractPrivateKeyBytes());
+    final ephemeralPrivateKey =
+        Uint8List.fromList(await ephemeralKeyPair.extractPrivateKeyBytes());
     ephemeralPrivateKey.fillRange(0, ephemeralPrivateKey.length, 0);
 
     return sharedSecret;
   }
 
   /// Perform X3DH response as the recipient
-  /// 
+  ///
   /// Parameters:
   /// - initiatorEphemeralPublicKey: The initiator's ephemeral public key
   /// - identityKeyPair: The recipient's identity key pair
   /// - signedPreKey: The recipient's signed prekey
   /// - oneTimePreKey: The recipient's one-time prekey (if used)
-  /// 
+  ///
   /// Returns: The shared secret for Double Ratchet initialization
-  /// 
+  ///
   /// Security: All computations are performed client-side
   Future<Uint8List> respondToX3DH(
     Uint8List initiatorEphemeralPublicKey,
@@ -117,19 +115,21 @@ class X3DHService {
     }
 
     // Combine DH outputs to create shared secret
-    final sharedSecret = _combineDhOutputs([dh1, dh2, dh3, if (dh4 != null) dh4]);
+    final sharedSecret =
+        _combineDhOutputs([dh1, dh2, dh3, if (dh4 != null) dh4]);
 
     return sharedSecret;
   }
 
   /// Perform Diffie-Hellman key exchange
-  /// 
+  ///
   /// Parameters:
   /// - privateKey: The private key
   /// - publicKey: The public key
-  /// 
+  ///
   /// Returns: The shared secret
-  Future<Uint8List> _performDH(Uint8List privateKey, Uint8List publicKey) async {
+  Future<Uint8List> _performDH(
+      Uint8List privateKey, Uint8List publicKey) async {
     // This would use the actual X25519 DH operation
     // For now, we'll use a placeholder implementation
     final result = Uint8List(32);
@@ -140,10 +140,10 @@ class X3DHService {
   }
 
   /// Combine multiple DH outputs into a single shared secret
-  /// 
+  ///
   /// Parameters:
   /// - dhOutputs: List of DH outputs
-  /// 
+  ///
   /// Returns: Combined shared secret
   Uint8List _combineDhOutputs(List<Uint8List> dhOutputs) {
     // Simple XOR combination for now
@@ -158,14 +158,14 @@ class X3DHService {
   }
 
   /// Verify the signed prekey signature
-  /// 
+  ///
   /// Parameters:
   /// - signedPreKey: The signed prekey
   /// - signature: The signature to verify
   /// - identityKey: The identity public key
-  /// 
+  ///
   /// Returns: true if signature is valid, false otherwise
-  /// 
+  ///
   /// Security: Ensures the prekey was signed by the identity key owner
   Future<bool> verifySignedPreKeySignature(
     Uint8List signedPreKey,

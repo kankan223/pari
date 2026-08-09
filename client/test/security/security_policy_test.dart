@@ -17,7 +17,7 @@ void main() {
 
   group('DeviceSecurityPolicy - rooted device', () {
     test('returns a warning decision but NEVER blocks (allowsContinue)', () {
-      final integrity = const DeviceIntegrity(
+      const integrity = DeviceIntegrity(
         isRooted: true,
         isJailbroken: false,
         triggeredChecks: [RootCheck.suBinaryPresent],
@@ -31,7 +31,7 @@ void main() {
     });
 
     test('surfaces all triggered checks in the warning', () {
-      final integrity = const DeviceIntegrity(
+      const integrity = DeviceIntegrity(
         isRooted: true,
         isJailbroken: false,
         triggeredChecks: [
@@ -50,7 +50,7 @@ void main() {
 
   group('DeviceSecurityPolicy - jailbroken device', () {
     test('returns a warning decision without blocking', () {
-      final integrity = const DeviceIntegrity(
+      const integrity = DeviceIntegrity(
         isRooted: false,
         isJailbroken: true,
         triggeredChecks: [RootCheck.writableSystemPath],
@@ -68,7 +68,7 @@ void main() {
         () {
       // The decision carries only a severity and generic check enums — no
       // device identifiers (serial, model, Android ID, locale, MAC, etc.).
-      final integrity = const DeviceIntegrity(
+      const integrity = DeviceIntegrity(
         isRooted: true,
         isJailbroken: false,
         triggeredChecks: [RootCheck.knownRootPackage],

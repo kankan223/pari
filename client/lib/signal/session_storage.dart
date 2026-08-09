@@ -2,33 +2,29 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart';
-import 'package:civic_commons/crypto/crypto_service.dart';
 import 'double_ratchet_service.dart';
 
 /// Session state storage in SQLCipher database
-/// 
+///
 /// Stores Double Ratchet session states securely in an encrypted database
 class SessionStorage {
-  final CryptoService _cryptoService;
   final String _databasePath;
   final Uint8List _encryptionKey;
 
   Database? _database;
 
   SessionStorage({
-    required CryptoService cryptoService,
     required String databasePath,
     required Uint8List encryptionKey,
-  })  : _cryptoService = cryptoService,
-        _databasePath = databasePath,
+  })  : _databasePath = databasePath,
         _encryptionKey = encryptionKey;
 
   /// Initialize the database
-  /// 
+  ///
   /// Security: Database is encrypted with the provided key
   Future<void> initialize() async {
     final path = join(_databasePath, 'signal_sessions.db');
-    
+
     _database = await openDatabase(
       path,
       // SQLCipher requires a String password; encode the derived 256-bit key.
@@ -65,12 +61,12 @@ class SessionStorage {
   }
 
   /// Store a session state
-  /// 
+  ///
   /// Parameters:
   /// - sessionId: Unique identifier for the session
   /// - remoteIdentityKey: The remote user's identity public key
   /// - ratchetService: The Double Ratchet service instance
-  /// 
+  ///
   /// Security: All data is encrypted at rest in SQLCipher
   Future<void> storeSession(
     String sessionId,
@@ -85,11 +81,11 @@ class SessionStorage {
     final now = DateTime.now().millisecondsSinceEpoch;
 
     // Serialize sensitive data (in production, this would be encrypted)
-    final rootKey = 'encrypted_placeholder'; // Placeholder for encrypted data
-    final sendChainKey = 'encrypted_placeholder';
-    final receiveChainKey = 'encrypted_placeholder';
-    final dhKeyPair = 'encrypted_placeholder';
-    final remoteDhPublicKey = 'encrypted_placeholder';
+    const rootKey = 'encrypted_placeholder'; // Placeholder for encrypted data
+    const sendChainKey = 'encrypted_placeholder';
+    const receiveChainKey = 'encrypted_placeholder';
+    const dhKeyPair = 'encrypted_placeholder';
+    const remoteDhPublicKey = 'encrypted_placeholder';
 
     await _database!.insert(
       'sessions',
@@ -112,12 +108,12 @@ class SessionStorage {
   }
 
   /// Retrieve a session state
-  /// 
+  ///
   /// Parameters:
   /// - sessionId: Unique identifier for the session
-  /// 
+  ///
   /// Returns: The session state, or null if not found
-  /// 
+  ///
   /// Security: Data is decrypted when retrieved from SQLCipher
   Future<Map<String, dynamic>?> getSession(String sessionId) async {
     if (_database == null) {
@@ -147,10 +143,10 @@ class SessionStorage {
   }
 
   /// Retrieve a session by remote identity key
-  /// 
+  ///
   /// Parameters:
   /// - remoteIdentityKey: The remote user's identity public key
-  /// 
+  ///
   /// Returns: The session state, or null if not found
   Future<Map<String, dynamic>?> getSessionByRemoteIdentityKey(
     Uint8List remoteIdentityKey,
@@ -182,11 +178,11 @@ class SessionStorage {
   }
 
   /// Update a session state
-  /// 
+  ///
   /// Parameters:
   /// - sessionId: Unique identifier for the session
   /// - ratchetService: The Double Ratchet service instance
-  /// 
+  ///
   /// Security: All data is encrypted at rest in SQLCipher
   Future<void> updateSession(
     String sessionId,
@@ -213,10 +209,10 @@ class SessionStorage {
   }
 
   /// Delete a session
-  /// 
+  ///
   /// Parameters:
   /// - sessionId: Unique identifier for the session
-  /// 
+  ///
   /// Security: This is a destructive operation that cannot be undone
   Future<void> deleteSession(String sessionId) async {
     if (_database == null) {
@@ -231,7 +227,7 @@ class SessionStorage {
   }
 
   /// Delete all sessions (for account deletion or duress PIN)
-  /// 
+  ///
   /// Security: This is a destructive operation that cannot be undone
   Future<void> deleteAllSessions() async {
     if (_database == null) {
@@ -242,7 +238,7 @@ class SessionStorage {
   }
 
   /// Get all sessions
-  /// 
+  ///
   /// Returns: List of all session states
   Future<List<Map<String, dynamic>>> getAllSessions() async {
     if (_database == null) {
@@ -253,7 +249,8 @@ class SessionStorage {
     return result.map((row) {
       return {
         'sessionId': row['id'] as String,
-        'remoteIdentityKey': _base64Decode(row['remote_identity_key'] as String),
+        'remoteIdentityKey':
+            _base64Decode(row['remote_identity_key'] as String),
         'sendMessageNumber': row['send_message_number'] as int,
         'receiveMessageNumber': row['receive_message_number'] as int,
         'previousChainLength': row['previous_chain_length'] as int,

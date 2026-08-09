@@ -1,0 +1,94 @@
+# Civic Commons — Kong OSS 3.x API Gateway (DB-less declarative configuration)
+#
+# SECURITY CHECKPOINTS (Task 4.2):
+#   1. JWT RS256 validation — tokens issued by the Identity Service are
+#      validated against the per-consumer RS256 public key (kid lookup).
+#   2. Rate limiting per blind_hash_id (limit_by: consumer) — NEVER by IP.
+#   3. Client IP stripping: request-transformer removes client-supplied
+#      X-Forwarded-For / X-Real-IP / X-Forwarded-Host / X-Forwarded-Proto, and
+#      the civic-strip-peer-ip plugin zeroes Kong's own forwarded-* vars so
+#      the upstream receives NO X-Forwarded-* headers at all.
+#      X-Real-IP is a documented platform exception: Kong's nginx template
+#      hardcodes `proxy_set_header X-Real-IP $remote_addr;`, so it can only
+#      ever carry the immediate trusted peer (load balancer) address — never
+#      a client-derived value (Kong OSS 3.8 behavior).
+#   4. Server / Via removed from responses — KONG_HEADERS=latency_tokens
+#      disables Kong's own injection and the response-transformer strips any
+#      upstream-provided Server/Via (surface reduction).
+#   5. bot-detection blocks known crawler User-Agents at the gateway.
+#   6. correlation-id injects Kong-Request-ID for distributed tracing.
+#   7. Access logs are emitted by the civic-pii-access-log custom plugin:
+#      phone numbers, IP addresses, e-mails and 64-hex blind hash ids are
+#      redacted before a JSON line reaches stdout (Loki); request/response
+#      BODIES are never logged. The default nginx access log is disabled
+#      (KONG_PROXY_ACCESS_LOG=off) so raw PII cannot leak alongside it.
+#
+# NOTE: `rate-limiting-advanced` (Kong Enterprise) is the drop-in upgrade path
+# for sliding-window per-claim policies; OSS `rate-limiting` is used here
+# because this chart deploys Kong OSS 3.x.
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: civic-api
+    # Upstream placeholder — replaced by the Identity Service (Task 4.3)
+    # internal ClusterIP DNS once deployed. Never exposed publicly.
+    url: http://civic-identity.civic-core.svc.cluster.local:8080
+    routes:
+      - name: civic-api-route
+        paths:
+          - /v1
+        strip_path: false
+
+# Consumers (one per registered blind_hash_id) are provisioned by the
+# Identity Service (Task 4.3) via the Kong Admin API / declarative sync.
+# Each jwt_secret carries its own RS256 public key — never commit keys.
+#
+# consumers:
+#   - username: <blind_hash_id>
+#     jwt_secrets:
+#       - key: <kid>              # must match the JWT `kid` claim
+#         algorithm: RS256
+#         rsa_public_key: <identity-service-public-key-PEM>
+
+plugins:
+  - name: jwt
+    config:
+      key_claim_name: kid
+      claims_to_verify:
+        - exp
+      run_on_preflight: true
+  - name: rate-limiting
+    config:
+      minute: 60
+      policy: local
+      limit_by: consumer
+      fault_tolerant: true
+  - name: request-transformer
+    config:
+      remove:
+        headers:
+          - X-Forwarded-For
+          - X-Real-IP
+          - X-Forwarded-Host
+          - X-Forwarded-Proto
+  - name: civic-strip-peer-ip
+    config: {}
+  - name: response-transformer
+    config:
+      remove:
+        headers:
+          - Server
+          - Via
+  - name: bot-detection
+    config: {}
+  - name: correlation-id
+    config:
+      header_name: Kong-Request-ID
+      generator: uuid
+      echo_downstream: true
+  - name: civic-pii-access-log
+    config: {}
+  - name: prometheus
+    config:
+      per_consumer: false

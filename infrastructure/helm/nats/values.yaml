@@ -1,5 +1,59 @@
+# NATS JetStream chart values — Civic Commons (techstack §5.2 / Task 4.7).
+#
+# JetStream is enabled with FILE storage on a PVC so the CIVIC_EVENTS stream
+# (and its durable consumers) survive pod restarts — the at-least-once event
+# bus depends on durable storage. Authentication is handled at the NATS level
+# (JWT/operator mode, or a TLS + user password in a Secret); no credentials
+# live in this file.
+
+image:
+  repository: nats
+  tag: "2.10-alpine"
+  pullPolicy: IfNotPresent
+
+# Single JetStream node for now (durable file storage). NATS clustering
+# (routes/leafnodes for R3 replication) is a documented follow-on; the
+# stream config in the event bus already requests defaults that a future
+# cluster can fulfill.
+replicas: 1
+
+# JetStream tuning (server.conf generated from these).
+jetstream:
+  enabled: true
+  # max_file_store caps the JetStream file storage; 0 = unlimited.
+  max_file_store: "8Gi"
+  max_memory_store: "0"
+  # Storage directory on the PVC.
+  store_dir: /data/jetstream
+
+# Persistence for the JetStream store. Disable only for ephemeral dev.
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 8Gi
+  accessMode: ReadWriteOnce
+
+# NATS client / monitoring ports.
+ports:
+  client: 4222
+  monitor: 8222
+
+# Optional auth: point at a Kubernetes Secret holding a plaintext user
+# password (key `auth_password`). Leave empty for no-auth dev.
+existingSecret: ""
+authPasswordKey: auth_password
+authUser: civic
+
 securityContext:
   runAsNonRoot: true
   runAsUser: 1001
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

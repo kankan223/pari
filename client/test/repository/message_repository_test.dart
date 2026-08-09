@@ -36,8 +36,8 @@ void main() {
       Message(
         id: id,
         conversationId: conversationId,
-        ciphertext: ciphertext ??
-            Uint8List.fromList(List.generate(64, (i) => i)),
+        ciphertext:
+            ciphertext ?? Uint8List.fromList(List.generate(64, (i) => i)),
         delivered: delivered,
         expiresAt: expiresAt,
       );

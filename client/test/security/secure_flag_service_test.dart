@@ -6,7 +6,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const channel = MethodChannel(MethodChannelSecureFlagService.channelName);
-  final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late List<MethodCall> calls;
 
@@ -42,8 +43,7 @@ void main() {
       expect(calls.single.method, 'isSecureFlagSupported');
     });
 
-    test('enableSecureFlag invokes the enable method on the channel',
-        () async {
+    test('enableSecureFlag invokes the enable method on the channel', () async {
       final service = MethodChannelSecureFlagService();
 
       await service.enableSecureFlag();

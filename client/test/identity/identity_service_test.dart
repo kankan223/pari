@@ -21,12 +21,12 @@ void main() {
       FlutterSecureStorage.setMockInitialValues({});
       secureStorage = SecureKeyStorage();
       await secureStorage.deleteAllKeys();
-      
+
       phoneValidator = PhoneValidator();
       phoneHasher = PhoneHasher();
       saltManager = SaltManager(secureStorage: secureStorage);
       identityStorage = IdentityStorage(secureStorage: secureStorage);
-      
+
       identityService = IdentityService(
         phoneValidator: phoneValidator,
         phoneHasher: phoneHasher,
@@ -46,11 +46,13 @@ void main() {
       await identityService.initialize(salt);
 
       // Act
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Assert
       expect(blindHashId, isNotNull);
-      expect(blindHashId.length, equals(64)); // 256-bit hash = 64 hex characters
+      expect(
+          blindHashId.length, equals(64)); // 256-bit hash = 64 hex characters
     });
 
     test('should throw exception for invalid phone number', () async {
@@ -82,51 +84,60 @@ void main() {
       const phoneNumber = '+14155552671';
       const salt = 'test_salt_12345';
       await identityService.initialize(salt);
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Act
-      final isValid = await identityService.validatePhoneNumber(phoneNumber, blindHashId);
+      final isValid =
+          await identityService.validatePhoneNumber(phoneNumber, blindHashId);
 
       // Assert
       expect(isValid, isTrue);
     });
 
-    test('should validate OLD blind hash after salt rotation (fallback)', () async {
+    test('should validate OLD blind hash after salt rotation (fallback)',
+        () async {
       // Arrange: generate a blind hash under the current salt
       const phoneNumber = '+14155552671';
       const currentSalt = 'current_salt_12345';
       const newSalt = 'new_salt_67890';
       await identityService.initialize(currentSalt);
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Rotate the salt (old salt moves to fallback)
       await identityService.rotateSalt(newSalt);
 
       // Act: validate the old hash under the new salt configuration
-      final isValid = await identityService.validatePhoneNumber(phoneNumber, blindHashId);
+      final isValid =
+          await identityService.validatePhoneNumber(phoneNumber, blindHashId);
 
       // Assert: old hash still validates via previous-salt fallback
       expect(isValid, isTrue);
 
       // A freshly generated hash under the new salt differs from the old one
-      final newBlindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final newBlindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
       expect(newBlindHashId, isNot(equals(blindHashId)));
     });
 
-    test('should reject validation after rotation when old salt is purged', () async {
+    test('should reject validation after rotation when old salt is purged',
+        () async {
       // Arrange: generate a blind hash under the current salt
       const phoneNumber = '+14155552671';
       const currentSalt = 'current_salt_12345';
       const newSalt = 'new_salt_67890';
       await identityService.initialize(currentSalt);
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Rotate twice so the original salt is dropped entirely (only 1 fallback)
       await identityService.rotateSalt(newSalt);
       await identityService.rotateSalt('third_salt_11111');
 
       // Act
-      final isValid = await identityService.validatePhoneNumber(phoneNumber, blindHashId);
+      final isValid =
+          await identityService.validatePhoneNumber(phoneNumber, blindHashId);
 
       // Assert: no salt in the (current + single previous) set can reproduce it
       expect(isValid, isFalse);
@@ -138,10 +149,12 @@ void main() {
       const invalidPhoneNumber = '+14155552672';
       const salt = 'test_salt_12345';
       await identityService.initialize(salt);
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Act
-      final isValid = await identityService.validatePhoneNumber(invalidPhoneNumber, blindHashId);
+      final isValid = await identityService.validatePhoneNumber(
+          invalidPhoneNumber, blindHashId);
 
       // Assert
       expect(isValid, isFalse);
@@ -152,7 +165,8 @@ void main() {
       const phoneNumber = '+14155552671';
       const salt = 'test_salt_12345';
       await identityService.initialize(salt);
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Act
       final retrievedBlindHashId = await identityService.getBlindHashId();
@@ -240,8 +254,14 @@ void main() {
 
       // Assert
       expect(rotationDate, isNotNull);
-      expect(rotationDate!.isAfter(beforeSet) || rotationDate.isAtSameMomentAs(beforeSet), isTrue);
-      expect(rotationDate.isBefore(afterSet) || rotationDate.isAtSameMomentAs(afterSet), isTrue);
+      expect(
+          rotationDate!.isAfter(beforeSet) ||
+              rotationDate.isAtSameMomentAs(beforeSet),
+          isTrue);
+      expect(
+          rotationDate.isBefore(afterSet) ||
+              rotationDate.isAtSameMomentAs(afterSet),
+          isTrue);
     });
 
     test('should delete all identity data', () async {
@@ -275,12 +295,12 @@ void main() {
       FlutterSecureStorage.setMockInitialValues({});
       secureStorage = SecureKeyStorage();
       await secureStorage.deleteAllKeys();
-      
+
       phoneValidator = PhoneValidator();
       phoneHasher = PhoneHasher();
       saltManager = SaltManager(secureStorage: secureStorage);
       identityStorage = IdentityStorage(secureStorage: secureStorage);
-      
+
       identityService = IdentityService(
         phoneValidator: phoneValidator,
         phoneHasher: phoneHasher,
@@ -300,7 +320,8 @@ void main() {
       await identityService.initialize(salt);
 
       // Act
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Assert
       expect(blindHashId.contains(phoneNumber), isFalse);
@@ -310,7 +331,7 @@ void main() {
     test('should confirm no raw phone numbers are persisted to disk', () async {
       // This test verifies that raw phone numbers are never persisted to disk
       // The implementation only stores blind hash IDs in secure storage
-      
+
       // Arrange
       const phoneNumber = '+14155552671';
       const salt = 'test_salt_12345';
@@ -330,14 +351,15 @@ void main() {
     test('should confirm no raw phone numbers are logged', () async {
       // This test verifies that the identity service does not log raw phone numbers
       // The implementation does not use any logging functions for phone numbers
-      
+
       // Arrange
       const phoneNumber = '+14155552671';
       const salt = 'test_salt_12345';
       await identityService.initialize(salt);
 
       // Act
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
 
       // Assert
       // The operation completed successfully without logging
@@ -352,7 +374,8 @@ void main() {
       await identityService.initialize(salt);
 
       // Act
-      final blindHashId = await identityService.generateBlindHashId(phoneNumber);
+      final blindHashId =
+          await identityService.generateBlindHashId(phoneNumber);
       final retrievedBlindHashId = await identityStorage.getBlindHashId();
 
       // Assert

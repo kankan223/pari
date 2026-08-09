@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:civic_commons/crypto/crypto_service_impl.dart';
 import 'package:civic_commons/repository/data/aes_gcm_queue_payload_cipher.dart';
+import 'package:civic_commons/repository/domain/conflict_resolution.dart';
 import 'package:civic_commons/repository/domain/entity_store.dart';
 import 'package:civic_commons/repository/domain/queue_payload_cipher.dart';
 import 'package:civic_commons/repository/domain/sync_queue_item.dart';
@@ -52,13 +53,25 @@ QueuePayloadCipher testCipher() => AesGcmQueuePayloadCipher(
 class RecordingSyncSink implements SyncSink {
   final List<SyncQueueItem> pushed = [];
 
-  /// When true, [push] acknowledges every item (returns true).
+  /// When true, [push] acknowledges every item; when false it rejects them
+  /// (retryable). For conflict scenarios use [scriptConflict] or override
+  /// [scriptedOutcomes].
   bool acknowledge = true;
 
+  /// When non-null, [push] returns this conflict outcome for every item
+  /// (with the recorded remote version).
+  MutationVersion? scriptConflict;
+
   @override
-  Future<bool> push(SyncQueueItem item) async {
+  Future<SyncPushOutcome> push(SyncQueueItem item) async {
     pushed.add(item);
-    return acknowledge;
+    final conflict = scriptConflict;
+    if (conflict != null) {
+      return SyncPushOutcome.conflict(conflict);
+    }
+    return acknowledge
+        ? const SyncPushOutcome.acknowledged()
+        : const SyncPushOutcome.rejected();
   }
 }
 
@@ -67,7 +80,7 @@ class RecordingSyncSink implements SyncSink {
 /// Used to prove [fetchLocal] performs zero outbound I/O.
 class ExplodingSyncSink implements SyncSink {
   @override
-  Future<bool> push(SyncQueueItem item) async {
+  Future<SyncPushOutcome> push(SyncQueueItem item) async {
     throw StateError('Network must never be touched during local reads');
   }
 }

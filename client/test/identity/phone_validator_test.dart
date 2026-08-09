@@ -15,12 +15,17 @@ void main() {
       // Invalid formats
       expect(PhoneValidator.isValidE164(''), isFalse); // Empty
       expect(PhoneValidator.isValidE164('14155552671'), isFalse); // Missing +
-      expect(PhoneValidator.isValidE164('+04155552671'), isFalse); // Country code starts with 0
+      expect(PhoneValidator.isValidE164('+04155552671'),
+          isFalse); // Country code starts with 0
       expect(PhoneValidator.isValidE164('+1'), isFalse); // Too short
-      expect(PhoneValidator.isValidE164('+1234567890123456'), isFalse); // Too long
-      expect(PhoneValidator.isValidE164('+1415-555-2671'), isFalse); // Contains dashes
-      expect(PhoneValidator.isValidE164('+1415 555 2671'), isFalse); // Contains spaces
-      expect(PhoneValidator.isValidE164('(415) 555-2671'), isFalse); // Parentheses
+      expect(
+          PhoneValidator.isValidE164('+1234567890123456'), isFalse); // Too long
+      expect(PhoneValidator.isValidE164('+1415-555-2671'),
+          isFalse); // Contains dashes
+      expect(PhoneValidator.isValidE164('+1415 555 2671'),
+          isFalse); // Contains spaces
+      expect(
+          PhoneValidator.isValidE164('(415) 555-2671'), isFalse); // Parentheses
     });
 
     test('should normalize phone numbers to E.164 format', () {
@@ -58,7 +63,9 @@ void main() {
       expect(PhoneValidator.extractCountryCode('+1234567890'), equals('1'));
     });
 
-    test('should return null for invalid phone number when extracting country code', () {
+    test(
+        'should return null for invalid phone number when extracting country code',
+        () {
       expect(PhoneValidator.extractCountryCode('14155552671'), isNull);
       expect(PhoneValidator.extractCountryCode(''), isNull);
       expect(PhoneValidator.extractCountryCode('invalid'), isNull);

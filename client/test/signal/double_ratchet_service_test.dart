@@ -87,7 +87,7 @@ void main() {
       // Act
       await ratchetService.initialize(sharedSecret1);
       final encrypted = await ratchetService.encrypt(plaintext);
-      
+
       // Create new ratchet with different shared secret
       final newRatchet = DoubleRatchetService(cryptoService: cryptoService);
       await newRatchet.initialize(sharedSecret2);
@@ -126,7 +126,7 @@ void main() {
       // After decryption, the message key should be wiped from memory
       // This is verified by the implementation calling secureWipe on message keys
       expect(decrypted, equals(plaintext));
-      
+
       // Attempting to decrypt the same message again should fail
       // because the message key has been discarded
       expect(
@@ -142,18 +142,19 @@ void main() {
         sharedSecret[i] = i;
       }
       final plaintext1 = Uint8List.fromList('Message 1'.codeUnits);
-      final plaintext2 = Uint8List.fromList('Message 2'.codeUnits);
 
       // Act
       await ratchetService.initialize(sharedSecret);
-      final encrypted1 = await ratchetService.encrypt(plaintext1);
-      
+      // The encrypt call advances the ratchet state; the sealed bytes are
+      // irrelevant to this test, only the state transition matters.
+      await ratchetService.encrypt(plaintext1);
+
       // Simulate receiving a message with a different DH public key
       final newDhPublicKey = Uint8List(32);
       for (int i = 0; i < 32; i++) {
         newDhPublicKey[i] = 31 - i;
       }
-      
+
       // Create a new encrypted message with different DH public key
       final encrypted2 = EncryptedMessage(
         dhPublicKey: newDhPublicKey,
@@ -169,7 +170,8 @@ void main() {
       // This is verified by the implementation updating the root key and chain keys
       expect(
         () => ratchetService.decrypt(encrypted2),
-        throwsA(anything), // Will fail because ciphertext is not properly encrypted
+        throwsA(
+            anything), // Will fail because ciphertext is not properly encrypted
       );
     });
 
@@ -183,14 +185,16 @@ void main() {
 
       // Act
       await ratchetService.initialize(sharedSecret);
-      final encrypted1 = await ratchetService.encrypt(plaintext1);
-      
+      // The encrypt call advances the ratchet state; the sealed bytes are
+      // irrelevant to this test, only the state transition matters.
+      await ratchetService.encrypt(plaintext1);
+
       // Perform DH ratchet by simulating a message with new DH public key
       final newDhPublicKey = Uint8List(32);
       for (int i = 0; i < 32; i++) {
         newDhPublicKey[i] = 31 - i;
       }
-      
+
       // The ratchet should update its state
       // Old message keys should be discarded
       final sessionState = ratchetService.getSessionState();
@@ -199,12 +203,13 @@ void main() {
       // Session state should have been updated
       expect(sessionState, isNotNull);
       expect(sessionState['sendMessageNumber'], greaterThan(0));
-      
+
       // The old message key should be discarded
       // This is verified by the implementation calling secureWipe on message keys
     });
 
-    test('should not allow decryption of old messages after key rotation', () async {
+    test('should not allow decryption of old messages after key rotation',
+        () async {
       // Arrange
       final sharedSecret = Uint8List(32);
       for (int i = 0; i < 32; i++) {
@@ -215,13 +220,13 @@ void main() {
       // Act
       await ratchetService.initialize(sharedSecret);
       final encrypted1 = await ratchetService.encrypt(plaintext1);
-      
+
       // Simulate key rotation by re-initializing with new shared secret
       final newSharedSecret = Uint8List(32);
       for (int i = 0; i < 32; i++) {
         newSharedSecret[i] = 31 - i;
       }
-      
+
       final newRatchet = DoubleRatchetService(cryptoService: cryptoService);
       await newRatchet.initialize(newSharedSecret);
 
@@ -271,17 +276,20 @@ void main() {
       // Act
       await ratchetService.initialize(sharedSecret);
       final sessionState = ratchetService.getSessionState();
-      
+
       final newRatchet = DoubleRatchetService(cryptoService: cryptoService);
       await newRatchet.initialize(sharedSecret);
       newRatchet.restoreSessionState(sessionState);
-      
+
       final restoredState = newRatchet.getSessionState();
 
       // Assert
-      expect(restoredState['sendMessageNumber'], equals(sessionState['sendMessageNumber']));
-      expect(restoredState['receiveMessageNumber'], equals(sessionState['receiveMessageNumber']));
-      expect(restoredState['previousChainLength'], equals(sessionState['previousChainLength']));
+      expect(restoredState['sendMessageNumber'],
+          equals(sessionState['sendMessageNumber']));
+      expect(restoredState['receiveMessageNumber'],
+          equals(sessionState['receiveMessageNumber']));
+      expect(restoredState['previousChainLength'],
+          equals(sessionState['previousChainLength']));
     });
 
     test('should update session state after encryption', () async {
@@ -330,11 +338,12 @@ void main() {
       expect(sessionState.containsKey('dhKeyPair'), isFalse);
     });
 
-    test('should confirm message content is never decrypted server-side', () async {
+    test('should confirm message content is never decrypted server-side',
+        () async {
       // This test verifies that all Double Ratchet operations are performed client-side
       // The DoubleRatchetService does not make any network calls or server-side operations
       // All cryptographic operations are local
-      
+
       // Arrange
       final sharedSecret = Uint8List(32);
       for (int i = 0; i < 32; i++) {

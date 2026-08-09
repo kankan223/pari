@@ -13,8 +13,9 @@ void main() {
 
     test('should derive consistent key from same PIN and salt', () async {
       // Arrange
-      final pin = '123456';
-      final salt = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      const pin = '123456';
+      final salt = Uint8List.fromList(
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
       // Act
       final key1 = await cryptoService.deriveKeyFromPin(pin, salt);
@@ -27,7 +28,8 @@ void main() {
 
     test('should derive different keys from different PINs', () async {
       // Arrange
-      final salt = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      final salt = Uint8List.fromList(
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
       // Act
       final key1 = await cryptoService.deriveKeyFromPin('123456', salt);
@@ -39,9 +41,11 @@ void main() {
 
     test('should derive different keys from different salts', () async {
       // Arrange
-      final pin = '123456';
-      final salt1 = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
-      final salt2 = Uint8List.fromList([16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+      const pin = '123456';
+      final salt1 = Uint8List.fromList(
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      final salt2 = Uint8List.fromList(
+          [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
 
       // Act
       final key1 = await cryptoService.deriveKeyFromPin(pin, salt1);
@@ -53,8 +57,9 @@ void main() {
 
     test('should throw error for empty PIN', () async {
       // Arrange
-      final pin = '';
-      final salt = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      const pin = '';
+      final salt = Uint8List.fromList(
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
       // Act & Assert
       expect(
@@ -65,7 +70,7 @@ void main() {
 
     test('should throw error for invalid salt length', () async {
       // Arrange
-      final pin = '123456';
+      const pin = '123456';
       final invalidSalt = Uint8List.fromList([1, 2, 3, 4]); // Too short
 
       // Act & Assert
@@ -121,7 +126,9 @@ void main() {
       expect(decrypted, equals(plaintext));
     });
 
-    test('should produce different ciphertext for same plaintext (random nonce)', () async {
+    test(
+        'should produce different ciphertext for same plaintext (random nonce)',
+        () async {
       // Arrange
       final plaintext = Uint8List.fromList('Hello, World!'.codeUnits);
       final key = Uint8List(32);
@@ -134,7 +141,8 @@ void main() {
       final ciphertext2 = await cryptoService.encrypt(plaintext, key);
 
       // Assert
-      expect(ciphertext1, isNot(equals(ciphertext2))); // Different due to random nonce
+      expect(ciphertext1,
+          isNot(equals(ciphertext2))); // Different due to random nonce
     });
 
     test('should throw error for empty plaintext', () async {
@@ -269,7 +277,8 @@ void main() {
       cryptoService = CryptoServiceImpl();
     });
 
-    test('should not expose private keys in toString or debug output', () async {
+    test('should not expose private keys in toString or debug output',
+        () async {
       // Arrange
       final keyPair = await cryptoService.generateEd25519KeyPair();
 
@@ -283,8 +292,9 @@ void main() {
 
     test('should wipe sensitive data after key derivation', () async {
       // Arrange
-      final pin = '123456';
-      final salt = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      const pin = '123456';
+      final salt = Uint8List.fromList(
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
       // Act
       final key = await cryptoService.deriveKeyFromPin(pin, salt);

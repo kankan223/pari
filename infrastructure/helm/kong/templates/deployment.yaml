@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        fsGroup: {{ .Values.securityContext.runAsGroup }}
+      containers:
+      - name: kong
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+          allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+          capabilities:
+            drop: ["ALL"]
+        env:
+        - name: KONG_DATABASE
+          value: "{{ .Values.database }}"
+        - name: KONG_DECLARATIVE_CONFIG
+          value: "{{ .Values.declarativeConfigPath }}"
+        - name: KONG_PROXY_LISTEN
+          value: "{{ .Values.proxyListen }}"
+        - name: KONG_ADMIN_LISTEN
+          value: "{{ .Values.adminListen }}"
+        - name: KONG_STATUS_LISTEN
+          value: "{{ .Values.statusListen }}"
+        - name: KONG_LUA_PACKAGE_PATH
+          value: "/usr/local/share/lua/5.1/?.lua;;"
+        - name: KONG_PLUGINS
+          value: "bundled,civic-pii-access-log,civic-strip-peer-ip"
+        # The custom plugin replaces the access log; the raw nginx access log
+        # must be off so unscrubbed PII cannot leak alongside it.
+        - name: KONG_PROXY_ACCESS_LOG
+          value: "off"
+        - name: KONG_HEADERS
+          value: "{{ .Values.headers }}"
+        - name: KONG_LOG_LEVEL
+          value: "{{ .Values.log.level }}"
+        ports:
+        - name: proxy
+          containerPort: 8000
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 8100
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 8100
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        volumeMounts:
+        - name: declarative
+          mountPath: /kong/declarative
+          readOnly: true
+        - name: lua
+          mountPath: /usr/local/share/lua/5.1/civic
+          readOnly: true
+        - name: plugins
+          mountPath: /usr/local/share/lua/5.1/kong/plugins/civic-pii-access-log
+          readOnly: true
+        - name: strip-plugin
+          mountPath: /usr/local/share/lua/5.1/kong/plugins/civic-strip-peer-ip
+          readOnly: true
+        - name: kong-prefix
+          mountPath: /usr/local/kong
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: declarative
+        configMap:
+          name: {{ .Chart.Name }}-declarative
+      - name: lua
+        configMap:
+          name: {{ .Chart.Name }}-lua
+      - name: plugins
+        configMap:
+          name: {{ .Chart.Name }}-plugins
+      - name: strip-plugin
+        configMap:
+          name: {{ .Chart.Name }}-plugins
+          items:
+            - key: strip-schema.lua
+              path: schema.lua
+            - key: strip-handler.lua
+              path: handler.lua
+      - name: kong-prefix
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}

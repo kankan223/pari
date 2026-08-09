@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Updated:** 2026-08-02  
+**Last Updated:** 2026-08-05  
 **Role:** Single Source of Truth for All Development Work
 
 ---
@@ -237,78 +237,78 @@ Build the API Gateway layer and core backend services in Go, implementing the se
 - [x] SECURITY CHECKPOINT: Confirm no cloud-based AI or telemetry SDKs in Go dependencies
 
 ### 4.2 API Gateway (Kong OSS)
-- [ ] Deploy Kong OSS 3.x via Helm chart
-- [ ] Configure JWT plugin with RS256 validation
-- [ ] Configure rate-limiting-advanced plugin per blind_hash_id
-- [ ] Configure request-transformer to strip X-Forwarded-For
-- [ ] Configure response-transformer to remove server headers
-- [ ] Configure bot-detection plugin
-- [ ] Configure correlation-id injection
-- [ ] Configure PII scrubbing for access logs
-- [ ] VERIFY: Test JWT validation with invalid token and confirm 401 response
-- [ ] VERIFY: Test rate limiting with rapid requests and confirm throttling
-- [ ] SECURITY CHECKPOINT: Confirm IP addresses are stripped before upstream requests
+- [x] Deploy Kong OSS 3.x via Helm chart
+- [x] Configure JWT plugin with RS256 validation
+- [x] Configure rate-limiting-advanced plugin per blind_hash_id *(implemented as OSS `rate-limiting`, `limit_by: consumer` — `rate-limiting-advanced` is Kong Enterprise-only; drop-in upgrade path documented in-file)*
+- [x] Configure request-transformer to strip X-Forwarded-For
+- [x] Configure response-transformer to remove server headers
+- [x] Configure bot-detection plugin
+- [x] Configure correlation-id injection
+- [x] Configure PII scrubbing for access logs
+- [x] VERIFY: Test JWT validation with invalid token and confirm 401 response
+- [x] VERIFY: Test rate limiting with rapid requests and confirm throttling
+- [x] SECURITY CHECKPOINT: Confirm IP addresses are stripped before upstream requests
 
 ### 4.3 Identity Service (Go)
-- [ ] Implement OTP verification endpoint (Twilio Verify or MSG91 integration)
-- [ ] Implement Argon2id phone-to-blind-hash with salt from HashiCorp Vault
-- [ ] Implement username claim/release with cooldown (30 days)
-- [ ] Implement device public-key registration
-- [ ] Implement JWT issuance (RS256, 15-minute access tokens)
-- [ ] Implement refresh token management with rotation
-- [ ] Configure Redis for OTP codes (TTL 10 min) and refresh token revocation
-- [ ] VERIFY: Write unit tests for OTP verification flow
-- [ ] VERIFY: Write unit tests for JWT issuance and validation
-- [ ] SECURITY CHECKPOINT: Confirm raw phone numbers are never persisted or logged
+- [x] Implement OTP verification endpoint (Twilio Verify or MSG91 integration) *(MSG91 chosen — India/DPDP fit; net/http v5 OTP REST client, no SDK; noop provider for dev)*
+- [x] Implement Argon2id phone-to-blind-hash with salt from HashiCorp Vault *(params byte-identical to client PhoneHasher; salt fetched once at startup into a sealed sync.Once; minimal KV v2 HTTP client, no SDK)*
+- [x] Implement username claim/release with cooldown (30 days)
+- [x] Implement device public-key registration
+- [x] Implement JWT issuance (RS256, 15-minute access tokens) *(stdlib crypto/rsa RFC 7519 implementation; kid header for Kong)*
+- [x] Implement refresh token management with rotation *(256-bit opaque tokens, SHA-256 hashes in Redis, family-based reuse detection)*
+- [x] Configure Redis for OTP codes (TTL 10 min) and refresh token revocation *(otp: 10-min bcrypt-hashed; refresh:/revoked:/revoked_family: 30-day)*
+- [x] VERIFY: Write unit tests for OTP verification flow
+- [x] VERIFY: Write unit tests for JWT issuance and validation
+- [x] SECURITY CHECKPOINT: Confirm raw phone numbers are never persisted or logged *(runtime dump/log scan + static output-scan + PII-redacting logger + buffer wipe; live smoke-verified)*
 
 ### 4.4 Messaging Relay Service (Go)
-- [ ] Implement WebSocket connection management
-- [ ] Implement ciphertext envelope routing (sender hash → recipient hash)
-- [ ] Implement offline queue using Redis Streams (TTL 30 days)
-- [ ] Implement multi-device fan-out logic
-- [ ] Implement delivery acknowledgement and queue purge
-- [ ] Implement Connection Request state machine
-- [ ] VERIFY: Write unit tests for WebSocket message routing
-- [ ] VERIFY: Write unit tests for offline queue TTL expiration
-- [ ] SECURITY CHECKPOINT: Confirm service never attempts to decrypt message bodies
+- [x] Implement WebSocket connection management *(coder/websocket; first-frame protojson AuthRequest — token never in URL; 25s server ping / 10s pong timeout heartbeat; 1 MiB read limit; evict-on-reconnect registry)*
+- [x] Implement ciphertext envelope routing (sender hash → recipient hash) *(sender_hash/sender_device_id always server-overridden from the authenticated token — spoofing impossible; opaque ciphertext routed byte-for-byte)*
+- [x] Implement offline queue using Redis Streams (TTL 30 days) *(one `msg_queue:{blind_hash_id}` stream per recipient; XADD+XTRIM MINID retention in one pipeline; XDEL + purge-on-drain acks; verified with miniredis)*
+- [x] Implement multi-device fan-out logic *(Hub: one blind_hash_id → many devices; fan-out to all live devices; sender's other devices get a sync copy minus the sending device; dead-peer eviction on write failure)*
+- [x] Implement delivery acknowledgement and queue purge *(DeliveryAck(msg_id) → AckByMsgID → XDEL; stream deleted when drained; offline backlog drained to reconnecting devices)*
+- [x] Implement Connection Request state machine *(pending → accepted/rejected/withdrawn/expired; CAS single-transition enforcement; actor authorization; idempotent create; lazy + periodic sweep expiry; NATS accept event with noop dev fallback)*
+- [x] VERIFY: Write unit tests for WebSocket message routing *(real coder/websocket client over httptest: auth, spoof-block, multi-device fan-out, offline queue drain + ack purge, heartbeat survival, protocol violations)*
+- [x] VERIFY: Write unit tests for offline queue TTL expiration *(XTRIM MINID drops entries older than the retention window, fresh entries survive — simulated ages)*
+- [x] SECURITY CHECKPOINT: Confirm service never attempts to decrypt message bodies *(static scan bans all decryption primitives across the package; runtime test proves arbitrary ciphertext bytes survive the online + offline paths unmodified)*
 
 ### 4.5 PostgreSQL Schema & Migrations
-- [ ] Create PostgreSQL 16 database with extensions: postgis, pgcrypto, pg_stat_statements, uuid-ossp
-- [ ] Define schema tables: users, usernames, devices, refresh_tokens, connection_requests
-- [ ] Configure row-level security (RLS) for sensitive tables
-- [ ] Set up streaming replication to two standbys
-- [ ] Configure WAL archiving to MinIO for PITR
-- [ ] VERIFY: Write unit tests for schema migrations
-- [ ] VERIFY: Test RLS by attempting to query rows outside permission scope
-- [ ] SECURITY CHECKPOINT: Confirm PII columns use pgcrypto encryption at rest
+- [x] Create PostgreSQL 16 database with extensions: postgis, pgcrypto, pg_stat_statements, uuid-ossp *(embedded Go migrations applied at service startup; all four extensions installed — live-verified on a real PostgreSQL)*
+- [x] Define schema tables: users, usernames, devices, refresh_tokens, connection_requests *(0001_init up/down, transactional, advisory-locked runner with version tracking)*
+- [x] Configure row-level security (RLS) for sensitive tables *(ENABLE + FORCE RLS on all 5 tables; per-table `app_full_access` policy scoped to civic_app; roles created NOLOGIN by the migration, activated with Vault-supplied passwords at bootstrap)*
+- [x] Set up streaming replication to two standbys *(infrastructure/database: postgresql-primary.conf — wal_level=replica, synchronous_commit + synchronous_standby_names 'ANY 1 (civic_standby_1, civic_standby_2)'; postgresql-standby.conf + pg_basebackup bootstrap; pg_hba default-deny)*
+- [x] Configure WAL archiving to MinIO for PITR *(archive_mode=on + wal-archive-to-minio.sh via wal-g; nightly base-backup CronJob infrastructure/security/postgres-wal-backup.yaml)*
+- [x] VERIFY: Write unit tests for schema migrations *(forward + rollback live-verified incl. idempotent re-run and concurrent Migrate via advisory lock; static SQL checks for extensions/tables/RLS/pgcrypto run everywhere)*
+- [x] VERIFY: Test RLS by attempting to query rows outside permission scope *(outsider role with full table grants sees 0 rows and cannot write; FORCE RLS blocks a non-superuser table owner; only civic_app sees its data — live-verified)*
+- [x] SECURITY CHECKPOINT: Confirm PII columns use pgcrypto encryption at rest *(devices.public_key_enc = pgp_sym_encrypt bytea keyed by session GUC civic.enc_key; raw dump shows ciphertext only, wrong-key decrypt fails, right-key round-trips — live-verified)*
 
 ### 4.6 Redis Configuration
-- [ ] Deploy Redis Sentinel (3-node: 1 primary, 2 replicas, 3 sentinels)
-- [ ] Configure key namespaces: otp, refresh, revoked, msg_queue, karma, vote_buffer, analyst_load, rate
-- [ ] Set up TTL policies for each namespace
-- [ ] Configure Redis persistence (AOF + RDB)
-- [ ] VERIFY: Write integration tests for Redis operations
-- [ ] VERIFY: Test TTL expiration by setting keys and confirming deletion
-- [ ] SECURITY CHECKPOINT: Confirm no plaintext PII in Redis values
+- [x] Deploy Redis Sentinel (3-node: 1 primary, 2 replicas, 3 sentinels) *(infrastructure/helm/redis: StatefulSet redis-0 primary + ordinals 1..N replicaof, redis-sentinel StatefulSet quorum 2, headless + sentinel services; live-verified with a real 6-container docker Sentinel cluster)*
+- [x] Configure key namespaces: otp, refresh, revoked, msg_queue, karma, vote_buffer, analyst_load, rate *(internal/cache/namespaces.go registry: otp, otp_attempts, refresh, revoked, revoked_family, msg_queue, karma, vote_buffer, analyst_load, rate — validated key builders used by the identity OTP/refresh stores and the relay offline queue)*
+- [x] Set up TTL policies for each namespace *(10m otp/otp_attempts, 30d refresh/revoked/revoked_family/msg_queue, 5m karma, 1m rate, no-TTL vote_buffer/analyst_load — constants + tests)*
+- [x] Configure Redis persistence (AOF + RDB) *(appendonly yes + appendfsync everysec + RDB save points on a PVC; live-verified config get appendonly=yes + save points)*
+- [x] VERIFY: Write integration tests for Redis operations *(env-gated live tests: pool starvation/recovery, TTL expiry, stream XTRIM MINID + purge-on-drain, Sentinel round-trip — all run against a real Redis 7 cluster)*
+- [x] VERIFY: Test TTL expiration by setting keys and confirming deletion *(unit via miniredis FastForward + live against real Redis)*
+- [x] SECURITY CHECKPOINT: Confirm no plaintext PII in Redis values *(validated key builders reject any PII-shaped suffix — raw E.164 phones, raw OTPs, emails, non-hex strings can never become keys; test suite proves rejection; keys strictly carry 64-hex blind hashes / SHA-256 digests)*
 
 ### 4.7 NATS JetStream Event Bus
-- [ ] Deploy NATS JetStream with durable streams
-- [ ] Define topic schema for karma events and search sync
-- [ ] Configure at-least-once delivery guarantees
-- [ ] Implement consumer groups for karma service
-- [ ] VERIFY: Write integration tests for event publishing and consumption
-- [ ] VERIFY: Test durability by restarting NATS and confirming no event loss
-- [ ] SECURITY CHECKPOINT: Confirm event payloads contain no plaintext PII
+- [x] Deploy NATS JetStream with durable streams *(internal/events JetStream client + infrastructure/helm/nats chart: `-js` + file storage on a PVC so CIVIC_EVENTS + durable consumers survive restarts; live-verified)*
+- [x] Define topic schema for karma events and search sync *(internal/events/subjects.go registry: relay.connection.accepted, identity.user.registered, karma.updated, search.sync.requested — allowlist enforcement)*
+- [x] Configure at-least-once delivery guarantees *(JetStream PUBACK-waiting Publish + durable push consumers with explicit acks and NAK-on-handler-error redelivery; nats.go auto-reconnect with logged reconnect/closed handlers)*
+- [x] Implement consumer groups for karma service *(SubscribeDurable: explicit durable consumer creation + Bind so ack progress survives drains/restarts; ready for the karma/search services)*
+- [x] VERIFY: Write integration tests for event publishing and consumption *(11 unit tests against an in-process nats-server: stream idempotency, pub/sub round-trip, NAK redelivery, restart resume with no event loss + no acked replay, concurrent durable-create race, Options storage/maxage fallback, PII rejection)*
+- [x] VERIFY: Test durability by restarting NATS and confirming no event loss *(unit: server restart on the same store dir redelivers unacked events; live: scripts/verify_nats_live.sh restarts the docker broker and confirms the CIVIC_EVENTS stream + durable consumer survive — 8/8 checks)*
+- [x] SECURITY CHECKPOINT: Confirm event payloads contain no plaintext PII *(ValidateSubject allowlist + logging.ContainsPII rejection on both subjects and payloads; E.164/email-shaped events rejected before the wire — proven by tests)*
 
 ### 4.8 HashiCorp Vault Integration
-- [ ] Deploy HashiCorp Vault via Helm chart
-- [ ] Configure transit secrets engine for encryption operations
-- [ ] Configure KV secrets engine for Argon2id salt and JWT signing keys
-- [ ] Implement Go client for Vault secrets fetching
-- [ ] Set up automatic secret rotation policies
-- [ ] VERIFY: Write unit tests for Vault client operations
-- [ ] VERIFY: Test secret rotation and confirm service picks up new values
-- [ ] SECURITY CHECKPOINT: Confirm secrets are never written to application logs
+- [x] Deploy HashiCorp Vault via Helm chart *(deployed on a dedicated Hetzner node via `infrastructure/cloud-init-vault.tpl` (file storage, TLS listener, bootstrapped root token from Terraform) with External Secrets Operator syncing `infrastructure/eso/vault-secret-store.yaml` — the repo's established Vault deployment path)*
+- [x] Configure transit secrets engine for encryption operations *(`TransitEncrypt`/`TransitDecrypt` helpers — base64 plaintext per the Vault transit API, `vault:v1:` ciphertext, live-verified against a real transit engine)*
+- [x] Configure KV secrets engine for Argon2id salt and JWT signing keys *(KV v2 `ReadKV2` + `ReadKV2Meta` (version/created_time); live-verified against a real `civic-commons` kv-v2 mount holding `identity/argon2_salt` + `identity/jwt_rs256_public_key`)*
+- [x] Implement Go client for Vault secrets fetching *(stdlib net/http, no SDK: `ReadKV2`/`ReadKV2Meta`, AppRole login, `LookupSelf`/`RenewSelf`, background renewal loop, `TransitEncrypt`/`TransitDecrypt`, `SecretCache` TTL-aware caching + rotation-detecting `Refresh`, `WipeBytes` zero-memory hygiene, `Connect` factory with fail-fast)*
+- [x] Set up automatic secret rotation policies *(background `RunRenewal` re-logins and re-renews the client token; `SecretCache.Refresh` detects rotated secret versions so services re-read; buffer wipe on cache replacement)*
+- [x] VERIFY: Write unit tests for Vault client operations *(httptest suite: AppRole success/403, KV v2 + metadata, transit round-trip + base64, SecretCache TTL/rotation, HTTP 401/403/404/500 sentinels, WipeBytes, Connect creds/renewal)*
+- [x] VERIFY: Test secret rotation and confirm service picks up new values *(SecretCache refresh test proves a rotated value is picked up and reported as changed; live test refreshes against the real server)*
+- [x] SECURITY CHECKPOINT: Confirm secrets are never written to application logs *(redacting logger now scrubs Vault token shapes (`hvs.`/`s.`), `X-Vault-Token` and `Authorization: Bearer` headers, and `X-Vault` request headers; production config refuses to run without Vault auth; `verify_vault_live.sh` checks the redaction tests live)*
 
 ---
 
@@ -318,59 +318,61 @@ Build the API Gateway layer and core backend services in Go, implementing the se
 Implement the resilient background sync engine that bridges the local SQLite queue with the remote API Gateway, handling network volatility and ensuring data consistency.
 
 ### 5.1 Network State Detection
-- [ ] Implement `NetworkInfoProvider` using `connectivity_plus`
-- [ ] Create network state enum: `online`, `offline`, `metered`
-- [ ] Implement network state listener with debouncing (500ms)
-- [ ] Create network-aware sync triggering logic
-- [ ] VERIFY: Write unit tests for network state detection
-- [ ] VERIFY: Write integration tests by toggling network and confirming state changes
-- [ ] SECURITY CHECKPOINT: Confirm network state is not used for fingerprinting
+- [x] Implement `NetworkInfoProvider` using `connectivity_plus` *(data layer `ConnectivityNetworkInfoProvider` — `none`→offline, `mobile`→metered, wifi/ethernet/vpn/bluetooth/other→online; `currentStatus()` one-shot + `statusChanges` stream)*
+- [x] Create network state enum: `online`, `offline`, `metered` *(`NetworkStatus` domain enum)*
+- [x] Implement network state listener with debouncing (500ms) *(new `DebouncedNetworkInfoProvider` decorator — default 500ms quiet window, last-status-wins, flapping collapses to one emission; configurable duration, fakeAsync-tested)*
+- [x] Create network-aware sync triggering logic *(`ReconnectionSyncTrigger` — fires exactly once per offline→online transition, never while offline; crash-safe fire-and-forget)*
+- [x] VERIFY: Write unit tests for network state detection *(mapping tests + scripted-stream domain tests + debounce tests: window boundary, flapping collapse, window restart, custom duration)*
+- [x] VERIFY: Write integration tests by toggling network and confirming state changes *(domain-level: scripted fake provider drives online/offline/metered transitions; platform-channel toggling is compile-verified — no device in this environment)*
+- [x] SECURITY CHECKPOINT: Confirm network state is not used for fingerprinting *(state used solely to gate WHEN sync runs; never persisted, never leaves the device, never combined with user data — static checkpoint suite enforces no sqflite/secure_storage in lib/sync)*
 
 ### 5.2 Sync Worker Implementation
-- [ ] Create background isolate for sync operations using `workmanager`
-- [ ] Implement chunking logic: process queue items in batches of 10
-- [ ] Implement aggressive timeout limits: 10s per HTTP request
-- [ ] Implement idempotency key generation and attachment to headers
-- [ ] Implement silent failure handling: increment retry count, update timestamp, no UI exception
-- [ ] VERIFY: Write unit tests for chunking logic
-- [ ] VERIFY: Write unit tests for idempotency key generation
-- [ ] SECURITY CHECKPOINT: Confirm sync worker never exposes plaintext payloads in logs
+- [x] Create background isolate for sync operations using `workmanager` *(`WorkmanagerScheduler` — periodic 15-min + one-off sync tasks, ExistingWorkPolicy keep/replace, compile-verified; logic unit-tested, native scaffold lands with the app shell)*
+- [x] Implement chunking logic: process queue items in batches of 10 *(`BatchChunker` — bounded batches, order-preserving, default max 10; used by `BackgroundSyncWorker`)*
+- [x] Implement aggressive timeout limits: 10s per HTTP request *(worker wraps every `SyncSink.push` in a 10s `Future.timeout` — a hung connection is treated as a failure and retried, never stalls the drain; timeout configurable + unit-tested)*
+- [x] Implement idempotency key generation and attachment to headers *(new `IdempotencyKeyGenerator` — RFC 4122 UUID v4 from `Random.secure()`, `Idempotency-Key` header constant; every queued mutation's id IS a UUID v4 idempotency key so retries dedupe server-side)*
+- [x] Implement silent failure handling: increment retry count, update timestamp, no UI exception *(`markFailed` bumps retryCount; thrown/timeout sink errors never propagate to UI; crash recovery: `recoverInterrupted()` resets `in_progress`→`pending` at the start of every drain so killed runs are retried, never lost)*
+- [x] VERIFY: Write unit tests for chunking logic *(8 chunker tests incl. 10+10+5, order preservation, cap enforcement)*
+- [x] VERIFY: Write unit tests for idempotency key generation *(UUID v4 shape/version/variant, uniqueness ×1000, seeded-RNG determinism, header constant)*
+- [x] SECURITY CHECKPOINT: Confirm sync worker never exposes plaintext payloads in logs *(no print/debugPrint in lib/sync, no raw transport imports, sink receives only sealed payloads — static + runtime checkpoint suite)*
+- [x] EXTRA (hand-off scope): deterministic conflict-resolution hooks *(`ConflictResolutionPolicy` + `ServerAuthoritativeLastWriteWins` — server-ack beats local-only, newer timestamp wins, hash tiebreak so all devices converge; full conflict UI deferred to 5.5)*
+- [x] EXTRA (hand-off scope): deterministic retry with exponential backoff + jitter — WIRED, not dead code *(`ExponentialBackoff.delayForRetryWithJitter` = equal jitter over `[base/2, base)` (guaranteed minimum, safe as a gate); schema v2 migration adds `sync_queue.last_attempt_at`; `getRetryable()` returns failed items whose backoff window has elapsed; the worker drains pending + retryable-failed together, so failed items are genuinely retried after their jittered window — never before base/2, always by base, window grows with retryCount)*
 
 ### 5.3 Idempotency Enforcement
-- [ ] Implement UUID v4 idempotency key generation
-- [ ] Attach `Idempotency-Key` header to all mutation requests
-- [ ] Implement server-side idempotency key tracking in Redis (TTL 24 hours)
-- [ ] Create idempotency conflict resolution logic
-- [ ] VERIFY: Write unit tests for idempotency key generation
-- [ ] VERIFY: Write integration tests by sending duplicate requests and confirming deduplication
-- [ ] SECURITY CHECKPOINT: Confirm idempotency keys are random and not predictable
+- [x] Implement UUID v4 idempotency key generation *(Task 5.2 client-side: `IdempotencyKeyGenerator` — RFC 4122 UUID v4 from `Random.secure()`; every queued mutation's id IS a UUID v4 key)*
+- [x] Attach `Idempotency-Key` header to all mutation requests *(Task 5.2: `Idempotency-Key: <item.id>` attached by the sync worker's transport so retries dedupe server-side)*
+- [x] Implement server-side idempotency key tracking in Redis (TTL 24 hours) *(new `internal/idempotency` package — Redis SETNX claim / GET / SET complete / DEL clear against the validated `idempotency:` namespace; `IDEMPOTENCY_TTL` default 24h; keys are actor-scoped `idempotency:{blind_hash_id}:{uuid}`)*
+- [x] Create idempotency conflict resolution logic *(middleware on the relay's POST mutation routes inside auth: missing header = passthrough, malformed = 400, claim-winner processes + caches the 2xx response (64 KiB cap), concurrent in-flight = 409, completed = cached replay with `Idempotent-Replayed` header, handler failure = key cleared so the retry reprocesses)*
+- [x] VERIFY: Write unit tests for idempotency key generation *(client: UUID v4 shape/version/variant + uniqueness ×1000; server: `cache.IdempotencyKey`/`IdempotencyKeyScoped` validation + PII-shaped-suffix rejection)*
+- [x] VERIFY: Write integration tests by sending duplicate requests and confirming deduplication *(relay HTTP integration: same key + actor → single side effect then cached replay; concurrent race → exactly one 201; cross-actor same key → NO dedup)*
+- [x] SECURITY CHECKPOINT: Confirm idempotency keys are random and not predictable *(UUID v4 from a crypto-secure RNG client-side; the server key builder strictly validates UUID v4 shape and rejects PII-shaped suffixes before any Redis write — raw phones/OTPs/emails can never become keys; actor scoping prevents cross-user replay of cached responses)*
 
 ### 5.4 Sync Status UI Integration
-- [ ] Create `SyncStatusBar` widget showing: LIVE, CACHED, QUEUED, OFFLINE
-- [ ] Implement tap-to-expand showing last-sync timestamp and queue count
-- [ ] Bind sync status to BLoC state stream
-- [ ] Implement visual feedback for sync operations (subtle progress indicator)
-- [ ] VERIFY: Write widget tests for SyncStatusBar states
-- [ ] VERIFY: Write integration tests by triggering sync and confirming UI updates
-- [ ] SECURITY CHECKPOINT: Confirm sync status never exposes sensitive data
+- [x] Create `SyncStatusBar` widget showing: LIVE, CACHED, QUEUED, OFFLINE *(`lib/state/ui/sync_status_bar.dart` — compact status chip with per-state color/icon: LIVE=green/cloud_done, CACHED=amber/cloud_queue, QUEUED=blue/cloud_upload, OFFLINE=grey/cloud_off)*
+- [x] Implement tap-to-expand showing last-sync timestamp and queue count *(InkWell toggle expands an `AnimatedSize` panel with "Last synced: …" (`formatLastSync`: Never/Just now/Xm/Xh/Xd ago/date) and "N pending mutation(s)")*
+- [x] Bind sync status to BLoC state stream *(`StreamBuilder` over `SyncStatusBloc.state` — the widget consumes ONLY the BLoC interface; no repository/DB/network access in the widget tree)*
+- [x] Implement visual feedback for sync operations (subtle progress indicator) *(14px `CircularProgressIndicator` rendered while `SyncStatusState.isSyncing` — driven by the bloc's in-progress queue-item derivation)*
+- [x] VERIFY: Write widget tests for SyncStatusBar states *(22 widget tests: all four states + empty-before-emit, badge show/update/drain, LIVE↔OFFLINE transitions, progress indicator show/hide, tap-expand/collapse + singular wording + Never, `formatLastSync` units, security text-shape checks)*
+- [x] VERIFY: Write integration tests by triggering sync and confirming UI updates *(2 integration tests: real `ReconnectionSyncTrigger` + `BackgroundSyncWorker` + `LocalSyncStatusBloc` driving the bar — reconnect fires a real drain QUEUED→LIVE, and a gated sink proves the in-flight progress indicator; async teardown via `runAsync`)*
+- [x] SECURITY CHECKPOINT: Confirm sync status never exposes sensitive data *(state contract extended additively with non-PII `lastSyncAt` timestamp + `isSyncing` boolean only; runtime widget-tree scan asserts no phone/email/hvs./64-hex/JWT-shaped text; static scan proves no direct data-layer access, no prints, fixed enum labels only; 5 security tests)*
 
 ### 5.5 Conflict Resolution Logic
-- [ ] Implement last-write-wins for simple fields
-- [ ] Implement merge logic for nested structures (e.g., karma scores)
-- [ ] Create conflict detection by comparing local vs remote timestamps
-- [ ] Implement user-facing conflict resolution UI for critical data
-- [ ] VERIFY: Write unit tests for conflict resolution algorithms
-- [ ] VERIFY: Write integration tests by simulating conflicting edits
-- [ ] SECURITY CHECKPOINT: Confirm conflict resolution never exposes raw data to logs
+- [x] Implement last-write-wins for simple fields *(ServerAuthoritativeLastWriteWins refined: authority → timestamp → author-hash tiebreak)*
+- [x] Implement merge logic for nested structures (e.g., karma scores) *(MaxMergePolicy — commutative/idempotent/associative on non-PII numeric aggregates)*
+- [x] Create conflict detection by comparing local vs remote timestamps *(SyncPushOutcome carries the server's MutationVersion into the worker/repo loops)*
+- [x] Implement user-facing conflict resolution UI for critical data *(ConflictResolutionBanner — fixed non-PII outcome labels; app-shell wiring deferred to Phase 6)*
+- [x] VERIFY: Write unit tests for conflict resolution algorithms
+- [x] VERIFY: Write integration tests by simulating conflicting edits
+- [x] SECURITY CHECKPOINT: Confirm conflict resolution never exposes raw data to logs
 
 ### 5.6 Offline Queue Persistence
-- [ ] Implement queue persistence across app restarts
-- [ ] Create queue backup/restore mechanism
-- [ ] Implement queue size limits (max 1000 items, FIFO eviction)
-- [ ] Create queue cleanup for expired items (30 days)
-- [ ] VERIFY: Write unit tests for queue persistence
-- [ ] VERIFY: Write integration tests by restarting app during sync
-- [ ] SECURITY CHECKPOINT: Confirm queued data remains encrypted at rest
+- [x] Implement queue persistence across app restarts *(durable SQLCipher rows with exact serialization/deserialization bounds; `recoverInterrupted()` resets crash-stranded in_progress items to pending on cold start — nothing is lost)*
+- [x] Create queue backup/restore mechanism *(`SyncQueueBackup`: sealed-only JSON envelope codec — versioned, fully validated before any insert, idempotent restore that can never duplicate a mutation)*
+- [x] Implement queue size limits (max 1000 items, FIFO eviction) *(cap enforced on insert; OLDEST non-in-flight items evicted, in-flight protected, just-inserted item guaranteed to survive by construction)*
+- [x] Create queue cleanup for expired items (30 days) *(`purgeExpired` strict boundary — exactly-30-day-old items survive; wired into the worker before every drain so stale mutations are never pushed)*
+- [x] VERIFY: Write unit tests for queue persistence
+- [x] VERIFY: Write integration tests by restarting app during sync
+- [x] SECURITY CHECKPOINT: Confirm queued data remains encrypted at rest *(AES-256-GCM sealed before storage, verified across restart/backup/restore paths)*
 
 ---
 
@@ -380,14 +382,14 @@ Implement the resilient background sync engine that bridges the local SQLite que
 Implement the Vault pillar with end-to-end encrypted messaging, connection requests, and zero-cloud-footprint architecture.
 
 ### 6.1 Vault UI Foundation
-- [ ] Create `VaultMasthead` component with classified document aesthetic
-- [ ] Implement conversation list screen with ciphertext previews
-- [ ] Create conversation detail screen with message bubbles
-- [ ] Implement connection request queue UI
-- [ ] Apply `FLAG_SECURE` wrapper to all Vault screens
-- [ ] VERIFY: Write widget tests for VaultMasthead rendering
-- [ ] VERIFY: Write integration tests for conversation list navigation
-- [ ] SECURITY CHECKPOINT: Confirm FLAG_SECURE is active on all Vault screens
+- [x] Create `VaultMasthead` component with classified document aesthetic *(Vault Blue #1A3D6B strip, lock glyph, `THE VAULT` tracked wordmark, `[CLASSIFIED]` stamp, black pseudo-redaction bar; DESIGN §2.2/§6.2)*
+- [x] Implement conversation list screen with ciphertext previews *(preview is ALWAYS the fixed `[end-to-end encrypted]` label — never a plaintext snippet, shoulder-surfing protection; peers rendered only via non-PII `formatPeerHandle`)*
+- [x] Create conversation detail screen with message bubbles *(received = white + 3dp Vault Blue left bar, sent = Vault Blue panel; ✓/✓✓ receipts, amber queued indicator, `Expires` marker; body is a fixed E2EE placeholder until 6.3 wires decryption)*
+- [x] Implement connection request queue UI *(collapsible `PENDING REQUESTS (N)` section with Accept buttons — read-only when the accept flow is not yet wired, inbox never invisible)*
+- [x] Apply `FLAG_SECURE` wrapper to all Vault screens *(both screens wrap in `SecureScreenWrapper` — verified statically + runtime enable-on-mount)*
+- [x] VERIFY: Write widget tests for VaultMasthead rendering
+- [x] VERIFY: Write integration tests for conversation list navigation *(real `LocalConversationBloc` + `LocalDataStreamController` + fake repo end-to-end)*
+- [x] SECURITY CHECKPOINT: Confirm FLAG_SECURE is active on all Vault screens
 
 ### 6.2 Connection Request Flow
 - [ ] Implement username search via API Gateway
@@ -965,12 +967,12 @@ npm audit (if applicable)
 
 ## Progress Tracking
 
-**Current Phase:** Phase 4 - API Gateway & Backend Services Foundation  
-**Current Task:** 4.2 API Gateway (Kong OSS)  
-**Overall Progress:** Phase 2 complete (2.1–2.7); Phase 3 COMPLETE (3.1–3.6); Phase 4 in progress (4.1 COMPLETE)
+**Current Phase:** Phase 6 - The Vault (Secure Messaging)  
+**Current Task:** 6.1 Vault UI Foundation COMPLETE — next: Task 6.2 Connection Request Flow  
+**Overall Progress:** Phase 2 complete (2.1–2.7); Phase 3 COMPLETE (3.1–3.6); Phase 4 COMPLETE (4.1–4.8); Phase 5 COMPLETE (5.1–5.6); Phase 6 in progress (6.1 COMPLETE)
 
-**Last Updated:** 2026-08-02  
-**Next Review:** After completion of Task 4.2
+**Last Updated:** 2026-08-09  
+**Next Review:** After completion of Task 6.2
 
 ---
 
@@ -980,4 +982,16 @@ npm audit (if applicable)
 |------|---------|---------|
 | 2026-07-04 | 1.0 | Initial MASTER_PLAN creation |
 | 2026-07-04 | 1.1 | Completed Phase 1.1 - Repository & Development Environment Setup |
+| 2026-08-02 | 1.2 | Completed Task 4.2 - API Gateway (Kong OSS), live-verified (JWT 401/200, per-blind_hash_id throttle, IP stripping, PII-scrubbed logs) |
+| 2026-08-03 | 1.3 | Completed Task 4.3 - Identity Service (Go) — OTP/MSG91, Argon2id blind-hash w/ Vault salt, username cooldown, device keys, stdlib RS256 JWT + rotating refresh, Redis OTP/revocation; 73 unit tests + live smoke test; phone-never-persisted checkpoint passed |
+| 2026-08-04 | 1.4 | Completed Task 4.4 - Messaging Relay Service (Go) — WebSocket connections (coder/websocket, first-frame JWT auth, 25s/10s heartbeat), ciphertext envelope routing with server-verified sender hashes, Redis Streams offline queue (30-day TTL, purge on ack), multi-device fan-out, connection-request state machine; 114 Go tests (41 new relay) + live smoke test (12/12); never-decrypts checkpoint passed |
+| 2026-08-04 | 1.5 | Completed Task 4.5 - PostgreSQL Schema & Migrations — embedded migration runner (forward/rollback, advisory-locked) creating users/usernames/devices/refresh_tokens/connection_requests with postgis/pgcrypto/pg_stat_statements/uuid-ossp; ENABLE+FORCE RLS with civic_app-scoped policies (live out-of-scope denial verified); pgcrypto encryption at rest for device keys; PostgreSQL-backed stores wired into identity + relay; primary/standby replication + WAL-archive-to-MinIO declarative configs; 133 Go tests (18 new) + live Postgres verification; pgcrypto/RLS security checkpoint passed |
+| 2026-08-04 | 1.6 | Completed Task 4.6 - Redis Configuration — production Redis client factory (go-redis/v9) with Sentinel HA failover, resilient retries (3, backoff 8ms→512ms), managed pooling (size 20, min-idle 5) and a Ping health probe wired into identity + relay (fail-fast in production); validated namespace registry (otp/otp_attempts/refresh/revoked/revoked_family/msg_queue + karma/vote_buffer/analyst_load/rate) with spec TTL policies and PII-rejecting key builders adopted by all Redis stores; Redis Sentinel Helm chart (1 primary, 2 replicas, 3 sentinels, AOF+RDB persistence, PVC, sh-based probes); 152 Go tests (19 new) + live 6-container Sentinel verification incl. kill-the-primary failover demo; no-plaintext-PII checkpoint passed |
+| 2026-08-04 | 1.7 | Completed Task 4.7 - NATS JetStream Event Bus — JetStream client (stream init, PUBACK publish, explicit durable consumers via create+bind, auto-reconnect handlers), validated allowlist topic schema (relay.connection.accepted, identity.user.registered, karma.updated, search.sync.requested), at-least-once delivery; NATS Helm chart (JetStream file storage on PVC); 170 Go tests (18 new incl. embedded-nats-server restart-resume/no-loss + concurrent durable race + option fallback) + live docker verification (8/8 incl. broker-restart durability); zero-PII checkpoint passed |
+| 2026-08-04 | 1.8 | Completed Task 4.8 - HashiCorp Vault Integration — expanded stdlib net/http Vault client (no SDK): AppRole login + background token renewal (LookupSelf/RenewSelf + re-login loop), KV v2 reads + metadata, Transit encrypt/decrypt helpers, TTL-aware SecretCache with rotation-detecting refresh + buffer wipe, WipeBytes hygiene, fail-fast Connect factory wired into identity + relay; redacting logger scrubs Vault tokens (hvs./s.), X-Vault-Token and Authorization headers; production config refuses to run without Vault auth; 190 Go tests (20 new) + live docker Vault verification (AppRole/KV/transit/cache/wrong-token/redaction) + deps checkpoint; secrets-never-logged checkpoint passed |
+| 2026-08-04 | 1.9 | Completed Task 5.1 - Network State Detection (debounced 500ms listener via new DebouncedNetworkInfoProvider; mapping + scripted-transition + fakeAsync debounce tests) and Task 5.2 - Sync Worker / Offline Mutation Queue (UUID v4 idempotency keys wired into every queue mutation, 10s aggressive per-push timeout, crash recovery recoverInterrupted(), backoff jitter, deterministic LWW conflict hooks); 412 Flutter tests (33 new); Phase 4 + 5.1/5.2 fully verified (go test -race green, golangci-lint 0, deps + live Vault checks passed) |
+| 2026-08-05 | 1.10 | Completed Task 5.3 - Idempotency Enforcement (server-side Redis dedup) — new `internal/idempotency` package (SETNX claim / get / complete / clear middleware wrapped around the relay's POST mutation routes inside auth): missing header = passthrough, malformed UUID = 400, in-flight = 409, completed = cached replay with `Idempotent-Replayed` header, handler failure = key cleared; actor-scoped keys `idempotency:{blind_hash_id}:{uuid}` under the validated `idempotency:` cache namespace (24h TTL, `IDEMPOTENCY_TTL` configurable) so cross-user replay is impossible and no PII can enter keys; 211 Go test funcs (18 new idempotency + 5 relay HTTP integration + namespace/config) — full `go test -race` green (11 suites), golangci-lint 0 violations, gofmt/vet clean, deps checkpoint passed |
+| 2026-08-05 | 1.11 | Completed Task 5.4 - Sync Status UI Integration — new `SyncStatusBar` (`lib/state/ui/`) renders LIVE/CACHED/QUEUED/OFFLINE with per-state color+icon, pending-count badge, a 14px progress indicator while a sync run is in flight, and tap-to-expand showing "Last synced" + queue count; state contract extended additively with non-PII `lastSyncAt` + `isSyncing` (bloc stamps lastSyncAt exactly when the queue drains while online via injectable clock; isSyncing derives from in-progress queue items); widget consumes ONLY the `SyncStatusBloc` stream — no data-layer access; 447 Flutter tests total (34 new: 22 widget + 2 end-to-end integration via real ReconnectionSyncTrigger/BackgroundSyncWorker + 5 UI security scans + 5 bloc derivation), `flutter analyze` 0 errors, full suite green (also removed stale `flutter create` scaffold test that referenced a nonexistent main.dart) |
+| 2026-08-09 | 1.13 | Completed Task 5.6 - Offline Queue Persistence (final task of Phase 5) — durable SQLCipher queue with exact serialization/deserialization bounds, `recoverInterrupted()` cold-start recovery, `purgeExpired` 30-day retention (strict boundary, wired into the worker before every drain), max-1000 FIFO eviction (in-flight protected, just-inserted item guaranteed to survive by construction), sealed-only versioned backup/restore envelope (`SyncQueueBackup`, idempotent restore, fully validated before any insert); 522 Flutter tests (35 new: 15 queue-repo incl. 4 purge + 5 serialization bounds + FIFO/tie, 10 backup codec, 2 cold-restart integration, 4 worker expiry cleanup, 3 ciphertext-at-rest checkpoint, security scans), `flutter analyze` 0 errors, suite green; queue-encrypted-at-rest checkpoint passed; **PHASE 5 COMPLETE** — next: Phase 6 Task 6.1 Vault UI Foundation |
+| 2026-08-09 | 1.14 | Completed Task 6.1 - Vault UI Foundation (first task of Phase 6) — `VaultMasthead` (classified-document strip: Vault Blue #1A3D6B, `THE VAULT` wordmark, `[CLASSIFIED]` stamp, black pseudo-redaction bar), `VaultConversationListScreen` (BLoC-stream list with fixed `[end-to-end encrypted]` ciphertext previews + collapsible `VaultPendingRequestsSection` request queue + FAB), `VaultConversationDetailScreen` + `MessageBubble` (received white w/ 3dp Vault Blue left bar, sent Vault Blue; ✓/✓✓ receipts, amber queued indicator, Expires marker, fixed E2EE placeholder body) + static composer placeholder; new non-PII `formatPeerHandle` (derived `@peer_` + 6-hex display handles — never the raw blind hash); both screens wrap in `SecureScreenWrapper` (FLAG_SECURE) with late-subscribe `refresh()` on mount; 572 Flutter tests (50 new: 6 peer-handle + 8 masthead + 10 list + 2 real-BLoC integration + 13 detail/bubbles + 11 security scans incl. FLAG_SECURE-on-mount + runtime PII scans), `flutter analyze` 0 errors, suite green; FLAG_SECURE-on-all-Vault-screens + zero-PII-in-Vault-UI checkpoints passed |
 

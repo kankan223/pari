@@ -21,7 +21,8 @@ void main() {
     test('users table has blind_hash_id, username, device_pubkey', () {
       final columns = AppSchema.users.columns.map((c) => c.name).toList();
 
-      expect(columns, containsAll(['blind_hash_id', 'username', 'device_pubkey']));
+      expect(
+          columns, containsAll(['blind_hash_id', 'username', 'device_pubkey']));
       expect(
         AppSchema.users.columns
             .firstWhere((c) => c.name == 'blind_hash_id')
@@ -35,7 +36,8 @@ void main() {
 
       expect(
         columns,
-        containsAll(['ciphertext', 'delivered', 'expires_at', 'conversation_id']),
+        containsAll(
+            ['ciphertext', 'delivered', 'expires_at', 'conversation_id']),
       );
     });
 

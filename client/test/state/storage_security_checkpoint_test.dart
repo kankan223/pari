@@ -57,14 +57,14 @@ void main() {
     test('guard rejects PII patterns that could reach a box', () {
       // Key-level: hashes / tokens / pins are refused by key marker.
       expect(
-        () => NonSensitiveGuard.assertNonSensitive(
-            'participant_hash', 'abc123'),
+        () =>
+            NonSensitiveGuard.assertNonSensitive('participant_hash', 'abc123'),
         throwsA(isA<SensitivePayloadException>()),
       );
       // Value-level: an E.164 phone number is PII and must be refused.
       expect(
-        () => NonSensitiveGuard.assertNonSensitive(
-            'draft_note', '+14155552671'),
+        () =>
+            NonSensitiveGuard.assertNonSensitive('draft_note', '+14155552671'),
         throwsA(isA<SensitivePayloadException>()),
       );
       // Even embedded inside otherwise-benign text.
@@ -75,8 +75,7 @@ void main() {
       );
       // Benign values still pass.
       expect(
-        () =>
-            NonSensitiveGuard.assertNonSensitive('draft_note', 'Draft title'),
+        () => NonSensitiveGuard.assertNonSensitive('draft_note', 'Draft title'),
         returnsNormally,
       );
     });

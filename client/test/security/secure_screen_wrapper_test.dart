@@ -179,7 +179,8 @@ void main() {
       expect(find.byType(SecurityWarningBanner), findsOneWidget);
     });
 
-    testWidgets('gracefully degrades when FLAG_SECURE disable throws on unmount',
+    testWidgets(
+        'gracefully degrades when FLAG_SECURE disable throws on unmount',
         (tester) async {
       final flag = FakeSecureFlagService()..throwOnDisable = true;
 

@@ -4,7 +4,8 @@ import 'package:civic_commons/identity/phone_hasher.dart';
 
 void main() {
   group('PhoneHasher - Phone Number Hashing', () {
-    test('should hash phone number with known salt deterministically', () async {
+    test('should hash phone number with known salt deterministically',
+        () async {
       // Arrange
       const phoneNumber = '+14155552671';
       const salt = 'test_salt_12345';
@@ -18,7 +19,8 @@ void main() {
       expect(hash1.length, equals(64)); // 256-bit hash = 64 hex characters
     });
 
-    test('should match known Argon2id test vector (reference implementation)', () async {
+    test('should match known Argon2id test vector (reference implementation)',
+        () async {
       // Known vector cross-checked against the reference Argon2id implementation
       // (argon2-cffi) using the exact PhoneHasher parameters:
       //   memory=65536 KiB, iterations=3, parallelism=4, hashLength=32,
@@ -28,7 +30,8 @@ void main() {
           '5a45a983c75655ae014d09052fc80545d7b422fd47ba6640dae2a00a5fbc55b2';
 
       // Act
-      final hash = await PhoneHasher.hashPhoneNumber('+14155552671', 'test_salt_12345');
+      final hash =
+          await PhoneHasher.hashPhoneNumber('+14155552671', 'test_salt_12345');
 
       // Assert: output matches the expected hash from the reference implementation
       expect(hash, equals(expectedHash));
@@ -40,13 +43,15 @@ void main() {
           'a6847ba730897579255d1083fc9b724e299f4f58492caa561177ec4948cdcea4';
 
       // Act
-      final hash = await PhoneHasher.hashPhoneNumber('+442071234567', 'test_salt_12345');
+      final hash =
+          await PhoneHasher.hashPhoneNumber('+442071234567', 'test_salt_12345');
 
       // Assert
       expect(hash, equals(expectedHash));
     });
 
-    test('should produce a hash that does not contain raw phone number or salt', () async {
+    test('should produce a hash that does not contain raw phone number or salt',
+        () async {
       // Arrange
       const phoneNumber = '+14155552671';
       const salt = 'test_salt_12345';
@@ -60,7 +65,8 @@ void main() {
       expect(hash.contains(salt), isFalse);
     });
 
-    test('should produce different hashes for different phone numbers', () async {
+    test('should produce different hashes for different phone numbers',
+        () async {
       // Arrange
       const phoneNumber1 = '+14155552671';
       const phoneNumber2 = '+14155552672';
@@ -95,7 +101,8 @@ void main() {
       final blindHashId = await PhoneHasher.hashPhoneNumber(phoneNumber, salt);
 
       // Act
-      final isValid = await PhoneHasher.verifyPhoneHash(phoneNumber, salt, blindHashId);
+      final isValid =
+          await PhoneHasher.verifyPhoneHash(phoneNumber, salt, blindHashId);
 
       // Assert
       expect(isValid, isTrue);
@@ -108,7 +115,8 @@ void main() {
       const invalidBlindHashId = 'invalid_hash_1234567890abcdef';
 
       // Act
-      final isValid = await PhoneHasher.verifyPhoneHash(phoneNumber, salt, invalidBlindHashId);
+      final isValid = await PhoneHasher.verifyPhoneHash(
+          phoneNumber, salt, invalidBlindHashId);
 
       // Assert
       expect(isValid, isFalse);
@@ -120,7 +128,8 @@ void main() {
       final saltBytes = Uint8List.fromList('test_salt_12345'.codeUnits);
 
       // Act
-      final hash = await PhoneHasher.hashPhoneNumberWithSaltBytes(phoneNumber, saltBytes);
+      final hash = await PhoneHasher.hashPhoneNumberWithSaltBytes(
+          phoneNumber, saltBytes);
 
       // Assert
       expect(hash, isNotNull);
@@ -131,7 +140,8 @@ void main() {
       // Arrange
       const phoneNumber = '+14155552671';
       final saltBytes = Uint8List.fromList('test_salt_12345'.codeUnits);
-      final blindHashId = await PhoneHasher.hashPhoneNumberWithSaltBytes(phoneNumber, saltBytes);
+      final blindHashId = await PhoneHasher.hashPhoneNumberWithSaltBytes(
+          phoneNumber, saltBytes);
 
       // Act
       final isValid = await PhoneHasher.verifyPhoneHashWithSaltBytes(
@@ -188,7 +198,7 @@ void main() {
     test('should confirm no raw phone numbers are logged', () async {
       // This test verifies that the hashing process does not log raw phone numbers
       // The implementation does not use any logging functions for phone numbers
-      
+
       // Arrange
       const phoneNumber = '+14155552671';
       const salt = 'test_salt_12345';

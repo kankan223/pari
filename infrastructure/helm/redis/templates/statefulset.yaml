@@ -1,25 +1,186 @@
+{{- $redisName := .Chart.Name -}}
+{{- $masterName := .Values.masterName -}}
+{{- $replicas := .Values.replicas | int -}}
+{{- $sentinels := .Values.sentinels | int -}}
+
+# --- Redis data nodes: pod ordinal 0 is the primary; ordinals 1..N are
+# replicas that follow redis-0 via `replicaof` (HA failover topology).
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Chart.Name }}
+  name: {{ $redisName }}
 spec:
-  serviceName: {{ .Chart.Name }}
-  replicas: 1
+  serviceName: {{ $redisName }}-headless
+  replicas: {{ $replicas }}
   selector:
     matchLabels:
-      app: {{ .Chart.Name }}
+      app: {{ $redisName }}
   template:
     metadata:
       labels:
-        app: {{ .Chart.Name }}
+        app: {{ $redisName }}
     spec:
       securityContext:
         runAsUser: {{ .Values.securityContext.runAsUser }}
         runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
         fsGroup: 1001
       containers:
-      - name: {{ .Chart.Name }}
-        image: "{{ .Chart.Name }}:latest"
+      - name: {{ $redisName }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         securityContext:
           readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
           allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+        command: ["/bin/sh", "-ec"]
+        args:
+          - |
+            # Pod ordinal → role: 0 = primary, else replica of redis-0.
+            ORD="${HOSTNAME##*-}"
+            CONF=/conf/redis.conf
+            cp /etc/redis/redis.conf "$CONF"
+            if [ "$ORD" != "0" ]; then
+              echo "replicaof {{ $redisName }}-0.{{ $redisName }}-headless 6379" >> "$CONF"
+            fi
+            if [ -n "$REDIS_PASSWORD" ]; then
+              echo "requirepass $REDIS_PASSWORD" >> "$CONF"
+              echo "masterauth $REDIS_PASSWORD" >> "$CONF"
+            fi
+            exec redis-server "$CONF"
+        {{- if .Values.existingSecret }}
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.existingSecret }}
+              key: {{ .Values.redisPasswordKey }}
+        {{- end }}
+        ports:
+        - name: redis
+          containerPort: 6379
+        # K8s does NOT expand $(VAR) in probe exec.command args — wrap in a
+        # shell. When no password secret is configured (dev), AUTH is omitted.
+        livenessProbe:
+          exec:
+            command: ["/bin/sh", "-ec"]
+            args:
+            - |
+              if [ -n "$REDIS_PASSWORD" ]; then
+                exec redis-cli -a "$REDIS_PASSWORD" ping
+              else
+                exec redis-cli ping
+              fi
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["/bin/sh", "-ec"]
+            args:
+            - |
+              if [ -n "$REDIS_PASSWORD" ]; then
+                exec redis-cli -a "$REDIS_PASSWORD" ping
+              else
+                exec redis-cli ping
+              fi
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/redis/redis.conf
+          subPath: redis.conf
+          readOnly: true
+        - name: conf
+          mountPath: /conf
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: config
+        configMap:
+          name: {{ $redisName }}-config
+      - name: conf
+        emptyDir: {}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [{{ .Values.persistence.accessMode }}]
+      {{- if .Values.persistence.storageClass }}
+      storageClassName: {{ .Values.persistence.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.size }}
+
+---
+# --- Sentinel nodes: 3 replicas monitoring the primary via sentinel.conf.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $redisName }}-sentinel
+spec:
+  serviceName: {{ $redisName }}-sentinel-headless
+  replicas: {{ $sentinels }}
+  selector:
+    matchLabels:
+      app: {{ $redisName }}-sentinel
+  template:
+    metadata:
+      labels:
+        app: {{ $redisName }}-sentinel
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        fsGroup: 1001
+      containers:
+      - name: sentinel
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+          allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+        command: ["/bin/sh", "-ec"]
+        args:
+          - |
+            CONF=/conf/sentinel.conf
+            cp /etc/redis/sentinel.conf "$CONF"
+            if [ -n "$REDIS_PASSWORD" ]; then
+              echo "sentinel auth-pass {{ $masterName }} $REDIS_PASSWORD" >> "$CONF"
+            fi
+            exec redis-server "$CONF" --sentinel
+        {{- if .Values.existingSecret }}
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.existingSecret }}
+              key: {{ .Values.redisPasswordKey }}
+        {{- end }}
+        ports:
+        - name: sentinel
+          containerPort: 26379
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "-p", "26379", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/redis/sentinel.conf
+          subPath: sentinel.conf
+          readOnly: true
+        - name: conf
+          mountPath: /conf
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: config
+        configMap:
+          name: {{ $redisName }}-config
+      - name: conf
+        emptyDir: {}
+      - name: data
+        emptyDir: {}

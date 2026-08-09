@@ -25,7 +25,7 @@ void main() {
 
     test('rejects values that look like encrypted blobs', () {
       // A long base64 blob — how ciphertext is encoded in this app.
-      final base64Blob = List.filled(120, 'A').join() + '==';
+      final base64Blob = '${List.filled(120, 'A').join()}==';
       expect(() => NonSensitiveGuard.assertNonSensitive('theme', base64Blob),
           throwsA(isA<SensitivePayloadException>()));
 
@@ -42,8 +42,10 @@ void main() {
     test('accepts ordinary non-sensitive values', () {
       expect(() => NonSensitiveGuard.assertNonSensitive('theme', 'dark'),
           returnsNormally);
-      expect(() => NonSensitiveGuard.assertNonSensitive('academy_progress',
-          '{"level":4,"xp":1200}'), returnsNormally);
+      expect(
+          () => NonSensitiveGuard.assertNonSensitive(
+              'academy_progress', '{"level":4,"xp":1200}'),
+          returnsNormally);
       expect(() => NonSensitiveGuard.assertNonSensitive('karma_cache', '42'),
           returnsNormally);
     });
@@ -116,8 +118,7 @@ void main() {
       expect(await store.read('academy_xp'), isNull);
     });
 
-    test('values persist across box reopen (true disk persistence)',
-        () async {
+    test('values persist across box reopen (true disk persistence)', () async {
       final store = HiveNonSensitiveStore(box);
       await store.write('ui_theme', 'system');
 

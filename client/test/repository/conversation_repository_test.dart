@@ -5,7 +5,6 @@ import 'package:civic_commons/repository/data/local_conversation_repository.dart
 import 'package:civic_commons/repository/domain/conversation.dart';
 import 'package:civic_commons/repository/domain/queue_payload_cipher.dart';
 import 'package:civic_commons/repository/domain/sync_queue_item.dart';
-import 'package:civic_commons/repository/domain/sync_queue_repository.dart';
 import 'package:civic_commons/repository/data/local_sync_queue_repository.dart';
 
 import 'fakes.dart';

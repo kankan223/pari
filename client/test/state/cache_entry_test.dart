@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('TtlPolicy - cache invalidation TTL logic (Task 3.6)', () {
     final storedAt = DateTime.utc(2026, 8, 2, 12, 0, 0);
-    final ttl = const Duration(minutes: 5);
+    const ttl = Duration(minutes: 5);
 
     test('fresh entries (younger than TTL) are NOT expired', () {
       expect(

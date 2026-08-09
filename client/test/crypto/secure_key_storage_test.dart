@@ -21,7 +21,7 @@ void main() {
     setUp(() async {
       // Use in-memory storage for testing
       FlutterSecureStorage.setMockInitialValues({});
-      mockSecureStorage = FlutterSecureStorage();
+      mockSecureStorage = const FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
     });
@@ -40,7 +40,7 @@ void main() {
 
       // Assert
       expect(retrievedKeyPair, isNotNull);
-      
+
       final originalPublicKey = await _pubBytes(keyPair);
       final retrievedPublicKey = await _pubBytes(retrievedKeyPair!);
       expect(retrievedPublicKey, equals(originalPublicKey));
@@ -91,7 +91,7 @@ void main() {
     setUp(() async {
       // Use in-memory storage for tests (no device keychain required)
       FlutterSecureStorage.setMockInitialValues({});
-      mockSecureStorage = FlutterSecureStorage();
+      mockSecureStorage = const FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
     });
@@ -111,7 +111,7 @@ void main() {
 
       // Assert
       expect(retrievedKeyPair, isNotNull);
-      
+
       final originalPublicKey = await _pubBytes(keyPair);
       final retrievedPublicKey = await _pubBytes(retrievedKeyPair!);
       expect(retrievedPublicKey, equals(originalPublicKey));
@@ -133,19 +133,19 @@ void main() {
       // Act
       await secureStorage.storeSignedPreKey(keyPair1, 1);
       await secureStorage.storeSignedPreKey(keyPair2, 2);
-      
+
       final retrievedKeyPair1 = await secureStorage.getSignedPreKey(1);
       final retrievedKeyPair2 = await secureStorage.getSignedPreKey(2);
 
       // Assert
       expect(retrievedKeyPair1, isNotNull);
       expect(retrievedKeyPair2, isNotNull);
-      
+
       final publicKey1 = await _pubBytes(keyPair1);
       final publicKey2 = await _pubBytes(keyPair2);
       final retrievedPublicKey1 = await _pubBytes(retrievedKeyPair1!);
       final retrievedPublicKey2 = await _pubBytes(retrievedKeyPair2!);
-      
+
       expect(retrievedPublicKey1, equals(publicKey1));
       expect(retrievedPublicKey2, equals(publicKey2));
     });
@@ -158,7 +158,7 @@ void main() {
     setUp(() async {
       // Use in-memory storage for tests (no device keychain required)
       FlutterSecureStorage.setMockInitialValues({});
-      mockSecureStorage = FlutterSecureStorage();
+      mockSecureStorage = const FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
     });
@@ -178,7 +178,7 @@ void main() {
 
       // Assert
       expect(retrievedKeyPair, isNotNull);
-      
+
       final originalPublicKey = await _pubBytes(keyPair);
       final retrievedPublicKey = await _pubBytes(retrievedKeyPair!);
       expect(retrievedPublicKey, equals(originalPublicKey));
@@ -195,7 +195,8 @@ void main() {
       final retrievedKeyPair = await secureStorage.consumeOneTimePreKey(keyId);
 
       // Assert
-      expect(retrievedKeyPair, isNull); // Should be null after first consumption
+      expect(
+          retrievedKeyPair, isNull); // Should be null after first consumption
     });
 
     test('should return null for non-existent one-time prekey', () async {
@@ -214,7 +215,7 @@ void main() {
     setUp(() async {
       // Use in-memory storage for tests (no device keychain required)
       FlutterSecureStorage.setMockInitialValues({});
-      mockSecureStorage = FlutterSecureStorage();
+      mockSecureStorage = const FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
     });
@@ -227,7 +228,7 @@ void main() {
       // Arrange
       final identityKeyPair = await Ed25519().newKeyPair();
       final signedPreKey = await X25519().newKeyPair();
-      
+
       await secureStorage.storeIdentityKeyPair(identityKeyPair);
       await secureStorage.storeSignedPreKey(signedPreKey, 1);
 
@@ -247,7 +248,7 @@ void main() {
     setUp(() async {
       // Use in-memory storage for tests (no device keychain required)
       FlutterSecureStorage.setMockInitialValues({});
-      mockSecureStorage = FlutterSecureStorage();
+      mockSecureStorage = const FlutterSecureStorage();
       await mockSecureStorage.deleteAll();
       secureStorage = SecureKeyStorage(secureStorage: mockSecureStorage);
     });
@@ -288,7 +289,8 @@ void main() {
 
       // Act
       await secureStorage.storeIdentityKeyPair(keyPair);
-      final storedPrivateKey = await mockSecureStorage.read(key: 'identity_private_key');
+      final storedPrivateKey =
+          await mockSecureStorage.read(key: 'identity_private_key');
 
       // Assert
       expect(storedPrivateKey, isNotNull);
@@ -296,7 +298,8 @@ void main() {
       expect(() => base64Decode(storedPrivateKey!), returnsNormally);
     });
 
-    test('should confirm keys are not exportable from secure storage', () async {
+    test('should confirm keys are not exportable from secure storage',
+        () async {
       // Arrange
       final keyPair = await Ed25519().newKeyPair();
       await secureStorage.storeIdentityKeyPair(keyPair);
@@ -308,7 +311,7 @@ void main() {
       // Keys are stored in secure storage, not in plaintext files
       // This test verifies the storage mechanism is using secure storage
       expect(allKeys.length, greaterThan(0));
-      
+
       // Verify that the stored values are base64 encoded (not raw bytes)
       for (final value in allKeys.values) {
         expect(() => base64Decode(value), returnsNormally);

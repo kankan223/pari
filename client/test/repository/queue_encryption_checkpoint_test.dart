@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:civic_commons/crypto/crypto_service_impl.dart';
 import 'package:civic_commons/repository/data/aes_gcm_queue_payload_cipher.dart';
 import 'package:civic_commons/repository/data/local_sync_queue_repository.dart';
+import 'package:civic_commons/repository/data/sqlite_entity_store.dart';
 import 'package:civic_commons/repository/domain/queue_payload_cipher.dart';
+import 'package:civic_commons/repository/domain/sync_queue_backup.dart';
 import 'package:civic_commons/repository/domain/sync_queue_item.dart';
 
 import 'fakes.dart';
@@ -129,6 +131,49 @@ void main() {
       expect(a, isNot(equals(b)));
       expect(await cipher.open(a), equals(raw));
       expect(await cipher.open(b), equals(raw));
+    });
+  });
+
+  group(
+      'SECURITY CHECKPOINT - encrypted at rest across restart/backup '
+      '(Task 5.6)', () {
+    test('cold restart through the row codec preserves the exact sealed bytes',
+        () async {
+      final raw = Uint8List.fromList(utf8('restart-payload'));
+      final item = await repo.enqueue(
+        operationType: SyncOperationType.update,
+        payload: raw,
+      );
+
+      // Simulate a restart: rows -> fresh store (exactly what a cold start
+      // decodes back).
+      final store2 = queueStore();
+      await store2.insert(syncQueueItemFromRow(
+          syncQueueItemToRow((await repo.getById(item.id))!)));
+
+      final restarted = await store2.getById(item.id);
+      // Sealed bytes are byte-identical — restart never re-encrypts.
+      expect(restarted!.payload, equals(item.payload));
+      // And still open to the original plaintext.
+      expect(await cipher.open(restarted.payload), equals(raw));
+    });
+
+    test(
+        'backup restore inserts sealed bytes as-is (never re-encrypts, '
+        'never decrypts)', () async {
+      final raw = Uint8List.fromList(utf8('backup-payload'));
+      final item = await repo.enqueue(
+        operationType: SyncOperationType.create,
+        payload: raw,
+      );
+
+      final json = await SyncQueueBackup(store: store).exportQueue();
+      final store2 = queueStore();
+      await SyncQueueBackup(store: store2).restoreQueue(json);
+
+      final restored = await store2.getById(item.id);
+      expect(restored!.payload, equals(item.payload));
+      expect(await cipher.open(restored.payload), equals(raw));
     });
   });
 }

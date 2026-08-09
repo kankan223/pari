@@ -3,7 +3,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:civic_commons/crypto/crypto_service.dart';
 
 /// Double Ratchet session encryption
-/// 
+///
 /// This service implements the Double Ratchet algorithm for forward secrecy
 /// and future secrecy in encrypted messaging.
 class DoubleRatchetService {
@@ -31,13 +31,14 @@ class DoubleRatchetService {
   }) : _cryptoService = cryptoService;
 
   /// Initialize Double Ratchet with shared secret from X3DH
-  /// 
+  ///
   /// Parameters:
   /// - sharedSecret: The shared secret from X3DH handshake
   /// - dhKeyPair: The local DH key pair (optional, will generate if not provided)
-  /// 
+  ///
   /// Security: Initializes the ratchet state with the X3DH shared secret
-  Future<void> initialize(Uint8List sharedSecret, {SimpleKeyPair? dhKeyPair}) async {
+  Future<void> initialize(Uint8List sharedSecret,
+      {SimpleKeyPair? dhKeyPair}) async {
     // Initialize root key with shared secret
     _rootKey = Uint8List.fromList(sharedSecret);
 
@@ -58,12 +59,12 @@ class DoubleRatchetService {
   }
 
   /// Encrypt a message using Double Ratchet
-  /// 
+  ///
   /// Parameters:
   /// - plaintext: The message to encrypt
-  /// 
+  ///
   /// Returns: Encrypted message with header information
-  /// 
+  ///
   /// Security: Each message uses a unique key derived from the ratchet
   Future<EncryptedMessage> encrypt(Uint8List plaintext) async {
     if (_sendingChainKey == null || _dhKeyPair == null) {
@@ -71,10 +72,12 @@ class DoubleRatchetService {
     }
 
     // Derive message key from chain key
-    final messageKey = await _kdf(_sendingChainKey!, Uint8List.fromList([_sendMessageNumber]));
+    final messageKey =
+        await _kdf(_sendingChainKey!, Uint8List.fromList([_sendMessageNumber]));
 
     // Advance sending chain key
-    _sendingChainKey = await _kdf(_sendingChainKey!, Uint8List.fromList([_sendMessageNumber + 1]));
+    _sendingChainKey = await _kdf(
+        _sendingChainKey!, Uint8List.fromList([_sendMessageNumber + 1]));
     _sendMessageNumber++;
 
     // Encrypt message with AES-256-GCM
@@ -106,12 +109,12 @@ class DoubleRatchetService {
   }
 
   /// Decrypt a message using Double Ratchet
-  /// 
+  ///
   /// Parameters:
   /// - encryptedMessage: The encrypted message to decrypt
-  /// 
+  ///
   /// Returns: Decrypted plaintext
-  /// 
+  ///
   /// Security: Verifies MAC before decryption, discards message keys after use
   Future<Uint8List> decrypt(EncryptedMessage encryptedMessage) async {
     if (_rootKey == null) {
@@ -134,10 +137,12 @@ class DoubleRatchetService {
     }
 
     // Derive message key from receiving chain key
-    final messageKey = await _kdf(_receivingChainKey!, Uint8List.fromList([_receiveMessageNumber]));
+    final messageKey = await _kdf(
+        _receivingChainKey!, Uint8List.fromList([_receiveMessageNumber]));
 
     // Advance receiving chain key
-    _receivingChainKey = await _kdf(_receivingChainKey!, Uint8List.fromList([_receiveMessageNumber + 1]));
+    _receivingChainKey = await _kdf(
+        _receivingChainKey!, Uint8List.fromList([_receiveMessageNumber + 1]));
     _receiveMessageNumber++;
 
     // Create SecretBox for decryption
@@ -160,10 +165,10 @@ class DoubleRatchetService {
   }
 
   /// Perform DH ratchet step
-  /// 
+  ///
   /// Parameters:
   /// - remoteDhPublicKey: The remote DH public key
-  /// 
+  ///
   /// Security: Updates root key and generates new chain keys
   Future<void> _dhRatchet(Uint8List remoteDhPublicKey) async {
     if (_dhKeyPair == null) {
@@ -195,11 +200,11 @@ class DoubleRatchetService {
   }
 
   /// Key derivation function (simplified HKDF)
-  /// 
+  ///
   /// Parameters:
   /// - inputKey: The input key material
   /// - context: Context information for KDF
-  /// 
+  ///
   /// Returns: Derived key
   Future<Uint8List> _kdf(Uint8List inputKey, Uint8List context) async {
     // Simplified KDF using HMAC-SHA256
@@ -212,13 +217,14 @@ class DoubleRatchetService {
   }
 
   /// Perform Diffie-Hellman key exchange
-  /// 
+  ///
   /// Parameters:
   /// - privateKey: The private key
   /// - publicKey: The public key
-  /// 
+  ///
   /// Returns: The shared secret
-  Future<Uint8List> _performDH(Uint8List privateKey, Uint8List publicKey) async {
+  Future<Uint8List> _performDH(
+      Uint8List privateKey, Uint8List publicKey) async {
     // This would use the actual X25519 DH operation
     final result = Uint8List(32);
     for (int i = 0; i < 32; i++) {
@@ -237,9 +243,9 @@ class DoubleRatchetService {
   }
 
   /// Get current session state (for storage)
-  /// 
+  ///
   /// Returns: Session state as a map
-  /// 
+  ///
   /// Security: Does not include private keys in the state
   Map<String, dynamic> getSessionState() {
     return {
@@ -250,7 +256,7 @@ class DoubleRatchetService {
   }
 
   /// Restore session state from storage
-  /// 
+  ///
   /// Parameters:
   /// - state: The session state to restore
   void restoreSessionState(Map<String, dynamic> state) {
@@ -301,11 +307,15 @@ class EncryptedMessage {
     int offset = 0;
     final dhPublicKey = bytes.sublist(offset, offset + 32);
     offset += 32;
-    final messageNumber = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | 
-                        (bytes[offset + 2] << 8) | bytes[offset + 3];
+    final messageNumber = (bytes[offset] << 24) |
+        (bytes[offset + 1] << 16) |
+        (bytes[offset + 2] << 8) |
+        bytes[offset + 3];
     offset += 4;
-    final previousChainLength = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | 
-                              (bytes[offset + 2] << 8) | bytes[offset + 3];
+    final previousChainLength = (bytes[offset] << 24) |
+        (bytes[offset + 1] << 16) |
+        (bytes[offset + 2] << 8) |
+        bytes[offset + 3];
     offset += 4;
     // Layout: dhPublicKey(32) + messageNumber(4) + previousChainLength(4)
     // + ciphertext(N) + nonce(12) + mac(16). The trailing nonce+mac is 28

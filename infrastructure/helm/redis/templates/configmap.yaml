@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+data:
+  # Base redis.conf applied to every node (primary + replicas).
+  # AOF + RDB persistence per Task 4.6; maxmemory noeviction so queued
+  # messages / OTP codes / refresh tokens are never evicted.
+  redis.conf: |
+    bind 0.0.0.0
+    protected-mode yes
+    appendonly {{ .Values.aof.appendonly }}
+    appendfsync {{ .Values.aof.appendfsync }}
+    save {{ .Values.rdb.save }}
+    maxmemory-policy {{ .Values.maxmemoryPolicy }}
+    dir /data
+
+  # Sentinel config. The master is discovered via the headless service DNS
+  # (`redis-0.redis-headless`). Quorum per values. Sentinel persiststate to
+  # an emptyDir (it re-learns topology on restart).
+  sentinel.conf: |
+    bind 0.0.0.0
+    protected-mode yes
+    port 26379
+    dir /data
+    sentinel monitor {{ .Values.masterName }} {{ .Chart.Name }}-0.{{ .Chart.Name }}-headless 6379 {{ .Values.quorum }}
+    sentinel down-after-milliseconds {{ .Values.masterName }} {{ .Values.downAfterMilliseconds | default 5000 }}
+    sentinel failover-timeout {{ .Values.masterName }} {{ .Values.failoverTimeout | default 10000 }}
+    sentinel parallel-syncs {{ .Values.masterName }} {{ .Values.parallelSyncs | default 1 }}
+    sentinel resolve-hostnames yes

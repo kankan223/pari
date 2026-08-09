@@ -10,8 +10,7 @@ void main() {
   final repoFiles = _dartFilesUnder('lib/repository');
 
   group('SECURITY CHECKPOINT - repositories never make direct HTTP calls', () {
-    test('no file under lib/repository imports any HTTP/network transport',
-        () {
+    test('no file under lib/repository imports any HTTP/network transport', () {
       const forbiddenImports = [
         'package:http/',
         'package:dio/',
@@ -60,8 +59,7 @@ void main() {
       }
     });
 
-    test('queued payloads are opaque ciphertext, never logged or printed',
-        () {
+    test('queued payloads are opaque ciphertext, never logged or printed', () {
       for (final file in repoFiles) {
         final source = File(file).readAsStringSync();
         expect(
@@ -77,6 +75,30 @@ void main() {
       }
     });
 
+    test('queue backup/restore never invokes the payload cipher (Task 5.6)',
+        () {
+      // Backup/restore moves ALREADY-sealed payloads byte-for-byte: the path
+      // must never seal (which would double-encrypt) or open (which would
+      // decrypt) anything.
+      final backupFile = File('lib/repository/domain/sync_queue_backup.dart');
+      expect(backupFile.existsSync(), isTrue,
+          reason: 'sync_queue_backup.dart must exist');
+      final source = backupFile.readAsStringSync();
+      expect(source.contains('.seal('), isFalse,
+          reason: 'the backup path must never re-encrypt sealed payloads');
+      expect(source.contains('.open('), isFalse,
+          reason: 'the backup path must never decrypt sealed payloads');
+      expect(source.contains('QueuePayloadCipher'), isFalse,
+          reason: 'the backup path must not depend on the payload cipher');
+    });
+
+    test('queue row codecs carry no logging of payload data (Task 5.6)', () {
+      final source = File('lib/repository/data/sqlite_entity_store.dart')
+          .readAsStringSync();
+      expect(source.contains('print('), isFalse);
+      expect(source.contains('debugPrint('), isFalse);
+    });
+
     test('the only outbound path is the SyncSink port', () {
       // Domain ports define the sanctioned boundaries: EntityStore (local
       // persistence) and SyncSink (sole network boundary). Repositories must
@@ -87,16 +109,14 @@ void main() {
         'sync_sink.dart': 'abstract class SyncSink',
         'base_repository.dart': 'abstract class BaseRepository',
         'local_first_repository.dart': 'abstract class LocalFirstRepository',
-        'conversation_repository.dart':
-            'abstract class ConversationRepository',
+        'conversation_repository.dart': 'abstract class ConversationRepository',
         'message_repository.dart': 'abstract class MessageRepository',
         'sync_queue_repository.dart': 'abstract class SyncQueueRepository',
       };
       final domainFiles = _dartFilesUnder('lib/repository/domain');
 
       for (final entry in contracts.entries) {
-        final path = domainFiles
-            .firstWhere((p) => p.endsWith(entry.key));
+        final path = domainFiles.firstWhere((p) => p.endsWith(entry.key));
         final source = File(path).readAsStringSync();
         expect(
           source.contains(entry.value),

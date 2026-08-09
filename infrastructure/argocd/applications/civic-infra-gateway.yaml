@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: civic-infra-gateway
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/kankan223/pari.git'
+    path: infrastructure/helm/kong
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: civic-infra
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

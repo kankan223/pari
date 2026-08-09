@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:civic_commons/crypto/crypto_service_impl.dart';
 import 'package:civic_commons/database/data/argon2id_database_key_service.dart';
-import 'package:civic_commons/database/domain/database_key_service.dart';
 
 void main() {
   final crypto = CryptoServiceImpl();

@@ -1,0 +1,16 @@
+# Exposes ONLY the Kong proxy listener. The Admin API stays bound to
+# localhost inside the pod (see values.adminListen) and is never exposed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: {{ .Chart.Name }}
+  ports:
+  - name: proxy
+    port: {{ .Values.service.port }}
+    targetPort: {{ .Values.service.targetPort }}

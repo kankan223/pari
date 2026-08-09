@@ -117,8 +117,7 @@ void main() {
         pendingItem('q1'),
         pendingItem('q2'),
         pendingItem('q3'),
-        pendingItem('done')
-            .copyWith(status: SyncQueueStatus.success),
+        pendingItem('done').copyWith(status: SyncQueueStatus.success),
       ]);
       await flushMicrotasks();
 
@@ -157,8 +156,118 @@ void main() {
       expect(state, isA<SyncStatusState>());
       expect(state.status, isA<SyncStatus>());
       expect(state.pendingCount, isA<int>());
-      // SyncStatusState has exactly two members; there is no payload field.
+      // SyncStatusState carries only non-PII members (status, count,
+      // timestamp, syncing flag); there is no payload field.
       expect(state.toString(), contains('SyncStatusState'));
+    });
+  });
+
+  group('LocalSyncStatusBloc - syncing flag + last-sync stamp (Task 5.4)', () {
+    late FakeNetworkInfoProvider network;
+    late FakeSyncQueueRepository queue;
+    late LocalDataStreamController<SyncQueueItem> queueChanges;
+    late LocalSyncStatusBloc bloc;
+    late List<SyncStatusState> states;
+    late DateTime fixedNow;
+
+    setUp(() {
+      network = FakeNetworkInfoProvider();
+      queue = FakeSyncQueueRepository();
+      queueChanges = LocalDataStreamController<SyncQueueItem>();
+      fixedNow = DateTime.utc(2026, 8, 5, 12, 0, 0);
+      bloc = LocalSyncStatusBloc(
+        network: network,
+        queueRepository: queue,
+        queueChanges: queueChanges,
+        clock: () => fixedNow,
+      );
+      states = [];
+      bloc.state.listen(states.add);
+    });
+
+    tearDown(() async {
+      await bloc.close();
+      await queueChanges.close();
+      network.dispose();
+    });
+
+    SyncQueueItem item(String id, SyncQueueStatus status) => SyncQueueItem(
+          id: id,
+          operationType: SyncOperationType.create,
+          payload: Uint8List.fromList([1, 2, 3]),
+          status: status,
+          createdAt: DateTime.utc(2026, 8, 2),
+        );
+
+    test('in-progress items surface isSyncing = true', () async {
+      await bloc.start();
+      await flushMicrotasks();
+      expect(states.last.isSyncing, isFalse);
+
+      queueChanges.emit([item('q1', SyncQueueStatus.inProgress)]);
+      await flushMicrotasks();
+
+      expect(states.last.isSyncing, isTrue);
+      // A sync run is flushing the last item; nothing is pending.
+      expect(states.last.pendingCount, 0);
+      expect(states.last.status, SyncStatus.live);
+    });
+
+    test('draining the queue stamps lastSyncAt exactly once', () async {
+      queue.seed([item('q1', SyncQueueStatus.pending)]);
+      await bloc.start();
+      await flushMicrotasks();
+      expect(states.last.status, SyncStatus.queued);
+      expect(states.last.lastSyncAt, isNull);
+
+      // Worker finishes: snapshot shows the item succeeded.
+      queueChanges.emit([item('q1', SyncQueueStatus.success)]);
+      await flushMicrotasks();
+
+      expect(states.last.status, SyncStatus.live);
+      expect(states.last.lastSyncAt, fixedNow);
+      // Idempotent: a second empty snapshot does not re-stamp.
+      queueChanges.emit(const []);
+      await flushMicrotasks();
+      expect(states.last.lastSyncAt, fixedNow);
+    });
+
+    test('lastSyncAt stays null while work remains pending', () async {
+      queue.seed([item('q1', SyncQueueStatus.pending)]);
+      await bloc.start();
+      await flushMicrotasks();
+
+      queueChanges.emit([
+        item('q1', SyncQueueStatus.success),
+        item('q2', SyncQueueStatus.pending),
+      ]);
+      await flushMicrotasks();
+
+      expect(states.last.status, SyncStatus.queued);
+      expect(states.last.lastSyncAt, isNull);
+    });
+
+    test('no stamp while offline (drain cannot complete)', () async {
+      network.current = NetworkStatus.offline;
+      queue.seed([item('q1', SyncQueueStatus.pending)]);
+      await bloc.start();
+      await flushMicrotasks();
+      expect(states.last.status, SyncStatus.offline);
+
+      queueChanges.emit([item('q1', SyncQueueStatus.success)]);
+      await flushMicrotasks();
+
+      expect(states.last.status, SyncStatus.offline);
+      expect(states.last.lastSyncAt, isNull);
+    });
+
+    test('a fresh start with an empty queue never stamps', () async {
+      await bloc.start();
+      await flushMicrotasks();
+
+      expect(states.last.status, SyncStatus.live);
+      expect(states.last.lastSyncAt, isNull);
+      expect(states.last.isSyncing, isFalse);
     });
   });
 }

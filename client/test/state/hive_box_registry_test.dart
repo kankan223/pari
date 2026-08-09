@@ -13,7 +13,7 @@ void main() {
     late FakeHiveBoxKeyProvider keyProvider;
     late HiveBoxRegistryImpl registry;
 
-    void _deleteBoxFiles() {
+    void deleteBoxFiles() {
       for (final name in [
         HiveBoxNames.ledgerDrafts,
         HiveBoxNames.academyProgress,
@@ -38,7 +38,7 @@ void main() {
 
     setUp(() async {
       // Clean slate: drop any box files left by a previous test.
-      _deleteBoxFiles();
+      deleteBoxFiles();
       keyProvider = FakeHiveBoxKeyProvider();
       registry = HiveBoxRegistryImpl(
         hive: Hive,
@@ -50,7 +50,7 @@ void main() {
 
     tearDown(() async {
       await registry.close();
-      _deleteBoxFiles();
+      deleteBoxFiles();
     });
 
     test('initialize() opens all three canonical boxes', () {
@@ -81,8 +81,7 @@ void main() {
       expect(await box.read('draft_2'), isNull);
     });
 
-    test('academy_progress box: write/read/delete/clear round-trip',
-        () async {
+    test('academy_progress box: write/read/delete/clear round-trip', () async {
       final box = registry.academyProgress;
 
       await box.write('level', '4');

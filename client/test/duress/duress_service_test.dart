@@ -60,7 +60,10 @@ void main() {
       final names = files.map((f) => f.uri.pathSegments.last).toSet();
       expect(
         names,
-        equals({DuressServiceImpl.realVaultName, DuressServiceImpl.decoyVaultName}),
+        equals({
+          DuressServiceImpl.realVaultName,
+          DuressServiceImpl.decoyVaultName
+        }),
       );
     });
 
@@ -100,7 +103,8 @@ void main() {
   });
 
   group('DuressService - Database Key Derivation Paths', () {
-    test('each PIN has an independent Argon2id derivation path (different salts)',
+    test(
+        'each PIN has an independent Argon2id derivation path (different salts)',
         () async {
       // Arrange
       final service = buildService();
@@ -125,7 +129,8 @@ void main() {
 
       // Keys derived from each PIN with its own salt must differ.
       final realKey = await cryptoService.deriveKeyFromPin('123456', realSalt);
-      final duressKey = await cryptoService.deriveKeyFromPin('654321', decoySalt);
+      final duressKey =
+          await cryptoService.deriveKeyFromPin('654321', decoySalt);
       expect(realKey, isNot(equals(duressKey)));
     });
   });
@@ -193,7 +198,8 @@ void main() {
       final decoyResult = await service.unlock('654321');
 
       // Assert: the decoy vault does not contain the real vault's records
-      final decoyRecords = await decoyResult.database.readRecords(decoyResult.key);
+      final decoyRecords =
+          await decoyResult.database.readRecords(decoyResult.key);
       final ids = decoyRecords.map((r) => r.id).toList();
       expect(ids, isNot(contains('secret_note')));
     });
@@ -215,7 +221,8 @@ void main() {
   });
 
   group('DuressService - Database selection by decryption only', () {
-    test('cross-unlock fails: real PIN cannot open decoy, duress PIN cannot open real',
+    test(
+        'cross-unlock fails: real PIN cannot open decoy, duress PIN cannot open real',
         () async {
       // Arrange
       final service = buildService();
@@ -238,7 +245,8 @@ void main() {
       expect(await decoyVault.tryOpen(realKey), isFalse);
 
       final decoySalt = await decoyVault.readSalt();
-      final duressKey = await cryptoService.deriveKeyFromPin('654321', decoySalt);
+      final duressKey =
+          await cryptoService.deriveKeyFromPin('654321', decoySalt);
       expect(await realVault.tryOpen(duressKey), isFalse);
     });
 

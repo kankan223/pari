@@ -72,8 +72,7 @@ void main() {
       }
     });
 
-    test('decrypting the at-rest form without the key is impossible',
-        () async {
+    test('decrypting the at-rest form without the key is impossible', () async {
       final correctKey = await keyService.deriveKey('123456');
       final wrongKey = await keyService.deriveKey('000000');
       final marker = KeyVerificationMarker(crypto);

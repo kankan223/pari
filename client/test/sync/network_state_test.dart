@@ -41,7 +41,8 @@ void main() {
 
   group('NetworkInfoProvider - scripted stream (domain contract)', () {
     test('currentStatus returns the last known status', () async {
-      final provider = FakeNetworkInfoProvider()..current = NetworkStatus.offline;
+      final provider = FakeNetworkInfoProvider()
+        ..current = NetworkStatus.offline;
       expect(await provider.currentStatus(), NetworkStatus.offline);
       provider.dispose();
     });
@@ -60,7 +61,8 @@ void main() {
       await sub.cancel();
       provider.dispose();
 
-      expect(seen, [NetworkStatus.offline, NetworkStatus.online, NetworkStatus.metered]);
+      expect(seen,
+          [NetworkStatus.offline, NetworkStatus.online, NetworkStatus.metered]);
     });
   });
 }

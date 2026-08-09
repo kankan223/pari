@@ -1,0 +1,45 @@
+# Civic Commons — Kong OSS 3.x gateway values
+#
+# SECURITY: the Admin API is bound to localhost inside the pod and is never
+# exposed via the Service. Health checks use the unprivileged status listener.
+
+image:
+  repository: kong
+  tag: "3.8"
+  pullPolicy: IfNotPresent
+
+replicas: 2
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  port: 80            # in-cluster gateway port
+  targetPort: 8000    # Kong proxy listener
+
+# DB-less declarative mode — no Postgres dependency for the gateway.
+database: "off"
+declarativeConfigPath: /kong/declarative/kong.yml
+
+# Listeners
+proxyListen: "0.0.0.0:8000"
+adminListen: "127.0.0.1:8001"   # localhost only — never exposed
+statusListen: "0.0.0.0:8100"    # unprivileged health endpoint (/status)
+
+log:
+  level: notice
+
+# Response headers Kong is allowed to inject. `latency_tokens` disables Kong's
+# own Server/Via injection (surface reduction); the response-transformer strips
+# any upstream-provided Server/Via. Kong-Request-ID downstream is still
+# supplied by the correlation-id plugin.
+headers: "latency_tokens"
+
+# JWT RS256 public keys are carried per-consumer by the Identity Service
+# (Task 4.3) via jwt_secrets — no keys are shipped in this chart, and the
+# gateway holds no global key material.

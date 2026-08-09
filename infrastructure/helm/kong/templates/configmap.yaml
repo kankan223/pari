@@ -1,0 +1,42 @@
+# Declarative (DB-less) gateway configuration — single source of truth in
+# files/kong.yaml. Rendered verbatim into a ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-declarative
+  labels:
+    app: {{ .Chart.Name }}
+data:
+  kong.yml: |
+{{ .Files.Get "files/kong.yaml" | indent 4 }}
+---
+# PII-scrubbing log serializer library (civic.pii_scrubber) mounted where
+# Kong's Lua loader can require() it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-lua
+  labels:
+    app: {{ .Chart.Name }}
+data:
+  pii_scrubber.lua: |
+{{ .Files.Get "files/pii_scrubber.lua" | indent 4 }}
+---
+# Custom plugins (schema + handler) mounted as Kong plugins so they can be
+# enabled via KONG_PLUGINS=bundled,civic-pii-access-log,civic-strip-peer-ip.
+# The deployment selects the right keys per plugin path via `items`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-plugins
+  labels:
+    app: {{ .Chart.Name }}
+data:
+  schema.lua: |
+{{ .Files.Get "files/plugins/civic-pii-access-log/schema.lua" | indent 4 }}
+  handler.lua: |
+{{ .Files.Get "files/plugins/civic-pii-access-log/handler.lua" | indent 4 }}
+  strip-schema.lua: |
+{{ .Files.Get "files/plugins/civic-strip-peer-ip/schema.lua" | indent 4 }}
+  strip-handler.lua: |
+{{ .Files.Get "files/plugins/civic-strip-peer-ip/handler.lua" | indent 4 }}

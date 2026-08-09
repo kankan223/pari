@@ -34,16 +34,19 @@ void main() {
     });
 
     test('redacts long hex tokens (blind-hash IDs, API keys)', () {
-      final out = redactor.redact('token=5a45a983c75655ae014d09052fc80545d7b422fd47ba6640dae2a00a5fbc55b2');
+      final out = redactor.redact(
+          'token=5a45a983c75655ae014d09052fc80545d7b422fd47ba6640dae2a00a5fbc55b2');
 
       expect(
         out,
-        isNot(contains('5a45a983c75655ae014d09052fc80545d7b422fd47ba6640dae2a00a5fbc55b2')),
+        isNot(contains(
+            '5a45a983c75655ae014d09052fc80545d7b422fd47ba6640dae2a00a5fbc55b2')),
       );
     });
 
     test('redacts bearer tokens', () {
-      final out = redactor.redact('Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc.def');
+      final out =
+          redactor.redact('Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc.def');
 
       expect(out, isNot(contains('eyJhbGciOiJIUzI1NiJ9.abc.def')));
     });

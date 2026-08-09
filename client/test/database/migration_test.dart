@@ -36,8 +36,11 @@ void main() {
 
       expect(finalVersion, AppSchema.currentVersion);
       expect(executor.version, AppSchema.currentVersion);
-      // All five CREATE TABLE statements executed, in order.
-      expect(executor.executed.length, AppSchema.tables.length);
+      // All five CREATE TABLE statements (v1) + the v2 ALTER run, in order.
+      expect(
+        executor.executed.length,
+        AppSchema.tables.length + 1,
+      );
       expect(
         executor.executed.first,
         startsWith('CREATE TABLE users ('),
@@ -46,12 +49,19 @@ void main() {
         executor.executed,
         anyElement(startsWith('CREATE TABLE sync_queue (')),
       );
+      // v2 adds the retry-gating timestamp column (Task 5.2).
+      expect(
+        executor.executed,
+        anyElement(
+            contains('ALTER TABLE sync_queue ADD COLUMN last_attempt_at')),
+      );
     });
   });
 
   group('MigrationRunner - incremental upgrades', () {
     test('does nothing when already at the current version', () async {
-      final executor = FakeMigrationExecutor()..version = AppSchema.currentVersion;
+      final executor = FakeMigrationExecutor()
+        ..version = AppSchema.currentVersion;
       final runner = MigrationRunner(executor);
 
       final finalVersion = await runner.migrate();
@@ -66,9 +76,23 @@ void main() {
 
       await runner.migrate();
 
-      // v1 applied once; version ends at current.
-      expect(executor.executed.length, AppSchema.tables.length);
+      // v1 + v2 applied once; version ends at current.
+      expect(
+        executor.executed.length,
+        AppSchema.tables.length + 1,
+      );
       expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('a v1 database upgrades to v2 with only the ALTER', () async {
+      final executor = FakeMigrationExecutor()..version = 1;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
+      expect(executor.executed.length, 1);
+      expect(executor.executed.single, contains('ADD COLUMN last_attempt_at'));
+      expect(executor.version, 2);
     });
 
     test('version pragma advances only after successful statements', () async {
