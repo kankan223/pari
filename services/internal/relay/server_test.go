@@ -42,7 +42,7 @@ func requestID(t *testing.T, body []byte) string {
 	if err := json.Unmarshal(body, &m); err != nil {
 		t.Fatalf("decode request: %v", err)
 	}
-	id, _ := m["ID"].(string)
+	id, _ := m["id"].(string)
 	return id
 }
 
@@ -100,7 +100,7 @@ func TestRequestLifecycleOverHTTP(t *testing.T) {
 	if err := json.Unmarshal(list, &reqs); err != nil {
 		t.Fatalf("decode list: %v (%s)", err, list)
 	}
-	if len(reqs) != 1 || reqs[0]["ID"] != id {
+	if len(reqs) != 1 || reqs[0]["id"] != id {
 		t.Fatalf("bob's list = %s, want [%s]", list, id)
 	}
 

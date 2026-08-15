@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:civic_commons/repository/domain/message.dart';
 import 'package:civic_commons/security/domain/secure_flag_service.dart';
 import 'package:civic_commons/state/domain/message_bloc.dart';
 import 'package:civic_commons/state/domain/message_side.dart';
@@ -30,6 +31,7 @@ class _FakeMessageBloc implements MessageBloc {
   final StreamController<MessageState> _controller =
       StreamController<MessageState>.broadcast();
   MessageState? _last;
+  final List<String> sent = [];
 
   @override
   Stream<MessageState> get state => _controller.stream;
@@ -47,6 +49,11 @@ class _FakeMessageBloc implements MessageBloc {
   }
 
   @override
+  Future<void> send(String text) async {
+    sent.add(text);
+  }
+
+  @override
   Future<void> close() async {
     await _controller.close();
   }
@@ -57,8 +64,18 @@ class _FakeMessageBloc implements MessageBloc {
   }
 }
 
-MessageSummary _msg(String id, {bool delivered = false, DateTime? expiresAt}) =>
-    MessageSummary(id: id, delivered: delivered, expiresAt: expiresAt);
+MessageSummary _msg(String id,
+        {bool delivered = false,
+        MessageDirection direction = MessageDirection.received,
+        String? content,
+        DateTime? expiresAt}) =>
+    MessageSummary(
+      id: id,
+      direction: direction,
+      delivered: delivered,
+      content: content,
+      expiresAt: expiresAt,
+    );
 
 const _hashA =
     'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
@@ -187,7 +204,9 @@ void main() {
           MessageState(
             conversationId: 'c1',
             hasLoaded: true,
-            messages: [_msg('m1', delivered: false)],
+            messages: [
+              _msg('m1', direction: MessageDirection.sent),
+            ],
           ));
 
       final align = tester.widget<Align>(find.byType(Align).first);
@@ -212,7 +231,9 @@ void main() {
           MessageState(
             conversationId: 'c1',
             hasLoaded: true,
-            messages: [_msg('m1', delivered: false)],
+            messages: [
+              _msg('m1', direction: MessageDirection.sent),
+            ],
           ));
 
       expect(find.text('Sending when online'), findsOneWidget);
@@ -221,7 +242,7 @@ void main() {
       await bloc.close();
     });
 
-    testWidgets('renders the delivered receipt (✓✓) for an acked sent message',
+    testWidgets('a sent + delivered message renders the ✓✓ receipt',
         (tester) async {
       final bloc = _FakeMessageBloc();
       await tester.pumpWidget(_wrap(bloc));
@@ -231,11 +252,16 @@ void main() {
           MessageState(
             conversationId: 'c1',
             hasLoaded: true,
-            messages: [_msg('m1', delivered: true)],
+            messages: [
+              _msg('m1', direction: MessageDirection.sent, delivered: true),
+            ],
           ));
 
-      // delivered → default side resolver treats it as RECEIVED (no receipt).
-      expect(find.text('✓✓'), findsNothing);
+      // Direction is authoritative (Task 6.3): a SENT acked message shows
+      // the delivered receipt — the old delivered-heuristic is superseded.
+      expect(find.text('✓✓'), findsOneWidget);
+      expect(find.text('delivered'), findsOneWidget);
+      expect(find.text('Sending when online'), findsNothing);
       await bloc.close();
     });
 
@@ -272,7 +298,9 @@ void main() {
             conversationId: 'c1',
             hasLoaded: true,
             messages: [
-              _msg('m1', delivered: false, expiresAt: DateTime(2026, 9, 1)),
+              _msg('m1',
+                  direction: MessageDirection.sent,
+                  expiresAt: DateTime(2026, 9, 1)),
             ],
           ));
 
@@ -313,6 +341,124 @@ void main() {
       await tester.pump();
 
       expect(flag.enableCalls, 1);
+      await bloc.close();
+    });
+  });
+
+  group('MessageBubble - decrypted content (Task 6.3)', () {
+    testWidgets('renders decrypted content instead of the placeholder',
+        (tester) async {
+      final bloc = _FakeMessageBloc();
+      await tester.pumpWidget(_wrap(bloc));
+      await _pumpEmit(
+          tester,
+          bloc,
+          MessageState(
+            conversationId: 'c1',
+            hasLoaded: true,
+            messages: [
+              _msg('m1',
+                  direction: MessageDirection.sent,
+                  content: 'Hello from the Vault'),
+            ],
+          ));
+
+      expect(find.text('Hello from the Vault'), findsOneWidget);
+      expect(find.text('[end-to-end encrypted]'), findsNothing);
+      await bloc.close();
+    });
+
+    testWidgets('received content renders left with the Vault Blue bar',
+        (tester) async {
+      final bloc = _FakeMessageBloc();
+      await tester.pumpWidget(_wrap(bloc));
+      await _pumpEmit(
+          tester,
+          bloc,
+          MessageState(
+            conversationId: 'c1',
+            hasLoaded: true,
+            messages: [
+              _msg('m1', content: 'Incoming plaintext'),
+            ],
+          ));
+
+      final align = tester.widget<Align>(find.byType(Align).first);
+      expect(align.alignment, Alignment.centerLeft);
+      expect(find.text('Incoming plaintext'), findsOneWidget);
+      await bloc.close();
+    });
+
+    testWidgets('null content keeps the fixed placeholder (never leaks)',
+        (tester) async {
+      final bloc = _FakeMessageBloc();
+      await tester.pumpWidget(_wrap(bloc));
+      await _pumpEmit(
+          tester,
+          bloc,
+          MessageState(
+            conversationId: 'c1',
+            hasLoaded: true,
+            messages: [_msg('m1')],
+          ));
+
+      expect(find.text('[end-to-end encrypted]'), findsOneWidget);
+      await bloc.close();
+    });
+  });
+
+  group('VaultConversationDetailScreen - composer send (Task 6.3)', () {
+    Finder sendButton() => find.ancestor(
+          of: find.byIcon(Icons.send_rounded),
+          matching: find.byType(IconButton),
+        );
+
+    testWidgets('typing and tapping send invokes bloc.send with the text',
+        (tester) async {
+      final bloc = _FakeMessageBloc();
+      await tester.pumpWidget(_wrap(bloc));
+      await _pumpEmit(tester, bloc,
+          const MessageState(conversationId: 'c1', hasLoaded: true));
+
+      await tester.enterText(find.byType(TextField), 'Message text');
+      await tester.pump();
+      await tester.tap(sendButton());
+      await tester.pump();
+
+      expect(bloc.sent, ['Message text']);
+      await bloc.close();
+    });
+
+    testWidgets('the composer clears its field after sending', (tester) async {
+      final bloc = _FakeMessageBloc();
+      await tester.pumpWidget(_wrap(bloc));
+      await _pumpEmit(tester, bloc,
+          const MessageState(conversationId: 'c1', hasLoaded: true));
+
+      await tester.enterText(find.byType(TextField), 'Clear me');
+      await tester.pump();
+      await tester.tap(sendButton());
+      await tester.pump();
+
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty);
+      await bloc.close();
+    });
+
+    testWidgets('an empty or whitespace-only composer cannot send',
+        (tester) async {
+      final bloc = _FakeMessageBloc();
+      await tester.pumpWidget(_wrap(bloc));
+      await _pumpEmit(tester, bloc,
+          const MessageState(conversationId: 'c1', hasLoaded: true));
+
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.pump();
+
+      // The send button is disabled for empty input (onPressed null).
+      final button = tester.widget<IconButton>(sendButton());
+      expect(button.onPressed, isNull);
+      expect(bloc.sent, isEmpty);
       await bloc.close();
     });
   });

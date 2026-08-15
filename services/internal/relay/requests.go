@@ -47,14 +47,18 @@ func (s ConnectionRequestStatus) terminal() bool {
 }
 
 // ConnectionRequest is one connect request between two users.
+//
+// JSON wire format is snake_case (matches the rest of the API surface; the
+// client consumes these fields via the gateway). ZERO-KNOWLEDGE: the hashes
+// are blind_hash_ids — the wire format never carries phone numbers.
 type ConnectionRequest struct {
-	ID            string
-	InitiatorHash string
-	TargetHash    string
-	Status        ConnectionRequestStatus
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	ExpiresAt     time.Time
+	ID            string                  `json:"id"`
+	InitiatorHash string                  `json:"initiator_hash"`
+	TargetHash    string                  `json:"target_hash"`
+	Status        ConnectionRequestStatus `json:"status"`
+	CreatedAt     time.Time               `json:"created_at"`
+	UpdatedAt     time.Time               `json:"updated_at"`
+	ExpiresAt     time.Time               `json:"expires_at"`
 }
 
 // Connection request sentinel errors.

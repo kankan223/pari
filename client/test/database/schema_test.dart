@@ -3,7 +3,7 @@ import 'package:civic_commons/database/domain/schema.dart';
 
 void main() {
   group('AppSchema - entity definitions', () {
-    test('defines all five core tables', () {
+    test('defines all six core tables', () {
       final names = AppSchema.tables.map((t) => t.name).toSet();
 
       expect(
@@ -14,6 +14,7 @@ void main() {
           'messages',
           'connection_requests',
           'sync_queue',
+          'devices',
         }),
       );
     });
@@ -41,6 +42,16 @@ void main() {
       );
     });
 
+    test('messages table has the explicit direction column (Task 6.3)', () {
+      final direction =
+          AppSchema.messages.columns.firstWhere((c) => c.name == 'direction');
+
+      expect(direction.type, 'TEXT');
+      expect(direction.notNull, isTrue);
+      expect(direction.sensitive, isFalse,
+          reason: 'direction is a delivery flag, not PII');
+    });
+
     test('sync_queue table has payload, status, retry_count', () {
       final columns = AppSchema.syncQueue.columns.map((c) => c.name).toList();
 
@@ -55,7 +66,7 @@ void main() {
     test('createAllTableSql produces one CREATE TABLE per table', () {
       final statements = AppSchema.createAllTableSql();
 
-      expect(statements, hasLength(5));
+      expect(statements, hasLength(AppSchema.tables.length));
       expect(statements.first, startsWith('CREATE TABLE users ('));
       expect(
         statements.join('\n'),
@@ -86,6 +97,20 @@ void main() {
       expect(sensitiveNames, contains('users.device_pubkey'));
       expect(sensitiveNames, contains('users.blind_hash_id'));
       expect(sensitiveNames, contains('sync_queue.payload'));
+      expect(sensitiveNames, contains('devices.blind_hash'));
+      expect(sensitiveNames, contains('devices.public_key'));
+    });
+
+    test('devices table has blind-hash + public-key columns only', () {
+      final columns = AppSchema.devices.columns.map((c) => c.name).toList();
+
+      expect(
+          columns,
+          containsAll(
+              ['id', 'blind_hash', 'public_key', 'paired_at', 'revoked']));
+      // No phone/username-shaped column can ever exist in the devices table.
+      expect(columns.join(',').toLowerCase(), isNot(contains('phone')));
+      expect(columns.join(',').toLowerCase(), isNot(contains('username')));
     });
 
     test('sensitive columns hold only BLOB/TEXT ciphertext or hashes', () {

@@ -378,6 +378,28 @@ func (s *Service) RevokeRefresh(ctx context.Context, refreshToken string) error 
 	return nil
 }
 
+// LookupUsername resolves a claimed username to its owner's blind_hash_id
+// (Task 6.2 — the "username search" contract behind the API Gateway).
+//
+// SECURITY: only ACTIVELY claimed usernames resolve. Unknown names and names
+// sitting in the 30-day release cooldown both map to ErrUsernameNotFound, so
+// the endpoint never reveals claim history or pending release windows. The
+// result carries only the username and the blind hash — never a phone.
+func (s *Service) LookupUsername(ctx context.Context, username string) (*UsernameLookup, error) {
+	if !ValidUsername(username) {
+		return nil, ErrUsernameNotFound
+	}
+	rec, err := s.usernames.Get(ctx, username)
+	if err != nil {
+		return nil, ErrUsernameNotFound
+	}
+	if rec.OwnerHash == "" {
+		// Released into the cooldown window — not resolvable by anyone.
+		return nil, ErrUsernameNotFound
+	}
+	return &UsernameLookup{Username: username, BlindHashID: rec.OwnerHash}, nil
+}
+
 // GetUser returns the identity's public profile.
 func (s *Service) GetUser(ctx context.Context, blindHashID string) (User, []Device, error) {
 	user, err := s.users.Get(ctx, blindHashID)

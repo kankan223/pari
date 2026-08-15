@@ -35,6 +35,7 @@ void main() {
         id: 'm1',
         conversationId: 'conv1',
         ciphertext: Uint8List.fromList([1, 2, 3]),
+        direction: MessageDirection.received,
         delivered: true,
       ));
 

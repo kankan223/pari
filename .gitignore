@@ -187,8 +187,11 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Root-anchored: these Python-virtualenv rules must NOT match the Flutter
+# client tree (client/lib/ holds ALL production Dart source). Only a
+# lib/ directory AT THE REPO ROOT would be ignored — none exists.
+/lib/
+/lib64/
 parts/
 sdist/
 var/

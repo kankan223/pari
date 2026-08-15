@@ -36,10 +36,11 @@ void main() {
 
       expect(finalVersion, AppSchema.currentVersion);
       expect(executor.version, AppSchema.currentVersion);
-      // All five CREATE TABLE statements (v1) + the v2 ALTER run, in order.
+      // v1 CREATE TABLEs (one per table) + v2 ALTER + v3 (ALTER + UPDATE) +
+      // v4 (CREATE TABLE devices).
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 1,
+        AppSchema.tables.length + 4,
       );
       expect(
         executor.executed.first,
@@ -49,11 +50,25 @@ void main() {
         executor.executed,
         anyElement(startsWith('CREATE TABLE sync_queue (')),
       );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE devices (')),
+      );
       // v2 adds the retry-gating timestamp column (Task 5.2).
       expect(
         executor.executed,
         anyElement(
             contains('ALTER TABLE sync_queue ADD COLUMN last_attempt_at')),
+      ); // v3 adds the explicit message direction column (Task 6.3).
+      expect(
+        executor.executed,
+        anyElement(contains('ALTER TABLE messages ADD COLUMN direction')),
+      );
+      // v3 backfills locally-created undelivered messages as 'sent' so the
+      // pre-6.3 heuristic rendering is preserved for existing rows.
+      expect(
+        executor.executed,
+        anyElement(contains("SET direction = 'sent'")),
       );
     });
   });
@@ -76,23 +91,73 @@ void main() {
 
       await runner.migrate();
 
-      // v1 + v2 applied once; version ends at current.
+      // v1 + v2 + v3 + v4 applied once; version ends at current.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 1,
+        AppSchema.tables.length + 4,
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v1 database upgrades to v2 with only the ALTER', () async {
+    test(
+        'a v1 database upgrades to the current version with the ALTERs/CREATEs',
+        () async {
       final executor = FakeMigrationExecutor()..version = 1;
       final runner = MigrationRunner(executor);
 
       await runner.migrate();
 
+      expect(executor.executed.length, 4);
+      expect(
+        executor.executed[0],
+        contains('ADD COLUMN last_attempt_at'),
+      );
+      expect(
+        executor.executed[1],
+        contains('ADD COLUMN direction'),
+      );
+      expect(
+        executor.executed[2],
+        contains("SET direction = 'sent'"),
+      );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE devices ('),
+      );
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test(
+        'a v2 database upgrades to the current version (v3 ALTERs + v4 devices)',
+        () async {
+      final executor = FakeMigrationExecutor()..version = 2;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
+      expect(executor.executed.length, 3);
+      expect(executor.executed[0], contains('ADD COLUMN direction'));
+      expect(executor.executed[1], contains("SET direction = 'sent'"));
+      expect(executor.executed[2], startsWith('CREATE TABLE devices ('));
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('a v3 database upgrades to v4 with the devices CREATE TABLE',
+        () async {
+      final executor = FakeMigrationExecutor()..version = 3;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
       expect(executor.executed.length, 1);
-      expect(executor.executed.single, contains('ADD COLUMN last_attempt_at'));
-      expect(executor.version, 2);
+      expect(executor.executed.first, startsWith('CREATE TABLE devices ('));
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('v4 rolls back by dropping the devices table', () {
+      final v4 = AppMigrations.all.firstWhere((m) => m.version == 4);
+      expect(v4.downStatements, isNotNull);
+      expect(v4.downStatements!.first, contains('DROP TABLE devices'));
     });
 
     test('version pragma advances only after successful statements', () async {

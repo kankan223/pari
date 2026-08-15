@@ -12,13 +12,14 @@ import (
 
 // API route paths (mounted under /v1/identity by the service binary).
 const (
-	routeOTPRequest  = "POST /v1/identity/otp/request"
-	routeOTPVerify   = "POST /v1/identity/otp/verify"
-	routeUsername    = "POST /v1/identity/username/claim"
-	routeUsernameRel = "POST /v1/identity/username/release"
-	routeDevices     = "POST /v1/identity/devices"
-	routeDevicesList = "GET /v1/identity/devices"
-	routeDevicesDel  = "DELETE /v1/identity/devices/{device_id}"
+	routeOTPRequest     = "POST /v1/identity/otp/request"
+	routeOTPVerify      = "POST /v1/identity/otp/verify"
+	routeUsername       = "POST /v1/identity/username/claim"
+	routeUsernameRel    = "POST /v1/identity/username/release"
+	routeUsernameLookup = "GET /v1/identity/username/{username}"
+	routeDevices        = "POST /v1/identity/devices"
+	routeDevicesList    = "GET /v1/identity/devices"
+	routeDevicesDel     = "DELETE /v1/identity/devices/{device_id}"
 	// #nosec G101 -- route path, not a credential.
 	routeTokenRefresh = "POST /v1/identity/token/refresh"
 	// #nosec G101 -- route path, not a credential.
@@ -44,6 +45,7 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 	s.mux.HandleFunc(routeOTPVerify, s.handleOTPVerify)
 	s.mux.HandleFunc(routeUsername, s.requireAuth(s.handleUsernameClaim))
 	s.mux.HandleFunc(routeUsernameRel, s.requireAuth(s.handleUsernameRelease))
+	s.mux.HandleFunc(routeUsernameLookup, s.requireAuth(s.handleUsernameLookup))
 	s.mux.HandleFunc(routeDevices, s.requireAuth(s.handleDeviceRegister))
 	s.mux.HandleFunc(routeDevicesList, s.requireAuth(s.handleDeviceList))
 	s.mux.HandleFunc(routeDevicesDel, s.requireAuth(s.handleDeviceRevoke))
@@ -195,6 +197,8 @@ func (s *Server) mapError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "username_unavailable", "username unavailable")
 	case errors.Is(err, ErrUsernameRelease):
 		writeError(w, http.StatusConflict, "username_not_owned", "username not owned")
+	case errors.Is(err, ErrUsernameNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "username not found")
 	case errors.Is(err, ErrDeviceKey):
 		writeError(w, http.StatusBadRequest, "invalid_public_key", "invalid device public key")
 	case errors.Is(err, ErrDeviceCap):
@@ -271,6 +275,18 @@ func (s *Server) handleUsernameRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"released": true})
+}
+
+// handleUsernameLookup resolves a claimed username to its owner's blind hash
+// (auth-required, so the API Gateway surface cannot be scraped anonymously).
+func (s *Server) handleUsernameLookup(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+	lookup, err := s.svc.LookupUsername(r.Context(), username)
+	if err != nil {
+		s.mapError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, lookup)
 }
 
 type deviceReq struct {

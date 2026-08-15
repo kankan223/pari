@@ -32,12 +32,14 @@ void main() {
           {String conversationId = 'conv1',
           Uint8List? ciphertext,
           bool delivered = false,
+          MessageDirection direction = MessageDirection.received,
           DateTime? expiresAt}) =>
       Message(
         id: id,
         conversationId: conversationId,
         ciphertext:
             ciphertext ?? Uint8List.fromList(List.generate(64, (i) => i)),
+        direction: direction,
         delivered: delivered,
         expiresAt: expiresAt,
       );

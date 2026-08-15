@@ -318,6 +318,9 @@ class _EmptyMessageBloc implements MessageBloc {
   }
 
   @override
+  Future<void> send(String text) async {}
+
+  @override
   Future<void> close() async {
     await _controller.close();
   }

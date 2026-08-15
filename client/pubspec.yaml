@@ -28,6 +28,11 @@ dependencies:
   # Argon2id (RFC 9106) requires cryptography >= 2.7.0
   cryptography: ^2.7.0
 
+  # Realtime transport (Task 6.4): WebSocket relay client. Lives ONLY in
+  # lib/relay/ — lib/sync and the repository layer must never import it
+  # (security checkpoint: the sync layer's sole outbound path is SyncSink).
+  web_socket_channel: ^2.4.0
+
   # Device & Media
   geolocator: ^11.0.0
   geocoding: ^3.0.0
@@ -40,6 +45,7 @@ dependencies:
   google_fonts: ^6.0.0
 
   path: any
+  qr: ^4.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

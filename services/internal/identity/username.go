@@ -26,6 +26,7 @@ var (
 	ErrUsernameTaken    = errors.New("username: already claimed")
 	ErrUsernameCooldown = errors.New("username: in 30-day release cooldown")
 	ErrUsernameNotOwned = errors.New("username: not owned by this identity")
+	ErrUsernameNotFound = errors.New("username: not found or unavailable")
 )
 
 // ValidUsername reports whether [name] satisfies the policy.
@@ -42,6 +43,14 @@ type UsernameRecord struct {
 	OwnerHash  string
 	ClaimedAt  time.Time
 	ReleasedAt time.Time
+}
+
+// UsernameLookup is the username-search result (Task 6.2): the username plus
+// its owner's blind_hash_id — the minimum needed to address a connection
+// request. Deliberately NO phone numbers and no device keys.
+type UsernameLookup struct {
+	Username    string `json:"username"`
+	BlindHashID string `json:"blind_hash_id"`
 }
 
 // UsernameStore manages username claim/release with a release cooldown.

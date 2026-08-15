@@ -72,9 +72,16 @@ void main() {
       ];
 
       for (final file in stateFiles) {
-        if (!file.endsWith('_state.dart') &&
-            !file.endsWith('_bloc.dart') &&
-            !file.endsWith('sync_status.dart')) {
+        // UI-facing state models and the abstract domain BLoC interfaces.
+        // Data-layer BLoCs (lib/state/data/) are EXCLUDED: since Task 6.3
+        // they legitimately READ entity ciphertext to decrypt it into the
+        // UI-safe [MessageSummary.content] — the projection they emit is
+        // still verified above (no raw fields on any *_state.dart model).
+        final isStateModel =
+            file.endsWith('_state.dart') || file.endsWith('sync_status.dart');
+        final isDomainBloc =
+            file.contains('/domain/') && file.endsWith('_bloc.dart');
+        if (!isStateModel && !isDomainBloc) {
           continue;
         }
         final source = _codeOnly(File(file).readAsStringSync());
