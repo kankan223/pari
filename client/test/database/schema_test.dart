@@ -3,7 +3,7 @@ import 'package:civic_commons/database/domain/schema.dart';
 
 void main() {
   group('AppSchema - entity definitions', () {
-    test('defines all nine tables', () {
+    test('defines all eleven tables', () {
       final names = AppSchema.tables.map((t) => t.name).toSet();
 
       expect(
@@ -18,8 +18,53 @@ void main() {
           'ledger_drafts',
           'post_votes',
           'peer_reviews',
+          'evidence',
+          'intake_drafts',
         }),
       );
+    });
+
+    test('intake_drafts table carries id + SEALED payload + timestamp (8.7)',
+        () {
+      final columns =
+          AppSchema.intakeDrafts.columns.map((c) => c.name).toList();
+
+      expect(columns, ['id', 'sealed_payload', 'saved_at']);
+      // SECURITY CHECKPOINT 8.7: the draft row holds ONLY ciphertext — no
+      // plaintext narrative, no identity column.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('narrative')));
+      expect(all, isNot(contains('hash')));
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('author')));
+      final sealed = AppSchema.intakeDrafts.columns
+          .firstWhere((c) => c.name == 'sealed_payload');
+      expect(sealed.sensitive, isTrue,
+          reason: 'the sealed draft envelope is opaque ciphertext');
+    });
+
+    test('evidence table carries ONLY metadata + ciphertext (8.2)', () {
+      final columns = AppSchema.evidence.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'id',
+        'case_number',
+        'sealed_file',
+        'dek_envelope',
+        'size_bytes',
+        'mime_type',
+        'created_at'
+      ]);
+      // SECURITY CHECKPOINT 8.2: NO filename / path / identity column.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('name')));
+      expect(all, isNot(contains('path')));
+      expect(all, isNot(contains('hash')));
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('author')));
+      // The ciphertext blobs are flagged sensitive (opaque by construction).
+      final sensitive = AppSchema.evidence.sensitiveColumns.map((c) => c.name);
+      expect(sensitive, containsAll(['sealed_file', 'dek_envelope']));
     });
 
     test('peer_reviews table carries post + decision + timestamp (7.6)', () {
@@ -148,6 +193,7 @@ void main() {
       expect(sensitiveNames, contains('devices.blind_hash'));
       expect(sensitiveNames, contains('devices.public_key'));
       expect(sensitiveNames, contains('ledger_drafts.pin_code'));
+      expect(sensitiveNames, contains('intake_drafts.sealed_payload'));
     });
 
     test('devices table has blind-hash + public-key columns only', () {

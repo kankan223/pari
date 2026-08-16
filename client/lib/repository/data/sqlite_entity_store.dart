@@ -8,6 +8,8 @@ import '../../ledger/domain/ledger_vote.dart';
 import '../../ledger/domain/ledger_vote_record.dart';
 import '../../ledger/domain/peer_review.dart';
 import '../../pairing/domain/linked_device.dart';
+import '../../war_room/domain/evidence_item.dart';
+import '../../war_room/data/encrypted_intake_draft_store.dart';
 import '../domain/conversation.dart';
 import '../domain/connection_request.dart';
 import '../domain/entity_store.dart';
@@ -237,6 +239,58 @@ const _statusToDb = {
   SyncQueueStatus.success: 'success',
   SyncQueueStatus.failed: 'failed',
 };
+
+/// Row codec for the `evidence` table (Task 8.2 Encrypted Evidence).
+///
+/// `sealed_file`/`dek_envelope` are opaque ciphertext BLOBs (SQLite returns
+/// BLOB as Uint8List); `created_at` is epoch microseconds. NO filename, NO
+/// path, NO identity column exists by design — a filename that embeds
+/// sensitive context can never touch the database (SECURITY CHECKPOINT 8.2).
+Map<String, Object?> evidenceRecordToRow(EvidenceRecord e) => {
+      'id': e.id,
+      'case_number': e.caseNumber,
+      'sealed_file': e.sealedFile,
+      'dek_envelope': e.dekEnvelope,
+      'size_bytes': e.sizeBytes,
+      'mime_type': e.mimeType,
+      'created_at': e.createdAt.microsecondsSinceEpoch,
+    };
+
+EvidenceRecord evidenceRecordFromRow(Map<String, Object?> row) =>
+    EvidenceRecord(
+      id: row['id']! as String,
+      caseNumber: row['case_number']! as String,
+      sealedFile: row['sealed_file']! as Uint8List,
+      dekEnvelope: row['dek_envelope']! as Uint8List,
+      sizeBytes: row['size_bytes']! as int,
+      mimeType: row['mime_type']! as String,
+      createdAt: DateTime.fromMicrosecondsSinceEpoch(
+        row['created_at']! as int,
+        isUtc: true,
+      ),
+    );
+
+/// Row codec for the `intake_drafts` table (Task 8.7 Pause, Save & Resume).
+///
+/// `sealed_payload` is the AES-256-GCM SEALED draft envelope (opaque BLOB —
+/// the plaintext narrative never touches the database); `saved_at` is epoch
+/// microseconds. ZERO identity columns — the same zero-identity intake
+/// contract as the case itself (SECURITY CHECKPOINT 8.7).
+Map<String, Object?> intakeDraftRecordToRow(IntakeDraftRecord d) => {
+      'id': d.id,
+      'sealed_payload': d.sealedPayload,
+      'saved_at': d.savedAt.microsecondsSinceEpoch,
+    };
+
+IntakeDraftRecord intakeDraftRecordFromRow(Map<String, Object?> row) =>
+    IntakeDraftRecord(
+      id: row['id']! as String,
+      sealedPayload: row['sealed_payload']! as Uint8List,
+      savedAt: DateTime.fromMicrosecondsSinceEpoch(
+        row['saved_at']! as int,
+        isUtc: true,
+      ),
+    );
 
 /// Row codec for the `sync_queue` table (status/operation stored as TEXT;
 /// created_at + last_attempt_at stored as epoch microseconds so ordering and

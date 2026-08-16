@@ -137,6 +137,38 @@ final class AppMigrations {
         'DROP TABLE peer_reviews',
       ],
     ),
+    const Migration(
+      version: 8,
+      description: 'Add evidence table for encrypted War Room evidence '
+          '(Task 8.2)',
+      upStatements: [
+        // Evidence rows carry ONLY non-sensitive metadata (size, mime,
+        // timestamp, case stamp) + the sealed file + WRAPPED DEK blobs
+        // inside the encrypted database. NO filename, NO identity column.
+        'CREATE TABLE evidence (id TEXT PRIMARY KEY NOT NULL, '
+            'case_number TEXT NOT NULL, sealed_file BLOB NOT NULL, '
+            'dek_envelope BLOB NOT NULL, size_bytes INTEGER NOT NULL, '
+            'mime_type TEXT NOT NULL, created_at INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE evidence',
+      ],
+    ),
+    const Migration(
+      version: 9,
+      description: 'Add intake_drafts table for paused War Room intake '
+          'drafts (Task 8.7)',
+      upStatements: [
+        // Draft rows carry ONLY the id + the AES-256-GCM SEALED envelope
+        // (sensitive BLOB) + the pause timestamp inside the encrypted
+        // database. NO plaintext narrative, NO identity column.
+        'CREATE TABLE intake_drafts (id TEXT PRIMARY KEY NOT NULL, '
+            'sealed_payload BLOB NOT NULL, saved_at INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE intake_drafts',
+      ],
+    ),
   ];
 }
 

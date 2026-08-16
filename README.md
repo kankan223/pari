@@ -16,10 +16,12 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 | Phase 4 | API Gateway & Backend Services | ✅ Complete (190 Go tests, all live-verified) |
 | Phase 5 | State Management & Sync Engine | ✅ Complete (5.1–5.6, 522 Flutter tests) |
 | Phase 6 | Secure Messaging & Device Management | ✅ Complete (6.1–6.6, 824 Flutter tests) |
-| **Phase 7** | **The Daily Ledger (Civic Newsroom)** | **✅ Complete (7.1–7.6, 1068 Flutter tests)** |
-| **Phase 8** | **War Room** | **⏭ Next — Task 8.1: War Room UI Foundation** |
+| Phase 7 | The Daily Ledger (Civic Newsroom) | ✅ Complete (7.1–7.6, 1068 Flutter tests) |
+| **Phase 8** | **The War Room (OSINT Cyber Defense)** | **✅ Complete (8.1–8.8, 1355 Flutter tests)** |
+| **Phase 9** | **The Academy (Open Education)** | **⏭ In progress — foundation scaffold landed (8.8); next: Task 9.1 Academy UI Foundation** |
 
-> **Current:** Phase 7 complete — next: Phase 8, Task 8.1: War Room UI Foundation  
+> **Current:** Phase 8 COMPLETE (8.1–8.8) — encrypted evidence, PII redaction, severity scoring, blinded analyst collaboration, immutable custody logging, trauma-informed intake; Phase 9 (Academy) scaffold shipped with 8.8.  
+> **Next:** Task 9.1 Academy UI Foundation  
 > **Last Updated:** 2026-08-16
 
 ---
@@ -60,8 +62,11 @@ civic-commons/
 │   │   ├── pairing/              #   Multi-device pairing (QR key transfer, Ed25519 verification)
 │   │   ├── ledger/               #   Daily Ledger (posts, votes, peer review, geo feed)
 │   │   ├── geo/                  #   Geographic clustering (coarse pin codes, dynamic radius)
+│   │   ├── war_room/             #   War Room (evidence, custody log, severity, analysts, intake drafts)
+│   │   ├── pii/                  #   PII redaction pipeline (deterministic regex FIRST, local detector)
+│   │   ├── academy/              #   Academy (Phase 9 — syllabus domain, repository/progress ports)
 │   │   └── logging/              #   Zero-plaintext redaction logging
-│   └── test/                     #   1068 unit + widget tests across all layers
+│   └── test/                     #   1355 unit + widget + integration tests across all layers
 ├── services/                     # Go 1.22 backend (standard layout)
 │   ├── cmd/
 │   │   ├── api/                  #   API gateway entry point
@@ -107,6 +112,7 @@ civic-commons/
 ├── documentation/                # PRD, TECHSTACK, DESIGN specs
 ├── MASTER_PLAN.md                # Phase-by-phase roadmap (source of truth)
 ├── current_progress.md           # Live progress tracker
+├── RUN.md                        # Full setup/build/test/run guide (all platforms)
 └── .github/                      # CI/CD workflows
 ```
 
@@ -117,10 +123,12 @@ civic-commons/
 | Tool | Version | Notes |
 |---|---|---|
 | [Go](https://go.dev/dl/) | **1.22** | Backend services (`services/`) — pinned, do not bump |
-| [Flutter](https://docs.flutter.dev/get-started/install) | **3.x** | Mobile client (`client/`) |
+| [Flutter](https://docs.flutter.dev/get-started/install) | **3.19+ (Stable)** | Mobile client (`client/`) — Dart 3.3+ (pubspec floor: `>=3.2.0`) |
 | [golangci-lint](https://golangci-lint.run/) | v1.64.x | Go static analysis (matches CI) |
 | [Docker](https://docs.docker.com/) | — | For live verification scripts (Postgres, Redis, NATS, Vault) |
 | PostgreSQL 16 · Redis 7 · NATS · MinIO | — | Local dev or Docker for live verification |
+
+> **Full platform toolchains (Android Studio/NDK, Xcode/CocoaPods, CMake/Ninja), launch commands per platform, and troubleshooting live in [`RUN.md`](RUN.md).**
 
 ---
 
@@ -134,7 +142,7 @@ cd services
 # Build & test
 go mod tidy              # resolve dependencies (Go 1.22 pinned)
 go build ./...           # compile all packages
-go test -race ./...      # 190 unit tests with race detector
+go test -race ./...      # 216 unit tests with race detector
 golangci-lint run        # strict linting (0 violations required)
 
 # Boot the local stack (Postgres :5433, Redis :6381, NATS :4222)
@@ -153,9 +161,11 @@ go run ./cmd/relay      # :8081  (WebSocket relay — Redis streams, NATS events
 ```sh
 cd client
 flutter pub get
-dart analyze              # static analysis (0 errors)
-flutter test              # 1068 unit + widget tests
+flutter analyze           # static analysis (0 issues)
+flutter test              # 1355 unit + widget + integration tests
 ```
+
+> The client is a component/test library — the app shell (`lib/main.dart`) currently boots the War Room case list. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
 
 ### Verification Scripts
 
@@ -207,6 +217,15 @@ The project follows **Clean Architecture** end to end: domain logic (entities, u
 ---
 
 ## Changelog
+
+### 2026-08-16 — Phase 8 Complete (War Room) + Phase 9 Scaffold + Cleanup
+
+**Client (Flutter) — 1355 tests, 0 analysis issues, race-clean Go backend (216 tests, 0 lint violations):**
+- **Phase 8 (The War Room, 8.1–8.8):** dossier masthead + severity-banded case list + investigation timeline + trauma-aware 5-step intake (`WarRoomMasthead`, `WarRoomCaseListScreen`, `WarCaseDetailScreen`, `WarRoomIntakeScreen` — all FLAG_SECURE); encrypted evidence upload (`AesGcmEvidenceCipher` per-item DEK seal + X25519 wrap, schema v8, never decrypts server-side); PII redaction pipeline (`lib/pii/` — deterministic regex dictionary FIRST (phones/emails/Aadhaar/PAN), then a local contextual detector; the Gemma slot is always local, never cloud AI; plaintext buffers wiped after redaction); deterministic severity scoring (`SeverityScorer` keyword engine + urgency/situation floors + SLA map + human `SeverityOverrideSheet`); analyst assignment & collaboration (CTF-style `AnalystVettingGauntlet`, blinded `AN-####` handles only, skill-matched least-loaded assignment, blind-review enforcement); immutable chain-of-custody logging (SHA-256 hash-chained `CustodyLog`, HMAC-signed `VerifiedIntelReport`, sealed legal-aid handoff); trauma-informed intake UX (instant Quick Exit panic button + `QuickExitSafeScreen`, AES-256-GCM sealed pause/save/resume drafts via `EncryptedIntakeDraftStore` schema v9, grounding notes, memory-wipe hygiene); Task 8.8 milestone lock — Phase 8 COMPLETE + consolidated completion audit (FLAG_SECURE on all six War Room screens, whole-tree local-first/no-print/no-PII scans).
+- **Phase 9 scaffold (Academy, shipped in 8.8):** new `lib/academy/` — zero-identity `AcademyDomain`/`AcademyModule`/`AcademySyllabus` value objects (validated UUID v4 module ids, ISO 639-1 locales), `AcademySyllabusRepository`/`AcademyProgressStore` ports + in-memory stubs, `AcademyBloc` state, FLAG_SECURE `AcademyMasthead` (textbook register). Next: Task 9.1 Academy UI Foundation.
+- **Cleanup:** removed dead code (`lib/signal/session_storage.dart` — superseded by the Task 6.3 `SessionStore` port; `lib/geo/data/local_pin_code_store.dart` — zero references), removed the stale Flutter-scaffold `client/README.md` (root README + `RUN.md` are authoritative), and added `RUN.md` — the complete setup/build/test/run guide across Desktop/Mobile/Web. The full 1355-test Flutter suite and 216-test Go suite pass (`go test -race` clean, golangci-lint 0 violations, `flutter analyze` 0 issues); the live local stack (Postgres :5433, Redis :6381, NATS :4222) health-checked with identity (:8080) and relay (:8081) services responding correctly.
+
+---
 
 ### 2026-08-16 — Phases 5–7 Complete (Sync Engine, Secure Messaging, Daily Ledger)
 

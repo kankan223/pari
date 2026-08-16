@@ -38,10 +38,12 @@ void main() {
       expect(executor.version, AppSchema.currentVersion);
       // v1 CREATE TABLEs (one per table) + v2 ALTER + v3 (ALTER + UPDATE) +
       // v4 (CREATE TABLE devices) + v5 (CREATE TABLE ledger_drafts) +
-      // v6 (CREATE TABLE post_votes) + v7 (CREATE TABLE peer_reviews).
+      // v6 (CREATE TABLE post_votes) + v7 (CREATE TABLE peer_reviews) +
+      // v8 (CREATE TABLE evidence) + v9 (CREATE TABLE intake_drafts) =
+      // 11 table creates + 9 migration statements.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 7,
+        AppSchema.tables.length + 9,
       );
       expect(
         executor.executed.first,
@@ -66,6 +68,14 @@ void main() {
       expect(
         executor.executed,
         anyElement(startsWith('CREATE TABLE peer_reviews (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE evidence (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE intake_drafts (')),
       );
       // v2 adds the retry-gating timestamp column (Task 5.2).
       expect(
@@ -104,10 +114,10 @@ void main() {
 
       await runner.migrate();
 
-      // v1 + v2 + v3 + v4 + v5 + v6 + v7 applied once; version ends at current.
+      // v1..v9 applied once; version ends at current.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 7,
+        AppSchema.tables.length + 9,
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -120,7 +130,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 7);
+      expect(executor.executed.length, 9);
       expect(
         executor.executed[0],
         contains('ADD COLUMN last_attempt_at'),
@@ -149,6 +159,14 @@ void main() {
         executor.executed[6],
         startsWith('CREATE TABLE peer_reviews ('),
       );
+      expect(
+        executor.executed[7],
+        startsWith('CREATE TABLE evidence ('),
+      );
+      expect(
+        executor.executed[8],
+        startsWith('CREATE TABLE intake_drafts ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -160,13 +178,15 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 6);
+      expect(executor.executed.length, 8);
       expect(executor.executed[0], contains('ADD COLUMN direction'));
       expect(executor.executed[1], contains("SET direction = 'sent'"));
       expect(executor.executed[2], startsWith('CREATE TABLE devices ('));
       expect(executor.executed[3], startsWith('CREATE TABLE ledger_drafts ('));
       expect(executor.executed[4], startsWith('CREATE TABLE post_votes ('));
       expect(executor.executed[5], startsWith('CREATE TABLE peer_reviews ('));
+      expect(executor.executed[6], startsWith('CREATE TABLE evidence ('));
+      expect(executor.executed[7], startsWith('CREATE TABLE intake_drafts ('));
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -177,7 +197,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 4);
+      expect(executor.executed.length, 6);
       expect(executor.executed[0], startsWith('CREATE TABLE devices ('));
       expect(
         executor.executed[1],
@@ -191,6 +211,14 @@ void main() {
         executor.executed[3],
         startsWith('CREATE TABLE peer_reviews ('),
       );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE evidence ('),
+      );
+      expect(
+        executor.executed[5],
+        startsWith('CREATE TABLE intake_drafts ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -201,7 +229,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 3);
+      expect(executor.executed.length, 5);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE ledger_drafts ('),
@@ -214,6 +242,14 @@ void main() {
         executor.executed[2],
         startsWith('CREATE TABLE peer_reviews ('),
       );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE evidence ('),
+      );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE intake_drafts ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -224,7 +260,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 2);
+      expect(executor.executed.length, 4);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE post_votes ('),
@@ -232,6 +268,14 @@ void main() {
       expect(
         executor.executed[1],
         startsWith('CREATE TABLE peer_reviews ('),
+      );
+      expect(
+        executor.executed[2],
+        startsWith('CREATE TABLE evidence ('),
+      );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE intake_drafts ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -243,12 +287,63 @@ void main() {
 
       await runner.migrate();
 
+      expect(executor.executed.length, 3);
+      expect(
+        executor.executed[0],
+        startsWith('CREATE TABLE peer_reviews ('),
+      );
+      expect(executor.executed[1], startsWith('CREATE TABLE evidence ('));
+      expect(
+        executor.executed[2],
+        startsWith('CREATE TABLE intake_drafts ('),
+      );
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('a v7 database upgrades to v8 with the evidence CREATE TABLE',
+        () async {
+      final executor = FakeMigrationExecutor()..version = 7;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
+      expect(executor.executed.length, 2);
+      expect(
+        executor.executed[0],
+        startsWith('CREATE TABLE evidence ('),
+      );
+      expect(
+        executor.executed[1],
+        startsWith('CREATE TABLE intake_drafts ('),
+      );
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('a v8 database upgrades to v9 with the intake_drafts CREATE TABLE',
+        () async {
+      final executor = FakeMigrationExecutor()..version = 8;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
       expect(executor.executed.length, 1);
       expect(
         executor.executed.first,
-        startsWith('CREATE TABLE peer_reviews ('),
+        startsWith('CREATE TABLE intake_drafts ('),
       );
       expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('v9 rolls back by dropping the intake_drafts table', () {
+      final v9 = AppMigrations.all.firstWhere((m) => m.version == 9);
+      expect(v9.downStatements, isNotNull);
+      expect(v9.downStatements!.first, contains('DROP TABLE intake_drafts'));
+    });
+
+    test('v8 rolls back by dropping the evidence table', () {
+      final v8 = AppMigrations.all.firstWhere((m) => m.version == 8);
+      expect(v8.downStatements, isNotNull);
+      expect(v8.downStatements!.first, contains('DROP TABLE evidence'));
     });
 
     test('v4 rolls back by dropping the devices table', () {

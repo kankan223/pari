@@ -168,6 +168,39 @@ class AppSchema {
     DbColumn('reviewed_at', 'INTEGER', notNull: true),
   ]);
 
+  /// Locally persisted War Room evidence (Task 8.2 Encrypted Evidence).
+  ///
+  /// One row per evidence item attached to a case. `sealed_file` is the
+  /// AES-256-GCM(DEK) file ciphertext and `dek_envelope` is the serialized
+  /// WRAPPED DEK — the plaintext DEK never touches the database. Only
+  /// NON-sensitive metadata is stored (size, mime, timestamp, case stamp):
+  /// there is NO filename, NO path, NO EXIF, NO identity column by design
+  /// (a filename can embed sensitive context; the UI shows only the
+  /// mime+size label). The SQLCipher file encrypts the whole row at rest
+  /// regardless.
+  static const DbTable evidence = DbTable('evidence', [
+    DbColumn('id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('case_number', 'TEXT', notNull: true),
+    DbColumn('sealed_file', 'BLOB', notNull: true, sensitive: true),
+    DbColumn('dek_envelope', 'BLOB', notNull: true, sensitive: true),
+    DbColumn('size_bytes', 'INTEGER', notNull: true),
+    DbColumn('mime_type', 'TEXT', notNull: true),
+    DbColumn('created_at', 'INTEGER', notNull: true),
+  ]);
+
+  /// Locally persisted paused War Room intake drafts (Task 8.7).
+  ///
+  /// One row per paused intake. `sealed_payload` is the AES-256-GCM SEALED
+  /// `v:1` draft envelope (narrative = case content, never stored
+  /// plaintext); `saved_at` is the pause timestamp (newest-first resume
+  /// surface). ZERO identity columns — the same zero-identity intake
+  /// contract as the case itself.
+  static const DbTable intakeDrafts = DbTable('intake_drafts', [
+    DbColumn('id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('sealed_payload', 'BLOB', notNull: true, sensitive: true),
+    DbColumn('saved_at', 'INTEGER', notNull: true),
+  ]);
+
   /// All tables, in creation order (foreign-key-safe).
   static const List<DbTable> tables = [
     users,
@@ -179,6 +212,8 @@ class AppSchema {
     ledgerDrafts,
     postVotes,
     peerReviews,
+    evidence,
+    intakeDrafts,
   ];
 
   /// Current schema version — MUST be bumped when tables are added/changed.
@@ -190,7 +225,11 @@ class AppSchema {
   /// v5 (Task 7.4): `ledger_drafts` — locally persisted Ledger drafts.
   /// v6 (Task 7.5): `post_votes` — locally recorded Ledger votes.
   /// v7 (Task 7.6): `peer_reviews` — locally recorded Peer Review decisions.
-  static const int currentVersion = 7;
+  /// v8 (Task 8.2): `evidence` — encrypted War Room evidence metadata +
+  /// sealed file + wrapped DEK (no filename/identity by design).
+  /// v9 (Task 8.7): `intake_drafts` — paused War Room intake drafts, sealed
+  /// at rest (AES-256-GCM envelope; no identity columns).
+  static const int currentVersion = 9;
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {

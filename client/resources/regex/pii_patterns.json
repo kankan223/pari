@@ -1,0 +1,18 @@
+{
+  "dictionary_version": 1,
+  "description": "Standard deterministic PII regex dictionary for the Civic Commons redaction pipeline (Task 8.3). Mirrored as Dart const RegExp in lib/pii/data/deterministic_pii_filter.dart — this file documents the dictionary; the code is the single source of truth at runtime.",
+  "patterns": [
+    { "category": "ssn", "regex": "\\b[0-9]{3}-[0-9]{2}-[0-9]{4}\\b" },
+    { "category": "phone_e164", "regex": "\\+[1-9][0-9\\s\\-()]{6,17}[0-9]" },
+    { "category": "phone_domestic", "regex": "\\b[0-9]{3}[-.]?[0-9]{3}[-.]?[0-9]{4}\\b" },
+    { "category": "phone_in_mobile", "regex": "(?<![0-9])(?:\\+?91[\\s\\-]?)?[6-9][0-9]{9}(?![0-9])" },
+    { "category": "email", "regex": "[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}" },
+    { "category": "aadhaar", "regex": "(?<![0-9])(?:[0-9]{4}[\\s\\-]?){3}[0-9](?![0-9])" },
+    { "category": "pan", "regex": "(?<![A-Z0-9])[A-Z]{5}[0-9]{4}[A-Z](?![A-Z0-9])" },
+    { "category": "credit_card", "regex": "\\b(?:[0-9][ -]?){13,18}[0-9]\\b" },
+    { "category": "hex_token", "regex": "\\b[0-9a-fA-F]{32,}\\b" },
+    { "category": "bearer_token", "regex": "Bearer\\s+[A-Za-z0-9\\-_.~+/]+=*" },
+    { "category": "jwt", "regex": "\\beyJ[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]{4,}\\b" },
+    { "category": "key_value_secret", "regex": "\\b(api[_-]?key|secret|password|passwd|token|auth|authorization|private[_-]?key)\\b\\s*[=:]\\s*[^\\s,;]+", "case_insensitive": true }
+  ]
+}
