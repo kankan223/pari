@@ -93,6 +93,50 @@ final class AppMigrations {
         'DROP TABLE devices',
       ],
     ),
+    const Migration(
+      version: 5,
+      description: 'Add ledger_drafts table for locally persisted Ledger '
+          'drafts (Task 7.4)',
+      upStatements: [
+        // Drafts carry ONLY public civic fields + the coarse pin scope
+        // (sensitive column) inside the encrypted database.
+        'CREATE TABLE ledger_drafts (id TEXT PRIMARY KEY NOT NULL, '
+            'category TEXT NOT NULL, pin_code TEXT NOT NULL, '
+            'headline TEXT NOT NULL, body TEXT NOT NULL, '
+            'created_at INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE ledger_drafts',
+      ],
+    ),
+    const Migration(
+      version: 6,
+      description: 'Add post_votes table for locally recorded Ledger votes '
+          '(Task 7.5)',
+      upStatements: [
+        // Votes carry ONLY the public post id + an aggregate direction
+        // (no identity column by design) inside the encrypted database.
+        'CREATE TABLE post_votes (post_id TEXT PRIMARY KEY NOT NULL, '
+            'direction TEXT NOT NULL, updated_at INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE post_votes',
+      ],
+    ),
+    const Migration(
+      version: 7,
+      description: 'Add peer_reviews table for locally recorded Peer Review '
+          'decisions (Task 7.6)',
+      upStatements: [
+        // Decisions carry ONLY the public post id + a decision code
+        // (no identity column by design) inside the encrypted database.
+        'CREATE TABLE peer_reviews (post_id TEXT PRIMARY KEY NOT NULL, '
+            'decision TEXT NOT NULL, reviewed_at INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE peer_reviews',
+      ],
+    ),
   ];
 }
 

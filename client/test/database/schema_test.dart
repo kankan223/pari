@@ -3,7 +3,7 @@ import 'package:civic_commons/database/domain/schema.dart';
 
 void main() {
   group('AppSchema - entity definitions', () {
-    test('defines all six core tables', () {
+    test('defines all nine tables', () {
       final names = AppSchema.tables.map((t) => t.name).toSet();
 
       expect(
@@ -15,8 +15,56 @@ void main() {
           'connection_requests',
           'sync_queue',
           'devices',
+          'ledger_drafts',
+          'post_votes',
+          'peer_reviews',
         }),
       );
+    });
+
+    test('peer_reviews table carries post + decision + timestamp (7.6)', () {
+      final columns = AppSchema.peerReviews.columns.map((c) => c.name).toList();
+
+      expect(columns, ['post_id', 'decision', 'reviewed_at']);
+      // No identity column by design — a review row is a per-device action.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('hash')));
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('author')));
+      expect(all, isNot(contains('reviewer')));
+    });
+
+    test('post_votes table carries post + direction + timestamp (7.5)', () {
+      final columns = AppSchema.postVotes.columns.map((c) => c.name).toList();
+
+      expect(columns, ['post_id', 'direction', 'updated_at']);
+      // No identity column by design — a vote row is a per-device aggregate.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('hash')));
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('author')));
+    });
+
+    test('ledger_drafts table carries civic fields + coarse pin scope (7.4)',
+        () {
+      final columns =
+          AppSchema.ledgerDrafts.columns.map((c) => c.name).toList();
+
+      expect(
+        columns,
+        containsAll(
+            ['id', 'category', 'pin_code', 'headline', 'body', 'created_at']),
+      );
+      final pin = AppSchema.ledgerDrafts.columns
+          .firstWhere((c) => c.name == 'pin_code');
+      expect(pin.sensitive, isTrue,
+          reason:
+              'pin scope is the finest location signal — flagged sensitive');
+      // Drafts must never carry identity columns.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('hash')));
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('author')));
     });
 
     test('users table has blind_hash_id, username, device_pubkey', () {
@@ -99,6 +147,7 @@ void main() {
       expect(sensitiveNames, contains('sync_queue.payload'));
       expect(sensitiveNames, contains('devices.blind_hash'));
       expect(sensitiveNames, contains('devices.public_key'));
+      expect(sensitiveNames, contains('ledger_drafts.pin_code'));
     });
 
     test('devices table has blind-hash + public-key columns only', () {

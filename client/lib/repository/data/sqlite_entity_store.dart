@@ -2,6 +2,11 @@ import 'dart:typed_data';
 
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
 
+import '../../ledger/domain/ledger_category.dart';
+import '../../ledger/domain/ledger_draft_record.dart';
+import '../../ledger/domain/ledger_vote.dart';
+import '../../ledger/domain/ledger_vote_record.dart';
+import '../../ledger/domain/peer_review.dart';
 import '../../pairing/domain/linked_device.dart';
 import '../domain/conversation.dart';
 import '../domain/connection_request.dart';
@@ -157,6 +162,67 @@ LinkedDevice linkedDeviceFromRow(Map<String, Object?> row) => LinkedDevice(
       publicKey: row['public_key']! as Uint8List,
       pairedAt: DateTime.fromMillisecondsSinceEpoch(row['paired_at']! as int),
       revoked: (row['revoked']! as int) == 1,
+    );
+
+/// Row codec for the `ledger_drafts` table (Task 7.4).
+///
+/// `pin_code` is the coarse civic scope (sensitive column); category is the
+/// wire name; headline/body are public civic content. created_at is epoch
+/// microseconds so draft ordering survives restarts.
+Map<String, Object?> ledgerDraftRecordToRow(LedgerDraftRecord d) => {
+      'id': d.id,
+      'category': d.category.wireName,
+      'pin_code': d.pinCode,
+      'headline': d.headline,
+      'body': d.body,
+      'created_at': d.createdAt.microsecondsSinceEpoch,
+    };
+
+LedgerDraftRecord ledgerDraftRecordFromRow(Map<String, Object?> row) =>
+    LedgerDraftRecord(
+      id: row['id']! as String,
+      category: LedgerCategory.fromWireName(row['category']! as String),
+      pinCode: row['pin_code']! as String,
+      headline: row['headline']! as String,
+      body: row['body']! as String,
+      createdAt: DateTime.fromMicrosecondsSinceEpoch(row['created_at']! as int),
+    );
+
+/// Row codec for the `post_votes` table (Task 7.5).
+///
+/// `direction` is the vote wire name ('up'/'down'/'none'); `updated_at` is
+/// epoch microseconds. No identity column exists by design — the row is a
+/// per-device aggregate preference inside the encrypted database.
+Map<String, Object?> ledgerVoteRecordToRow(LedgerVoteRecord v) => {
+      'post_id': v.postId,
+      'direction': v.direction.wireName,
+      'updated_at': v.updatedAt.microsecondsSinceEpoch,
+    };
+
+LedgerVoteRecord ledgerVoteRecordFromRow(Map<String, Object?> row) =>
+    LedgerVoteRecord(
+      postId: row['post_id']! as String,
+      direction: LedgerVoteDirection.fromWireName(row['direction']! as String),
+      updatedAt: DateTime.fromMicrosecondsSinceEpoch(row['updated_at']! as int),
+    );
+
+/// Row codec for the `peer_reviews` table (Task 7.6).
+///
+/// `decision` is the review wire name ('approved'/'rejected'/'flagged');
+/// `reviewed_at` is epoch microseconds. No identity column exists by design
+/// — the row is a per-device review action inside the encrypted database.
+Map<String, Object?> peerReviewRecordToRow(PeerReviewRecord r) => {
+      'post_id': r.postId,
+      'decision': r.decision.wireName,
+      'reviewed_at': r.reviewedAt.microsecondsSinceEpoch,
+    };
+
+PeerReviewRecord peerReviewRecordFromRow(Map<String, Object?> row) =>
+    PeerReviewRecord(
+      postId: row['post_id']! as String,
+      decision: PeerReviewDecision.fromWireName(row['decision']! as String),
+      reviewedAt:
+          DateTime.fromMicrosecondsSinceEpoch(row['reviewed_at']! as int),
     );
 
 const _operationToDb = {

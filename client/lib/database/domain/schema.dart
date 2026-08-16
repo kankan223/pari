@@ -121,6 +121,53 @@ class AppSchema {
     DbColumn('revoked', 'INTEGER', notNull: true),
   ]);
 
+  /// Locally persisted Ledger drafts (Task 7.4 Post Creation & Queuing).
+  ///
+  /// A draft is written here FIRST (offline-first) and its sealed envelope
+  /// is queued for sync. `pin_code` is the coarse civic scope (marked
+  /// sensitive because it is the finest location signal the device holds —
+  /// the SQLCipher file is encrypted at rest regardless). `category` is the
+  /// category wire name; `headline`/`body` are public civic content.
+  static const DbTable ledgerDrafts = DbTable('ledger_drafts', [
+    DbColumn('id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('category', 'TEXT', notNull: true),
+    DbColumn('pin_code', 'TEXT', notNull: true, sensitive: true),
+    DbColumn('headline', 'TEXT', notNull: true),
+    DbColumn('body', 'TEXT', notNull: true),
+    DbColumn('created_at', 'INTEGER', notNull: true),
+  ]);
+
+  /// Locally recorded Ledger votes (Task 7.5 Voting System).
+  ///
+  /// One row per post the LOCAL device has voted on: `post_id` is the
+  /// public post id, `direction` is the vote wire name ('up'/'down'),
+  /// `updated_at` is the last change. The row is written FIRST (offline-
+  /// first) so a vote survives a cold restart before its sealed envelope
+  /// ever syncs. `direction` is a per-device aggregate preference, NOT PII
+  /// — no identity column exists here by design (the voter is the device
+  /// itself; the server tallies via the authenticated blind hash).
+  static const DbTable postVotes = DbTable('post_votes', [
+    DbColumn('post_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('direction', 'TEXT', notNull: true),
+    DbColumn('updated_at', 'INTEGER', notNull: true),
+  ]);
+
+  /// Locally recorded Peer Review decisions (Task 7.6 Peer Review Gate).
+  ///
+  /// One row per post the LOCAL device has reviewed: `post_id` is the
+  /// public post id, `decision` is the review wire name
+  /// ('approved'/'rejected'/'flagged'), `reviewed_at` is the last review.
+  /// The row is written FIRST (offline-first) so a decision survives a
+  /// cold restart before its sealed envelope ever syncs. NO identity
+  /// column exists by design — the reviewer is the device itself and the
+  /// server attributes the decision via the authenticated blind hash
+  /// (SECURITY CHECKPOINT 7.6: reviewer identities blinded).
+  static const DbTable peerReviews = DbTable('peer_reviews', [
+    DbColumn('post_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('decision', 'TEXT', notNull: true),
+    DbColumn('reviewed_at', 'INTEGER', notNull: true),
+  ]);
+
   /// All tables, in creation order (foreign-key-safe).
   static const List<DbTable> tables = [
     users,
@@ -129,6 +176,9 @@ class AppSchema {
     connectionRequests,
     syncQueue,
     devices,
+    ledgerDrafts,
+    postVotes,
+    peerReviews,
   ];
 
   /// Current schema version — MUST be bumped when tables are added/changed.
@@ -137,7 +187,10 @@ class AppSchema {
   /// v3 (Task 6.3): `messages.direction` — explicit sent/received side.
   /// v4 (Task 6.5): `devices` — locally linked devices (multi-device
   /// pairing; QR-transfer of public key material only).
-  static const int currentVersion = 4;
+  /// v5 (Task 7.4): `ledger_drafts` — locally persisted Ledger drafts.
+  /// v6 (Task 7.5): `post_votes` — locally recorded Ledger votes.
+  /// v7 (Task 7.6): `peer_reviews` — locally recorded Peer Review decisions.
+  static const int currentVersion = 7;
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {

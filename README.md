@@ -14,10 +14,13 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 | Phase 2 | Local Cryptography & Zero-Knowledge Layer | ✅ Complete |
 | Phase 3 | Offline-First SQLite/Queue Repository | ✅ Complete (379 Flutter tests) |
 | Phase 4 | API Gateway & Backend Services | ✅ Complete (190 Go tests, all live-verified) |
-| **Phase 5** | **State Management & Sync Engine** | **▶ In Progress — Task 5.1** |
+| Phase 5 | State Management & Sync Engine | ✅ Complete (5.1–5.6, 522 Flutter tests) |
+| Phase 6 | Secure Messaging & Device Management | ✅ Complete (6.1–6.6, 824 Flutter tests) |
+| **Phase 7** | **The Daily Ledger (Civic Newsroom)** | **✅ Complete (7.1–7.6, 1068 Flutter tests)** |
+| **Phase 8** | **War Room** | **⏭ Next — Task 8.1: War Room UI Foundation** |
 
-> **Current:** Phase 5 — Task 5.1: Network State Detection  
-> **Last Updated:** 2026-08-04
+> **Current:** Phase 7 complete — next: Phase 8, Task 8.1: War Room UI Foundation  
+> **Last Updated:** 2026-08-16
 
 ---
 
@@ -50,11 +53,15 @@ civic-commons/
 │   │   ├── duress/               #   Duress PIN + decoy-vault selection
 │   │   ├── database/             #   SQLCipher schema, migrations, repositories
 │   │   ├── identity/             #   Phone hashing, salt management, identity service
-│   │   ├── state/                #   BLoC state management (conversation, message, sync)
+│   │   ├── state/                #   BLoC state management (conversation, message, sync, ledger)
 │   │   ├── sync/                 #   Background sync worker, reconnection triggers
 │   │   ├── repository/           #   Offline-first repos (conversation, message, sync queue)
+│   │   ├── relay/                #   WebSocket relay client (protojson wire, first-frame JWT auth)
+│   │   ├── pairing/              #   Multi-device pairing (QR key transfer, Ed25519 verification)
+│   │   ├── ledger/               #   Daily Ledger (posts, votes, peer review, geo feed)
+│   │   ├── geo/                  #   Geographic clustering (coarse pin codes, dynamic radius)
 │   │   └── logging/              #   Zero-plaintext redaction logging
-│   └── test/                     #   379 unit + widget tests across all layers
+│   └── test/                     #   1068 unit + widget tests across all layers
 ├── services/                     # Go 1.22 backend (standard layout)
 │   ├── cmd/
 │   │   ├── api/                  #   API gateway entry point
@@ -62,13 +69,14 @@ civic-commons/
 │   │   └── relay/                #   Messaging relay service (WebSocket, offline queue)
 │   ├── internal/
 │   │   ├── config/               #   Env-based config (secrets never logged)
-│   │   ├── database/             #   PostgreSQL migrations + pgcrypto/RLS
+│   │   ├── database/             #   PostgreSQL migrations + pgcrypto/RLS (+ pgstore impls)
 │   │   ├── cache/                #   Redis client factory + Sentinel HA + namespace registry
 │   │   ├── events/               #   NATS JetStream client (stream init, durable consumers)
 │   │   ├── vault/                #   HashiCorp Vault client (AppRole, KV v2, Transit, cache)
 │   │   ├── logging/              #   PII-redacting slog handler (Vault tokens, phones, headers)
 │   │   ├── identity/             #   Identity domain (OTP, blind-hash, JWT, refresh tokens)
 │   │   ├── relay/                #   Relay domain (WebSocket, Hub, offline queue, conn-req SM)
+│   │   ├── idempotency/          #   Server-side idempotency (Redis dedup of sync mutations)
 │   │   └── storage/              #   MinIO client factory
 │   ├── pkg/version/              #   Build version
 │   ├── proto/                    #   Protocol buffer definitions (relay)
@@ -88,6 +96,7 @@ civic-commons/
 │   ├── database/                 #   PostgreSQL replication + WAL archival configs
 │   └── eso/                      #   External Secrets Operator (Vault → K8s)
 ├── scripts/
+│   ├── dev_up.sh                 #   Boot local Postgres/Redis/NATS + RLS role (civic-dedicated ports)
 │   ├── verify_kong_gateway.sh    #   Static Kong config verification
 │   ├── verify_kong_live.sh       #   Live E2E Kong gateway test
 │   ├── verify_redis_live.sh      #   Live Sentinel failover test
@@ -128,13 +137,15 @@ go build ./...           # compile all packages
 go test -race ./...      # 190 unit tests with race detector
 golangci-lint run        # strict linting (0 violations required)
 
-# Run Identity Service
-IDENTITY_DEV_SALT_HEX="64-hex-chars" \
-  go run ./cmd/identity
+# Boot the local stack (Postgres :5433, Redis :6381, NATS :4222)
+# on civic-dedicated ports + activate the civic_app RLS role
+bash scripts/dev_up.sh
 
-# Run Messaging Relay
-IDENTITY_DEV_JWT_PUB_KEY="your-rs256-public-key" \
-  go run ./cmd/relay
+# Print the full runnable env block, then run the services:
+bash scripts/dev_up.sh --env
+cd services
+go run ./cmd/identity   # :8080  (OTP, JWT, blind-hash, devices — Postgres + Redis)
+go run ./cmd/relay      # :8081  (WebSocket relay — Redis streams, NATS events)
 ```
 
 ### Client (`client/`)
@@ -143,7 +154,7 @@ IDENTITY_DEV_JWT_PUB_KEY="your-rs256-public-key" \
 cd client
 flutter pub get
 dart analyze              # static analysis (0 errors)
-flutter test              # 379 unit + widget tests
+flutter test              # 1068 unit + widget tests
 ```
 
 ### Verification Scripts
@@ -196,6 +207,24 @@ The project follows **Clean Architecture** end to end: domain logic (entities, u
 ---
 
 ## Changelog
+
+### 2026-08-16 — Phases 5–7 Complete (Sync Engine, Secure Messaging, Daily Ledger)
+
+**Backend (Go) — 190 tests, 0 lint violations, race-clean:**
+- **Task 5.3** `internal/idempotency`: server-side Redis dedup of client sync mutations — UUID v4 `Idempotency-Key` header extraction, validated `idempotency:` namespace, in-flight → 409, cached-response replay, 24h TTL
+- **Phase 4 services verified end-to-end** against the live local stack: Postgres 16 (4 extensions, RLS-enforced `civic_app` role), Redis 7, NATS JetStream — identity OTP flow returns blind-hash only, relay `/v1/relay/healthz` OK, raw phone numbers absent from all logs
+
+**Client (Flutter) — 1068 tests (379 → 1068), 0 analysis errors:**
+- **Phase 5 (State Management & Sync Engine):** debounced network-state detection (online/offline/metered, no IP polling), sync worker + encrypted offline mutation queue (UUID v4 idempotency keys, exponential backoff w/ jitter, crash recovery), sync-status UI (LIVE/CACHED/QUEUED/OFFLINE), deterministic conflict resolution (server-authoritative LWW + blind-hash tie-breaks), durable queue persistence (schema v5, AES-256-GCM sealed payloads)
+- **Phase 6 (Secure Messaging & Devices):** Vault UI foundation (FLAG_SECURE), connection-request flow (username search via gateway, BLoC-driven accept/reject), X3DH session establishment + double-ratchet message encrypt/decrypt with explicit `MessageDirection`, WebSocket message relay (`lib/relay/` — protojson wire, first-frame JWT auth, auto-reconnect), multi-device pairing (QR key transfer, real Ed25519 verification, one-time secrets), duress PIN (indistinguishable decoy vault)
+- **Phase 7 (The Daily Ledger):** ledger UI foundation, geographic clustering (coarse pin codes, no raw coordinates), dynamic-radius feed, post creation & queuing (sealed envelopes, cold-restart recovery), voting with sub-linear karma weighting (client-side, identity-free by construction), peer-review gate (3/3 consensus, shadow queue, karma fast-track, blinded reviewer handles)
+
+**Security & Compliance (all passed):**
+- `secret-scan.sh` passes; `verify_go_deps.sh` passes (no cloud AI/telemetry SDKs, Go 1.22 pinned)
+- Zero-PII invariants: raw phones/64-hex hashes/coordinates never in logs, UI, wire frames, or DB rows — verified by security-checkpoint tests in every phase
+- All queued mutations sealed with AES-256-GCM before storage; votes/posts/reviews carry zero identity fields by construction
+
+---
 
 ### 2026-08-04 — Phase 4 Complete & Workspace Cleanup
 
