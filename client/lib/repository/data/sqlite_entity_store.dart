@@ -2,6 +2,14 @@ import 'dart:typed_data';
 
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
 
+import '../../academy/domain/academy_module.dart';
+import '../../academy/domain/academy_progress_record.dart';
+import '../../academy/domain/module_cache_record.dart';
+import '../../academy/domain/offline_module_cache.dart';
+import '../../academy/domain/sandbox_wiki.dart';
+import '../../academy/domain/sandbox_wiki_records.dart';
+import '../../academy/domain/study_group.dart';
+import '../../academy/domain/study_group_records.dart';
 import '../../ledger/domain/ledger_category.dart';
 import '../../ledger/domain/ledger_draft_record.dart';
 import '../../ledger/domain/ledger_vote.dart';
@@ -291,6 +299,271 @@ IntakeDraftRecord intakeDraftRecordFromRow(Map<String, Object?> row) =>
         isUtc: true,
       ),
     );
+
+/// Row codec for the `academy_domains` table (Task 9.2 Syllabus Tree).
+///
+/// PUBLIC course content only: domain id slug, title, locale tag — zero
+/// identity columns by design (SECURITY CHECKPOINT 9.2).
+Map<String, Object?> academyDomainToRow(AcademyDomain d) => {
+      'domain_id': d.domainId,
+      'title': d.title,
+      'locale': d.locale,
+    };
+
+AcademyDomain academyDomainFromRow(Map<String, Object?> row) =>
+    AcademyDomain.parse(
+      domainId: row['domain_id']! as String,
+      title: row['title']! as String,
+      locale: row['locale']! as String,
+    );
+
+/// Row codec for the `academy_modules` table (Task 9.2 Syllabus Tree).
+///
+/// Validated UUID v4 module id + public course metadata + OPAQUE non-PII
+/// content ref — zero identity columns (SECURITY CHECKPOINT 9.2).
+Map<String, Object?> academyModuleToRow(AcademyModule m) => {
+      'module_id': m.moduleId,
+      'domain_id': m.domainId,
+      'title': m.title,
+      'duration_minutes': m.durationMinutes,
+      'locale': m.locale,
+      'content_ref': m.contentRef,
+    };
+
+AcademyModule academyModuleFromRow(Map<String, Object?> row) =>
+    AcademyModule.parse(
+      moduleId: row['module_id']! as String,
+      domainId: row['domain_id']! as String,
+      title: row['title']! as String,
+      durationMinutes: row['duration_minutes']! as int,
+      locale: row['locale']! as String,
+      contentRef: row['content_ref']! as String,
+    );
+
+/// Row codec for the `academy_progress` table (Task 9.2 Syllabus Tree).
+///
+/// Presence of the row = the module is complete; the row holds ONLY the
+/// UUID module id — zero identity columns (SECURITY CHECKPOINT 9.2).
+Map<String, Object?> academyProgressRecordToRow(AcademyProgressRecord r) => {
+      'module_id': r.moduleId,
+    };
+
+AcademyProgressRecord academyProgressRecordFromRow(Map<String, Object?> row) =>
+    AcademyProgressRecord(moduleId: row['module_id']! as String);
+
+/// Row codec for the `module_cache` table (Task 9.4 Offline Module Caching).
+///
+/// The row holds ONLY the validated UUID module-id key + a status wire name
+/// + sizes + the SEALED content payload (sensitive BLOB). The READ path
+/// re-validates through [UuidV4] and the strict status decoder so a forged
+/// non-UUID key or an unknown status throws at read time (SECURITY
+/// CHECKPOINT 9.4: cache keys are UUID module ids only).
+Map<String, Object?> moduleCacheRecordToRow(ModuleCacheRecord r) => {
+      'module_id': r.moduleId,
+      'status': r.status.wireName,
+      'total_bytes': r.totalBytes,
+      'cached_bytes': r.cachedBytes,
+      'downloaded_at': r.downloadedAt,
+      'sealed_payload': r.sealedPayload,
+      'cached_at': r.cachedAt,
+    };
+
+ModuleCacheRecord moduleCacheRecordFromRow(Map<String, Object?> row) {
+  final moduleId = row['module_id']! as String;
+  if (!UuidV4.isValid(moduleId)) {
+    throw ArgumentError('module_cache row holds a non-UUID module id');
+  }
+  return ModuleCacheRecord(
+    moduleId: moduleId,
+    status: OfflineCacheStatus.fromWireName(row['status']! as String),
+    totalBytes: row['total_bytes']! as int,
+    cachedBytes: row['cached_bytes']! as int,
+    downloadedAt: row['downloaded_at'] as int?,
+    sealedPayload: row['sealed_payload'] as Uint8List?,
+    cachedAt: row['cached_at'] as int?,
+  );
+}
+
+/// Row codec for the `sandbox_pages` table (Task 9.5 Sandbox Wiki).
+///
+/// UUID v4 ids + public title + locale + revision count + timestamp — ZERO
+/// identity columns (SECURITY CHECKPOINT 9.5). The READ path re-validates
+/// through [SandboxPage.parse] so a forged non-UUID row throws at read
+/// time.
+Map<String, Object?> sandboxPageRecordToRow(SandboxPageRecord r) => {
+      'page_id': r.pageId,
+      'module_id': r.moduleId,
+      'title': r.title,
+      'locale': r.locale,
+      'revision_count': r.revisionCount,
+      'updated_at': r.updatedAt.microsecondsSinceEpoch,
+    };
+
+SandboxPageRecord sandboxPageRecordFromRow(Map<String, Object?> row) {
+  final page = SandboxPage.parse(
+    pageId: row['page_id']! as String,
+    moduleId: row['module_id']! as String,
+    title: row['title']! as String,
+    locale: row['locale']! as String,
+    revisionCount: row['revision_count']! as int,
+    updatedAt: DateTime.fromMicrosecondsSinceEpoch(
+      row['updated_at']! as int,
+      isUtc: true,
+    ),
+  );
+  return SandboxPageRecord(
+    pageId: page.pageId,
+    moduleId: page.moduleId,
+    title: page.title,
+    locale: page.locale,
+    revisionCount: page.revisionCount,
+    updatedAt: page.updatedAt,
+  );
+}
+
+/// Row codec for the `sandbox_revisions` table (Task 9.5 Sandbox Wiki).
+///
+/// Markdown body (community UGC — sensitive column) + the deterministic
+/// SA-#### author handle — ZERO identity columns (SECURITY CHECKPOINT
+/// 9.5). The READ path re-validates through [SandboxRevision.parse] so a
+/// forged non-UUID id / malformed handle throws at read time.
+Map<String, Object?> sandboxRevisionRecordToRow(SandboxRevisionRecord r) => {
+      'revision_id': r.revisionId,
+      'page_id': r.pageId,
+      'body_markdown': r.bodyMarkdown,
+      'author_handle': r.authorHandle,
+      'created_at': r.createdAt.microsecondsSinceEpoch,
+      'prev_revision_id': r.prevRevisionId,
+    };
+
+SandboxRevisionRecord sandboxRevisionRecordFromRow(Map<String, Object?> row) {
+  final revision = SandboxRevision.parse(
+    revisionId: row['revision_id']! as String,
+    pageId: row['page_id']! as String,
+    bodyMarkdown: row['body_markdown']! as String,
+    authorHandle: row['author_handle']! as String,
+    createdAt: DateTime.fromMicrosecondsSinceEpoch(
+      row['created_at']! as int,
+      isUtc: true,
+    ),
+    prevRevisionId: row['prev_revision_id'] as String?,
+  );
+  return SandboxRevisionRecord(
+    revisionId: revision.revisionId,
+    pageId: revision.pageId,
+    bodyMarkdown: revision.bodyMarkdown,
+    authorHandle: revision.authorHandle,
+    createdAt: revision.createdAt,
+    prevRevisionId: revision.prevRevisionId,
+  );
+}
+
+/// Row codec for the `study_groups` table (Task 9.6 Study Group Matching).
+///
+/// `topics` is stored as a `pillar:topicId` list joined by `;` — the READ
+/// path re-validates EVERY topic through [StudyGroup.parse] so a forged
+/// non-UUID id, malformed handle-free row, bad pin or unknown pillar throws
+/// at read time (SECURITY CHECKPOINT 9.6: study group rows are zero-
+/// identity and strictly validated).
+Map<String, Object?> studyGroupRecordToRow(StudyGroupRecord r) => {
+      'group_id': r.groupId,
+      'module_id': r.moduleId,
+      'title': r.title,
+      'locale': r.locale,
+      'pin_code': r.pinCode,
+      'topics':
+          r.topics.map((t) => '${t.pillar.wireName}:${t.topicId}').join(';'),
+      'capacity': r.capacity,
+      'participant_count': r.participantCount,
+      'created_at': r.createdAt.microsecondsSinceEpoch,
+    };
+
+StudyGroupRecord studyGroupRecordFromRow(Map<String, Object?> row) {
+  final group = StudyGroup.parse(
+    groupId: row['group_id']! as String,
+    moduleId: row['module_id']! as String,
+    title: row['title']! as String,
+    locale: row['locale']! as String,
+    pinCode: row['pin_code']! as String,
+    topics: _topicsFromWire(row['topics']! as String),
+    capacity: row['capacity']! as int,
+    participantCount: row['participant_count']! as int,
+    createdAt: DateTime.fromMicrosecondsSinceEpoch(
+      row['created_at']! as int,
+      isUtc: true,
+    ),
+  );
+  return StudyGroupRecord(
+    groupId: group.groupId,
+    moduleId: group.moduleId,
+    title: group.title,
+    locale: group.locale,
+    pinCode: group.pinCode,
+    topics: group.topics,
+    capacity: group.capacity,
+    participantCount: group.participantCount,
+    createdAt: group.createdAt,
+  );
+}
+
+/// Strictly decodes the `pillar:topicId;...` wire list — every entry is
+/// re-validated (unknown pillar throws; non-UUID/non-slug topic throws).
+List<StudyTopicRef> _topicsFromWire(String raw) {
+  if (raw.isEmpty) {
+    throw ArgumentError('study_groups row carries no topics');
+  }
+  final topics = <StudyTopicRef>[];
+  for (final entry in raw.split(';')) {
+    final sep = entry.indexOf(':');
+    if (sep <= 0) {
+      throw ArgumentError('study_groups row carries a malformed topic');
+    }
+    final pillar = StudyPillar.fromWireName(entry.substring(0, sep));
+    final topic = StudyTopicRef.tryParse(
+      pillar: pillar,
+      topicId: entry.substring(sep + 1),
+    );
+    if (topic == null) {
+      throw ArgumentError('study_groups row carries a malformed topic');
+    }
+    topics.add(topic);
+  }
+  return topics;
+}
+
+/// Row codec for the `study_group_members` table (Task 9.6).
+///
+/// Blinded `SG-####` handle + initiator flag + timestamps — ZERO identity
+/// columns (SECURITY CHECKPOINT 9.6). The READ path re-validates through
+/// [StudyGroupMember.parse] so a forged non-UUID id / malformed handle
+/// throws at read time.
+Map<String, Object?> studyGroupMemberRecordToRow(StudyGroupMemberRecord r) => {
+      'member_id': r.memberId,
+      'group_id': r.groupId,
+      'member_handle': r.memberHandle,
+      'is_initiator': r.isInitiator ? 1 : 0,
+      'joined_at': r.joinedAt.microsecondsSinceEpoch,
+    };
+
+StudyGroupMemberRecord studyGroupMemberRecordFromRow(Map<String, Object?> row) {
+  final member = StudyGroupMember.parse(
+    memberId: row['member_id']! as String,
+    groupId: row['group_id']! as String,
+    memberHandle: row['member_handle']! as String,
+    isInitiator: (row['is_initiator']! as int) == 1,
+    joinedAt: DateTime.fromMicrosecondsSinceEpoch(
+      row['joined_at']! as int,
+      isUtc: true,
+    ),
+  );
+  return StudyGroupMemberRecord(
+    memberId: member.memberId,
+    groupId: member.groupId,
+    memberHandle: member.memberHandle,
+    isInitiator: member.isInitiator,
+    joinedAt: member.joinedAt,
+  );
+}
 
 /// Row codec for the `sync_queue` table (status/operation stored as TEXT;
 /// created_at + last_attempt_at stored as epoch microseconds so ordering and

@@ -201,6 +201,140 @@ class AppSchema {
     DbColumn('saved_at', 'INTEGER', notNull: true),
   ]);
 
+  /// The Academy syllabus domains (Task 9.2 Syllabus Tree).
+  ///
+  /// One row per public course domain: `domain_id` is the stable slug,
+  /// `title` is the public course-domain title, `locale` is the ISO 639-1
+  /// tag. PUBLIC course content only — zero identity columns by design
+  /// (the syllabus is served from this local cache, never the network).
+  static const DbTable academyDomains = DbTable('academy_domains', [
+    DbColumn('domain_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('title', 'TEXT', notNull: true),
+    DbColumn('locale', 'TEXT', notNull: true),
+  ]);
+
+  /// The Academy syllabus modules (Task 9.2 Syllabus Tree).
+  ///
+  /// One row per learning module: `module_id` is the validated UUID v4,
+  /// `domain_id` is its parent domain slug, `title`/`duration_minutes`/
+  /// `locale` are public course metadata, and `content_ref` is the OPAQUE
+  /// non-PII media reference (never a raw URL, never a filename that could
+  /// leak identity). ZERO identity columns.
+  static const DbTable academyModules = DbTable('academy_modules', [
+    DbColumn('module_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('domain_id', 'TEXT', notNull: true),
+    DbColumn('title', 'TEXT', notNull: true),
+    DbColumn('duration_minutes', 'INTEGER', notNull: true),
+    DbColumn('locale', 'TEXT', notNull: true),
+    DbColumn('content_ref', 'TEXT', notNull: true),
+  ]);
+
+  /// The Academy progress ledger (Task 9.2 Syllabus Tree).
+  ///
+  /// One row per completed module: `module_id` is the validated UUID v4
+  /// (row presence = completed). ZERO identity columns by design — the
+  /// learner is the device itself; no phone/name/hash/timestamp ever
+  /// attaches to a progress row (SECURITY CHECKPOINT 9.2: progress keys
+  /// are UUID module ids only).
+  static const DbTable academyProgress = DbTable('academy_progress', [
+    DbColumn('module_id', 'TEXT', primaryKey: true, notNull: true),
+  ]);
+
+  /// The Academy Sandbox Wiki page ledger (Task 9.5 Sandbox Wiki System).
+  ///
+  /// One row per community study page. `page_id` is the validated UUID v4
+  /// page id, `module_id` is the parent module's UUID v4 (the sandbox is
+  /// module-scoped), `title` is the PUBLIC page title, `revision_count` is
+  /// the append-only history length, `updated_at` the last revision. The
+  /// body NEVER lives here — it lives in the sensitive `sandbox_revisions`
+  /// table (community UGC may embed PII; the encrypted-partition contract
+  /// holds for every wiki byte). ZERO identity columns by design.
+  static const DbTable sandboxPages = DbTable('sandbox_pages', [
+    DbColumn('page_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('module_id', 'TEXT', notNull: true),
+    DbColumn('title', 'TEXT', notNull: true),
+    DbColumn('locale', 'TEXT', notNull: true),
+    DbColumn('revision_count', 'INTEGER', notNull: true),
+    DbColumn('updated_at', 'INTEGER', notNull: true),
+  ]);
+
+  /// The Academy Sandbox Wiki revision history (Task 9.5).
+  ///
+  /// One row per revision — append-only version control (PRD FR-A3:
+  /// every revision diffable + revertible with attributed-but-pseudonymous
+  /// authorship). `body_markdown` is community UGC flagged SENSITIVE (may
+  /// embed PII — persisted only inside the encrypted partition and in the
+  /// sealed sync envelope); `author_handle` is the deterministic `SA-####`
+  /// pseudonymous handle, NEVER identity. ZERO identity columns.
+  static const DbTable sandboxRevisions = DbTable('sandbox_revisions', [
+    DbColumn('revision_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('page_id', 'TEXT', notNull: true),
+    DbColumn('body_markdown', 'TEXT', notNull: true, sensitive: true),
+    DbColumn('author_handle', 'TEXT', notNull: true),
+    DbColumn('created_at', 'INTEGER', notNull: true),
+    DbColumn('prev_revision_id', 'TEXT'),
+  ]);
+
+  /// Locally cached Academy module content (Task 9.4 Offline Module
+  /// Caching).
+  ///
+  /// One row per module with an offline-cache entry. `module_id` is the
+  /// validated UUID v4 module id (the ONLY cache key — zero identity),
+  /// `status` is the cache lifecycle wire name (queued/downloading/
+  /// downloaded/failed), `total_bytes`/`cached_bytes` are the offline
+  /// budget sizes, and `sealed_payload` is the AES-256-GCM SEALED content
+  /// payload (ciphertext only — `sensitive`, the raw content never touches
+  /// the row). The whole file is SQLCipher-encrypted at rest regardless
+  /// (MASTER_PLAN §9.4 checkpoint: cached content lives in the encrypted
+  /// partition). No identity, no raw URL, no filename column by design.
+  static const DbTable moduleCache = DbTable('module_cache', [
+    DbColumn('module_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('status', 'TEXT', notNull: true),
+    DbColumn('total_bytes', 'INTEGER', notNull: true),
+    DbColumn('cached_bytes', 'INTEGER', notNull: true),
+    DbColumn('downloaded_at', 'INTEGER'),
+    DbColumn('sealed_payload', 'BLOB', sensitive: true),
+    DbColumn('cached_at', 'INTEGER'),
+  ]);
+
+  /// Cross-pillar Academy study groups (Task 9.6 Study Group Matching).
+  ///
+  /// One row per study group. `group_id` is the validated UUID v4 group id,
+  /// `module_id` is the anchor Academy module's UUID v4, `title` is the
+  /// PUBLIC group title, `locale` the locale tag, `pin_code` is the coarse
+  /// civic scope (sensitive — the same coarse signal as the Ledger feed;
+  /// never a precise location), `topics` is the wire-serialized cross-pillar
+  /// topic ref list, `capacity`/`participant_count` bound the group size and
+  /// `created_at` stamps creation. ZERO identity columns by design —
+  /// participants are identified ONLY by blinded `SG-####` handles living in
+  /// `study_group_members` (SECURITY CHECKPOINT 9.6).
+  static const DbTable studyGroups = DbTable('study_groups', [
+    DbColumn('group_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('module_id', 'TEXT', notNull: true),
+    DbColumn('title', 'TEXT', notNull: true),
+    DbColumn('locale', 'TEXT', notNull: true),
+    DbColumn('pin_code', 'TEXT', notNull: true, sensitive: true),
+    DbColumn('topics', 'TEXT', notNull: true),
+    DbColumn('capacity', 'INTEGER', notNull: true),
+    DbColumn('participant_count', 'INTEGER', notNull: true),
+    DbColumn('created_at', 'INTEGER', notNull: true),
+  ]);
+
+  /// Local study group member rows (Task 9.6 Study Group Matching).
+  ///
+  /// One row per local membership. `member_id` is the validated UUID v4
+  /// membership id, `group_id` the parent group's UUID v4, `member_handle`
+  /// is the blinded deterministic `SG-####` handle (NEVER identity),
+  /// `is_initiator` flags the creator and `joined_at` stamps the join.
+  /// ZERO identity columns by design (SECURITY CHECKPOINT 9.6).
+  static const DbTable studyGroupMembers = DbTable('study_group_members', [
+    DbColumn('member_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('group_id', 'TEXT', notNull: true),
+    DbColumn('member_handle', 'TEXT', notNull: true),
+    DbColumn('is_initiator', 'INTEGER', notNull: true),
+    DbColumn('joined_at', 'INTEGER', notNull: true),
+  ]);
+
   /// All tables, in creation order (foreign-key-safe).
   static const List<DbTable> tables = [
     users,
@@ -214,6 +348,14 @@ class AppSchema {
     peerReviews,
     evidence,
     intakeDrafts,
+    academyDomains,
+    academyModules,
+    academyProgress,
+    moduleCache,
+    sandboxPages,
+    sandboxRevisions,
+    studyGroups,
+    studyGroupMembers,
   ];
 
   /// Current schema version — MUST be bumped when tables are added/changed.
@@ -229,7 +371,19 @@ class AppSchema {
   /// sealed file + wrapped DEK (no filename/identity by design).
   /// v9 (Task 8.7): `intake_drafts` — paused War Room intake drafts, sealed
   /// at rest (AES-256-GCM envelope; no identity columns).
-  static const int currentVersion = 9;
+  /// v10 (Task 9.2): `academy_domains` / `academy_modules` /
+  /// `academy_progress` — the Academy syllabus tree + progress ledger,
+  /// served from the local cache (no identity columns).
+  /// v11 (Task 9.4): `module_cache` — offline module cache entries
+  /// (UUID module-id key + status + sizes + SEALED content payload).
+  /// v12 (Task 9.5): `sandbox_pages` / `sandbox_revisions` — the Academy
+  /// Sandbox Wiki (module-scoped community pages + append-only revision
+  /// history with pseudonymous `SA-####` authorship; body_markdown is
+  /// community UGC flagged sensitive).
+  /// v13 (Task 9.6): `study_groups` / `study_group_members` — cross-pillar
+  /// study group matching (anchor module UUID + public title + coarse pin
+  /// scope + cross-pillar topic refs; blinded `SG-####` memberships).
+  static const int currentVersion = 13;
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {

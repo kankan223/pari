@@ -39,11 +39,15 @@ void main() {
       // v1 CREATE TABLEs (one per table) + v2 ALTER + v3 (ALTER + UPDATE) +
       // v4 (CREATE TABLE devices) + v5 (CREATE TABLE ledger_drafts) +
       // v6 (CREATE TABLE post_votes) + v7 (CREATE TABLE peer_reviews) +
-      // v8 (CREATE TABLE evidence) + v9 (CREATE TABLE intake_drafts) =
-      // 11 table creates + 9 migration statements.
+      // v8 (CREATE TABLE evidence) + v9 (CREATE TABLE intake_drafts) +
+      // v10 (3 CREATE TABLEs: academy_domains/modules/progress) +
+      // v11 (CREATE TABLE module_cache) +
+      // v12 (2 CREATE TABLEs: sandbox_pages/sandbox_revisions) +
+      // v13 (2 CREATE TABLEs: study_groups/study_group_members) =
+      // 19 table creates + 17 migration statements.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 9,
+        AppSchema.tables.length + 17,
       );
       expect(
         executor.executed.first,
@@ -76,6 +80,30 @@ void main() {
       expect(
         executor.executed,
         anyElement(startsWith('CREATE TABLE intake_drafts (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE academy_domains (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE academy_modules (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE academy_progress (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE module_cache (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE sandbox_pages (')),
+      );
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE sandbox_revisions (')),
       );
       // v2 adds the retry-gating timestamp column (Task 5.2).
       expect(
@@ -114,10 +142,10 @@ void main() {
 
       await runner.migrate();
 
-      // v1..v9 applied once; version ends at current.
+      // v1..v13 applied once; version ends at current.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 9,
+        AppSchema.tables.length + 17,
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -130,7 +158,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 9);
+      expect(executor.executed.length, 17);
       expect(
         executor.executed[0],
         contains('ADD COLUMN last_attempt_at'),
@@ -167,6 +195,38 @@ void main() {
         executor.executed[8],
         startsWith('CREATE TABLE intake_drafts ('),
       );
+      expect(
+        executor.executed[9],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[10],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[11],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[12],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[13],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[14],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      expect(
+        executor.executed[15],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[16],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -176,9 +236,9 @@ void main() {
       final executor = FakeMigrationExecutor()..version = 2;
       final runner = MigrationRunner(executor);
 
-      await runner.migrate();
-
-      expect(executor.executed.length, 8);
+      await runner
+          .migrate(); // v3 (2) + v4..v9 (1 each) + v10 (3) + v11 (1) + v12 (2) + v13 (2) = 16.
+      expect(executor.executed.length, 16);
       expect(executor.executed[0], contains('ADD COLUMN direction'));
       expect(executor.executed[1], contains("SET direction = 'sent'"));
       expect(executor.executed[2], startsWith('CREATE TABLE devices ('));
@@ -187,6 +247,19 @@ void main() {
       expect(executor.executed[5], startsWith('CREATE TABLE peer_reviews ('));
       expect(executor.executed[6], startsWith('CREATE TABLE evidence ('));
       expect(executor.executed[7], startsWith('CREATE TABLE intake_drafts ('));
+      expect(
+          executor.executed[8], startsWith('CREATE TABLE academy_domains ('));
+      expect(
+          executor.executed[9], startsWith('CREATE TABLE academy_modules ('));
+      expect(
+          executor.executed[10], startsWith('CREATE TABLE academy_progress ('));
+      expect(executor.executed[11], startsWith('CREATE TABLE module_cache ('));
+      expect(executor.executed[12], startsWith('CREATE TABLE sandbox_pages ('));
+      expect(executor.executed[13],
+          startsWith('CREATE TABLE sandbox_revisions ('));
+      expect(executor.executed[14], startsWith('CREATE TABLE study_groups ('));
+      expect(executor.executed[15],
+          startsWith('CREATE TABLE study_group_members ('));
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -197,7 +270,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 6);
+      expect(executor.executed.length, 14);
       expect(executor.executed[0], startsWith('CREATE TABLE devices ('));
       expect(
         executor.executed[1],
@@ -219,6 +292,39 @@ void main() {
         executor.executed[5],
         startsWith('CREATE TABLE intake_drafts ('),
       );
+      expect(
+        executor.executed[6],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[7],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[8],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[9],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[10],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[11],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -229,7 +335,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 5);
+      expect(executor.executed.length, 13);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE ledger_drafts ('),
@@ -250,6 +356,39 @@ void main() {
         executor.executed[4],
         startsWith('CREATE TABLE intake_drafts ('),
       );
+      expect(
+        executor.executed[5],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[6],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[7],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[8],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[9],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[10],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -260,7 +399,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 4);
+      expect(executor.executed.length, 12);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE post_votes ('),
@@ -277,6 +416,39 @@ void main() {
         executor.executed[3],
         startsWith('CREATE TABLE intake_drafts ('),
       );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[5],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[6],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[7],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[8],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[9],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -287,7 +459,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 3);
+      expect(executor.executed.length, 11);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE peer_reviews ('),
@@ -296,6 +468,39 @@ void main() {
       expect(
         executor.executed[2],
         startsWith('CREATE TABLE intake_drafts ('),
+      );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[5],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[6],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[7],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[8],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -307,7 +512,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 2);
+      expect(executor.executed.length, 10);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE evidence ('),
@@ -316,20 +521,217 @@ void main() {
         executor.executed[1],
         startsWith('CREATE TABLE intake_drafts ('),
       );
+      expect(
+        executor.executed[2],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[5],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[6],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[7],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v8 database upgrades to v9 with the intake_drafts CREATE TABLE',
+    test('a v8 database upgrades through v9+v10+v11+v12 (7 statements total)',
         () async {
       final executor = FakeMigrationExecutor()..version = 8;
       final runner = MigrationRunner(executor);
 
       await runner.migrate();
 
-      expect(executor.executed.length, 1);
+      // v9 (intake_drafts) + v10 (three academy CREATE TABLEs) +
+      // v11 (module_cache) + v12 (sandbox_pages/sandbox_revisions).
+      expect(executor.executed.length, 9);
       expect(
-        executor.executed.first,
+        executor.executed[0],
         startsWith('CREATE TABLE intake_drafts ('),
+      );
+      expect(
+        executor.executed[1],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[2],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[5],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[6],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test(
+        'a v9 database upgrades through v10+v11+v12 with the academy '
+        'CREATE TABLEs + module_cache + sandbox tables', () async {
+      final executor = FakeMigrationExecutor()..version = 9;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
+      // v10 (three academy CREATE TABLEs) + v11 (module_cache) +
+      // v12 (sandbox_pages/sandbox_revisions).
+      expect(executor.executed.length, 8);
+      expect(
+        executor.executed[0],
+        startsWith('CREATE TABLE academy_domains ('),
+      );
+      expect(
+        executor.executed[1],
+        startsWith('CREATE TABLE academy_modules ('),
+      );
+      expect(
+        executor.executed[2],
+        startsWith('CREATE TABLE academy_progress ('),
+      );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[5],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('a v10 database upgrades through v11+v12+v13 (5 statements total)',
+        () async {
+      final executor = FakeMigrationExecutor()..version = 10;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
+      // v11 (module_cache) + v12 (sandbox_pages/sandbox_revisions) +
+      // v13 (study_groups/study_group_members).
+      expect(executor.executed.length, 5);
+      expect(
+        executor.executed[0],
+        startsWith('CREATE TABLE module_cache ('),
+      );
+      expect(
+        executor.executed[1],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[2],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('a v11 database upgrades through v12+v13 (4 statements total)',
+        () async {
+      final executor = FakeMigrationExecutor()..version = 11;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
+      // v12 (sandbox_pages/sandbox_revisions) + v13 (study groups).
+      expect(executor.executed.length, 4);
+      expect(
+        executor.executed[0],
+        startsWith('CREATE TABLE sandbox_pages ('),
+      );
+      expect(
+        executor.executed[1],
+        startsWith('CREATE TABLE sandbox_revisions ('),
+      );
+      final len = executor.executed.length;
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE study_group_members ('),
+      );
+      expect(executor.version, AppSchema.currentVersion);
+    });
+
+    test('a v12 database upgrades to v13 with the study group CREATE TABLEs',
+        () async {
+      final executor = FakeMigrationExecutor()..version = 12;
+      final runner = MigrationRunner(executor);
+
+      await runner.migrate();
+
+      expect(executor.executed.length, 2);
+      expect(
+        executor.executed[0],
+        startsWith('CREATE TABLE study_groups ('),
+      );
+      expect(
+        executor.executed[1],
+        startsWith('CREATE TABLE study_group_members ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -338,6 +740,38 @@ void main() {
       final v9 = AppMigrations.all.firstWhere((m) => m.version == 9);
       expect(v9.downStatements, isNotNull);
       expect(v9.downStatements!.first, contains('DROP TABLE intake_drafts'));
+    });
+
+    test('v10 rolls back by dropping all three academy tables', () {
+      final v10 = AppMigrations.all.firstWhere((m) => m.version == 10);
+      expect(v10.downStatements, isNotNull);
+      expect(v10.downStatements, hasLength(3));
+      expect(v10.downStatements![0], contains('DROP TABLE academy_progress'));
+      expect(v10.downStatements![1], contains('DROP TABLE academy_modules'));
+      expect(v10.downStatements![2], contains('DROP TABLE academy_domains'));
+    });
+
+    test('v11 rolls back by dropping the module_cache table', () {
+      final v11 = AppMigrations.all.firstWhere((m) => m.version == 11);
+      expect(v11.downStatements, isNotNull);
+      expect(v11.downStatements!.first, contains('DROP TABLE module_cache'));
+    });
+
+    test('v12 rolls back by dropping both sandbox tables', () {
+      final v12 = AppMigrations.all.firstWhere((m) => m.version == 12);
+      expect(v12.downStatements, isNotNull);
+      expect(v12.downStatements, hasLength(2));
+      expect(v12.downStatements![0], contains('DROP TABLE sandbox_revisions'));
+      expect(v12.downStatements![1], contains('DROP TABLE sandbox_pages'));
+    });
+
+    test('v13 rolls back by dropping both study group tables', () {
+      final v13 = AppMigrations.all.firstWhere((m) => m.version == 13);
+      expect(v13.downStatements, isNotNull);
+      expect(v13.downStatements, hasLength(2));
+      expect(
+          v13.downStatements![0], contains('DROP TABLE study_group_members'));
+      expect(v13.downStatements![1], contains('DROP TABLE study_groups'));
     });
 
     test('v8 rolls back by dropping the evidence table', () {

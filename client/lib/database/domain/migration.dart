@@ -169,6 +169,98 @@ final class AppMigrations {
         'DROP TABLE intake_drafts',
       ],
     ),
+    const Migration(
+      version: 10,
+      description: 'Add Academy syllabus tree + progress tables (Task 9.2)',
+      upStatements: [
+        // The Academy syllabus is PUBLIC course content served from the
+        // local cache — zero identity columns. Modules carry validated
+        // UUID v4 ids + opaque non-PII content refs. Progress rows hold
+        // ONLY the UUID module id (presence = completed).
+        'CREATE TABLE academy_domains (domain_id TEXT PRIMARY KEY NOT NULL, '
+            'title TEXT NOT NULL, locale TEXT NOT NULL)',
+        'CREATE TABLE academy_modules (module_id TEXT PRIMARY KEY NOT NULL, '
+            'domain_id TEXT NOT NULL, title TEXT NOT NULL, '
+            'duration_minutes INTEGER NOT NULL, locale TEXT NOT NULL, '
+            'content_ref TEXT NOT NULL)',
+        'CREATE TABLE academy_progress (module_id TEXT PRIMARY KEY NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE academy_progress',
+        'DROP TABLE academy_modules',
+        'DROP TABLE academy_domains',
+      ],
+    ),
+    const Migration(
+      version: 11,
+      description: 'Add module_cache table for offline Academy module '
+          'caching (Task 9.4)',
+      upStatements: [
+        // Cache rows carry ONLY the UUID module-id key + a status wire name
+        // + sizes + the AES-256-GCM SEALED content payload (sensitive BLOB)
+        // inside the encrypted database. NO plaintext content, NO identity
+        // column.
+        'CREATE TABLE module_cache (module_id TEXT PRIMARY KEY NOT NULL, '
+            'status TEXT NOT NULL, total_bytes INTEGER NOT NULL, '
+            'cached_bytes INTEGER NOT NULL, downloaded_at INTEGER, '
+            'sealed_payload BLOB, cached_at INTEGER)',
+      ],
+      downStatements: [
+        'DROP TABLE module_cache',
+      ],
+    ),
+    const Migration(
+      version: 12,
+      description: 'Add Sandbox Wiki tables for the Academy community '
+          'study notes (Task 9.5)',
+      upStatements: [
+        // Page rows carry ONLY UUID v4 ids + a public title + locale + the
+        // revision count + a timestamp — ZERO identity columns, NO body.
+        'CREATE TABLE sandbox_pages (page_id TEXT PRIMARY KEY NOT NULL, '
+            'module_id TEXT NOT NULL, title TEXT NOT NULL, '
+            'locale TEXT NOT NULL, revision_count INTEGER NOT NULL, '
+            'updated_at INTEGER NOT NULL)',
+        // Revision rows carry the Markdown body (community UGC — sensitive,
+        // may embed PII, persisted only inside the encrypted partition) + the
+        // deterministic SA-#### pseudonymous author handle. ZERO identity
+        // columns.
+        'CREATE TABLE sandbox_revisions (revision_id TEXT PRIMARY KEY NOT '
+            'NULL, page_id TEXT NOT NULL, body_markdown TEXT NOT NULL, '
+            'author_handle TEXT NOT NULL, created_at INTEGER NOT NULL, '
+            'prev_revision_id TEXT)',
+      ],
+      downStatements: [
+        'DROP TABLE sandbox_revisions',
+        'DROP TABLE sandbox_pages',
+      ],
+    ),
+    const Migration(
+      version: 13,
+      description: 'Add cross-pillar study group tables for the Academy '
+          '(Task 9.6)',
+      upStatements: [
+        // Group rows carry ONLY a UUID v4 group id + the anchor module UUID
+        // + a public title + locale + the coarse civic pin scope (sensitive)
+        // + wire-serialized cross-pillar topic refs + capacity/count +
+        // timestamp — ZERO identity columns, no participant handles.
+        'CREATE TABLE study_groups (group_id TEXT PRIMARY KEY NOT NULL, '
+            'module_id TEXT NOT NULL, title TEXT NOT NULL, '
+            'locale TEXT NOT NULL, pin_code TEXT NOT NULL, '
+            'topics TEXT NOT NULL, capacity INTEGER NOT NULL, '
+            'participant_count INTEGER NOT NULL, '
+            'created_at INTEGER NOT NULL)',
+        // Member rows carry ONLY the UUID v4 membership id + the parent
+        // group id + the blinded SG-#### handle + initiator flag + join
+        // timestamp — ZERO identity columns.
+        'CREATE TABLE study_group_members (member_id TEXT PRIMARY KEY NOT '
+            'NULL, group_id TEXT NOT NULL, member_handle TEXT NOT NULL, '
+            'is_initiator INTEGER NOT NULL, joined_at INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE study_group_members',
+        'DROP TABLE study_groups',
+      ],
+    ),
   ];
 }
 

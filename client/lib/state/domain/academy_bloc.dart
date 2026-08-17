@@ -13,6 +13,10 @@ abstract class AcademyBloc {
   /// Stream of Academy states.
   Stream<AcademyState> get state;
 
+  /// The latest emitted state (non-stream read for navigation wiring,
+  /// mirroring [LocalLedgerComposeBloc.current]).
+  AcademyState get current;
+
   /// Loads the syllabus snapshot + persisted progress.
   Future<void> start();
 

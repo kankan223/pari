@@ -37,6 +37,11 @@ class LocalAcademyBloc implements AcademyBloc {
   @override
   Stream<AcademyState> get state => _controller.stream;
 
+  /// The latest emitted state (non-stream read for navigation wiring,
+  /// mirroring [LocalLedgerComposeBloc.current]).
+  @override
+  AcademyState get current => _current;
+
   @override
   Future<void> start() async {
     _current = const AcademyState(phase: AcademyPhase.loading);

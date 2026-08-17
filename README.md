@@ -17,12 +17,13 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 | Phase 5 | State Management & Sync Engine | ✅ Complete (5.1–5.6, 522 Flutter tests) |
 | Phase 6 | Secure Messaging & Device Management | ✅ Complete (6.1–6.6, 824 Flutter tests) |
 | Phase 7 | The Daily Ledger (Civic Newsroom) | ✅ Complete (7.1–7.6, 1068 Flutter tests) |
-| **Phase 8** | **The War Room (OSINT Cyber Defense)** | **✅ Complete (8.1–8.8, 1355 Flutter tests)** |
-| **Phase 9** | **The Academy (Open Education)** | **⏭ In progress — foundation scaffold landed (8.8); next: Task 9.1 Academy UI Foundation** |
+| Phase 8 | The War Room (OSINT Cyber Defense) | ✅ Complete (8.1–8.8, 1355 Flutter tests) |
+| **Phase 9** | **The Academy (Open Education)** | **✅ Complete (9.1–9.6, 1615 Flutter tests)** |
+| **Phase 10** | **Cross-Pillar Systems (Identity, Karma, Transport)** | **⏭ In progress — Task 10.1 Unified Identity Layer COMPLETE; next: Task 10.2 Civic Karma Engine** |
 
-> **Current:** Phase 8 COMPLETE (8.1–8.8) — encrypted evidence, PII redaction, severity scoring, blinded analyst collaboration, immutable custody logging, trauma-informed intake; Phase 9 (Academy) scaffold shipped with 8.8.  
-> **Next:** Task 9.1 Academy UI Foundation  
-> **Last Updated:** 2026-08-16
+> **Current:** Phase 9 COMPLETE (9.1–9.6) — Academy UI, syllabus tree + SQLCipher persistence, privacy-enhanced video embeds, offline module caching, sandbox wiki, cross-pillar study-group matching; **Phase 10 OPEN** — Task 10.1 Unified Identity Layer complete (one blind hash, read-only, across all four pillars with per-pillar minimum-claims enforcement).  
+> **Next:** Task 10.2 Civic Karma Engine  
+> **Last Updated:** 2026-08-18
 
 ---
 
@@ -54,8 +55,8 @@ civic-commons/
 │   │   ├── signal/               #   X3DH + Double Ratchet (Signal Protocol)
 │   │   ├── duress/               #   Duress PIN + decoy-vault selection
 │   │   ├── database/             #   SQLCipher schema, migrations, repositories
-│   │   ├── identity/             #   Phone hashing, salt management, identity service
-│   │   ├── state/                #   BLoC state management (conversation, message, sync, ledger)
+│   │   ├── identity/             #   Phone hashing, salt management + Unified Identity Layer (10.1: per-pillar minimum claims)
+│   │   ├── state/                #   BLoC state management (conversation, message, sync, ledger, identity verification)
 │   │   ├── sync/                 #   Background sync worker, reconnection triggers
 │   │   ├── repository/           #   Offline-first repos (conversation, message, sync queue)
 │   │   ├── relay/                #   WebSocket relay client (protojson wire, first-frame JWT auth)
@@ -64,9 +65,9 @@ civic-commons/
 │   │   ├── geo/                  #   Geographic clustering (coarse pin codes, dynamic radius)
 │   │   ├── war_room/             #   War Room (evidence, custody log, severity, analysts, intake drafts)
 │   │   ├── pii/                  #   PII redaction pipeline (deterministic regex FIRST, local detector)
-│   │   ├── academy/              #   Academy (Phase 9 — syllabus domain, repository/progress ports)
+│   │   ├── academy/              #   Academy (Phase 9 — syllabus, video room, offline module cache, sandbox wiki, study groups)
 │   │   └── logging/              #   Zero-plaintext redaction logging
-│   └── test/                     #   1355 unit + widget + integration tests across all layers
+│   └── test/                     #   1655 unit + widget + integration tests across all layers
 ├── services/                     # Go 1.22 backend (standard layout)
 │   ├── cmd/
 │   │   ├── api/                  #   API gateway entry point
@@ -162,10 +163,10 @@ go run ./cmd/relay      # :8081  (WebSocket relay — Redis streams, NATS events
 cd client
 flutter pub get
 flutter analyze           # static analysis (0 issues)
-flutter test              # 1355 unit + widget + integration tests
+flutter test              # 1655 unit + widget + integration tests
 ```
 
-> The client is a component/test library — the app shell (`lib/main.dart`) currently boots the War Room case list. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
+> The client is a component/test library — `lib/main.dart` is a manual testing harness with five tabs (War Room, Vault, Ledger, Academy, Identity) that boots all implemented screens in-memory for local QA. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
 
 ### Verification Scripts
 
@@ -217,6 +218,16 @@ The project follows **Clean Architecture** end to end: domain logic (entities, u
 ---
 
 ## Changelog
+
+### 2026-08-18 — Phase 9 Complete (Academy) + Task 10.1 (Unified Identity Layer) + Cleanup
+
+**Client (Flutter) — 1655 tests, 0 analysis issues; Go backend — 216 tests, race-clean, 0 lint violations:**
+- **Phase 9 (The Academy, 9.1–9.6, 1615 tests):** Academy UI foundation (zero-identity domain — UUID v4 module ids, locale tags, opaque content refs; FLAG_SECURE `AcademyMasthead`); syllabus tree + progress tracking with SQLCipher persistence (schema v10, no identity columns, cold-restart progress restore); privacy-enhanced video room (`academy_video.dart` embed boundary by construction — no network leakage or telemetry in the Academy tree); offline module caching (schema v11, validated-UUID cache keys, memory hygiene); sandbox wiki system (schema v12, encrypted local revisions, blinded `SA-####` handles, offline drafts); cross-pillar study-group matching (schema v13 — deterministic pin-code-based `StudyGroupMatcher`, blinded `SG-####` handles, phone-shaped topic ids rejected, sealed AES-256-GCM queue enqueue).
+- **Task 10.1 (Unified Identity Layer, 40 new tests):** one blind hash shared **read-only** across all four pillars; per-pillar minimum-claims allowlist enforced **at projection time** (`PillarClaims.compose` throws on any claim a pillar cannot hold — a full-profile projection is unconstructible); War Room/Academy need nothing beyond the hash; `UnifiedIdentityService` + `PillarClaimSources` (username directory / device registry / pin scope / karma cache); FLAG_SECURE onboarding `IdentityVerificationScreen` with blinded `@citizen_` handle (full 64-hex hash never renders); harness 5th-tab Identity wiring.
+- **Cleanup:** removed 2 dead files confirmed at zero references — `lib/database/data/sqflite_cipher_database.dart` (superseded by `sqlite_entity_store.dart`) and `lib/sync/data/workmanager_scheduler.dart` (superseded by `workmanager_module_download_dispatcher.dart`); dependency scan confirms both `sqflite_sqlcipher` and `workmanager` remain in use elsewhere.
+- **Verification:** full Flutter suite green in batches (1652 observed passing; the known `flutter_tester` RAM artifact on slow-loading heavy files confirmed standalone-passing), `flutter analyze` 0 issues, Go `go vet`/`go build`/`go test -race ./...` clean; live stack health-checked — Postgres :5433 (migration 0001 + `civic_app` RLS role), Redis :6381 (PONG), NATS :4222; identity (:8080) and relay (:8081) boot against all three with migrations applied and endpoints responding (identity OTP 200/400 + 401 unauth; relay 401/426 WS-upgrade); `verify_vault_live.sh`, `verify_nats_live.sh`, `verify_redis_live.sh` (incl. Sentinel failover) and `verify_go_deps.sh` all PASSED.
+
+---
 
 ### 2026-08-16 — Phase 8 Complete (War Room) + Phase 9 Scaffold + Cleanup
 

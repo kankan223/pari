@@ -22,6 +22,9 @@ class AcademyTheme {
   /// Emerald #2F6B4F — the Academy's single accent (progress, links).
   static const Color emerald = Color(0xFF2F6B4F);
 
+  /// Surface #FFFFFF — card surfaces (light mode).
+  static const Color surface = Color(0xFFFFFFFF);
+
   /// Textbook Rule #E3DCC8 — hairline dividers, chapter rules.
   static const Color rule = Color(0xFFE3DCC8);
 
