@@ -335,6 +335,27 @@ class AppSchema {
     DbColumn('joined_at', 'INTEGER', notNull: true),
   ]);
 
+  /// The append-only karma event ledger (Task 10.2 Civic Karma Engine).
+  ///
+  /// One row per karma event. `event_id` is the minted UUID v4 id (the
+  /// wire Idempotency-Key), `seq` the monotonic chain position,
+  /// `actor_hash` the validated 64-hex BLIND hash (sensitive — the ONLY
+  /// actor identifier), `action` the fixed wire code, `delta`/`balance_after`
+  /// the integer movement + running balance, `occurred_at` the timestamp,
+  /// and `prev_hash`/`self_hash` the SHA-256 chain links for audit
+  /// (SECURITY CHECKPOINT 10.2: append-only + auditable, zero identity).
+  static const DbTable karmaEvents = DbTable('karma_events', [
+    DbColumn('event_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('seq', 'INTEGER', notNull: true),
+    DbColumn('actor_hash', 'TEXT', notNull: true, sensitive: true),
+    DbColumn('action', 'TEXT', notNull: true),
+    DbColumn('delta', 'INTEGER', notNull: true),
+    DbColumn('balance_after', 'INTEGER', notNull: true),
+    DbColumn('occurred_at', 'INTEGER', notNull: true),
+    DbColumn('prev_hash', 'TEXT', notNull: true),
+    DbColumn('self_hash', 'TEXT', notNull: true),
+  ]);
+
   /// All tables, in creation order (foreign-key-safe).
   static const List<DbTable> tables = [
     users,
@@ -356,6 +377,7 @@ class AppSchema {
     sandboxRevisions,
     studyGroups,
     studyGroupMembers,
+    karmaEvents,
   ];
 
   /// Current schema version — MUST be bumped when tables are added/changed.
@@ -383,7 +405,10 @@ class AppSchema {
   /// v13 (Task 9.6): `study_groups` / `study_group_members` — cross-pillar
   /// study group matching (anchor module UUID + public title + coarse pin
   /// scope + cross-pillar topic refs; blinded `SG-####` memberships).
-  static const int currentVersion = 13;
+  /// v14 (Task 10.2): `karma_events` — the append-only, auditable Civic
+  /// Karma ledger (UUID event id + 64-hex blinded actor + fixed action +
+  /// running balance + SHA-256 chain links; zero identity columns).
+  static const int currentVersion = 14;
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {

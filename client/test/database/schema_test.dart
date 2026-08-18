@@ -3,7 +3,7 @@ import 'package:civic_commons/database/domain/schema.dart';
 
 void main() {
   group('AppSchema - entity definitions', () {
-    test('defines all nineteen tables', () {
+    test('defines all twenty tables', () {
       final names = AppSchema.tables.map((t) => t.name).toSet();
 
       expect(
@@ -28,8 +28,44 @@ void main() {
           'sandbox_revisions',
           'study_groups',
           'study_group_members',
+          'karma_events',
         }),
       );
+    });
+
+    test(
+        'karma_events is the append-only audit ledger with zero identity '
+        'columns (10.2)', () {
+      final columns = AppSchema.karmaEvents.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'event_id',
+        'seq',
+        'actor_hash',
+        'action',
+        'delta',
+        'balance_after',
+        'occurred_at',
+        'prev_hash',
+        'self_hash',
+      ]);
+      // ZERO identity columns — the ONLY actor identifier is the blinded
+      // 64-hex hash; no name/phone/email/username/device column can exist.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('email')));
+      expect(all, isNot(contains('username')));
+      expect(all, isNot(contains('user_id')));
+      expect(all, isNot(contains('device')));
+      expect(all, isNot(contains('author')));
+      // The actor's 64-hex blind hash is flagged sensitive (encrypted at
+      // rest in the SQLCipher partition).
+      expect(
+        AppSchema.karmaEvents.sensitiveColumns.map((c) => c.name),
+        ['actor_hash'],
+      );
+      // The SHA-256 chain links (prev_hash/self_hash) are hash values —
+      // never plaintext-sensitive, but the table is append-only by design.
     });
 
     test(

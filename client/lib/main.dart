@@ -20,6 +20,9 @@ import 'crypto/secure_key_storage.dart';
 import 'identity/identity_storage.dart';
 import 'identity/local_unified_identity_service.dart';
 import 'identity/pillar_claim_sources.dart';
+import 'karma/data/karma_event_records.dart';
+import 'karma/data/local_karma_repository.dart';
+import 'karma/domain/karma_action.dart';
 import 'geo/domain/pin_code.dart';
 import 'geo/domain/pin_code_resolver.dart';
 import 'geo/domain/pin_code_store.dart';
@@ -51,6 +54,7 @@ import 'state/data/local_ledger_compose_bloc.dart';
 import 'state/data/local_ledger_feed_bloc.dart';
 import 'state/data/local_ledger_geo_bloc.dart';
 import 'state/data/local_identity_verification_bloc.dart';
+import 'state/data/local_karma_bloc.dart';
 import 'state/data/local_ledger_review_bloc.dart';
 import 'state/data/local_message_bloc.dart';
 import 'state/data/local_war_room_bloc.dart';
@@ -58,6 +62,7 @@ import 'state/ui/academy_module_screen.dart';
 import 'state/ui/academy_syllabus_screen.dart';
 import 'state/ui/ledger_compose_screen.dart';
 import 'state/ui/identity_verification_screen.dart';
+import 'state/ui/karma_status_screen.dart';
 import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
 import 'state/ui/quick_exit_safe_screen.dart';
@@ -212,6 +217,10 @@ class HarnessDependencies {
   // Unified Identity (Task 10.1).
   final LocalIdentityVerificationBloc identityVerificationBloc;
 
+  // Civic Karma Engine (Task 10.2).
+  final LocalKarmaRepository karmaRepository;
+  final LocalKarmaBloc karmaBloc;
+
   const HarnessDependencies({
     required this.queueCipher,
     required this.syncQueue,
@@ -233,6 +242,8 @@ class HarnessDependencies {
     required this.sandboxWikiBloc,
     required this.studyGroupBloc,
     required this.identityVerificationBloc,
+    required this.karmaRepository,
+    required this.karmaBloc,
   });
 
   static Future<HarnessDependencies> build() async {
@@ -564,6 +575,32 @@ class HarnessDependencies {
       ),
     );
 
+    // Civic Karma Engine (Task 10.2): the append-only ledger seeded to the
+    // SAME 247 balance the identity screen's karma claim shows
+    // (5× module +2, 1× vetting +20, 3× contribution +15, 35× verified +5,
+    // 1× rejected −3 = 10+20+45+175−3 = 247). The blind-hash actor is the
+    // shared peer hash — zero PII.
+    final karmaRepository = LocalKarmaRepository(
+      store: _MemStore<KarmaEventRecord>((r) => r.eventId),
+      clock: () => DateTime.utc(2026, 8, 18, 12),
+    );
+    for (final (action, count) in const [
+      (KarmaAction.ledgerPostRejected, 1), // −3 (oldest, bottom of feed)
+      (KarmaAction.ledgerPostVerified, 35), // +175
+      (KarmaAction.warRoomCaseContribution, 3), // +45
+      (KarmaAction.academyModuleCompleted, 5), // +10
+      (KarmaAction.warRoomAnalystVetted, 1), // +20 (newest, top of feed)
+    ]) {
+      for (var i = 0; i < count; i++) {
+        await karmaRepository.record(action: action, actorHash: peerHash);
+      }
+    }
+    final karmaBloc = LocalKarmaBloc(
+      repository: karmaRepository,
+      accountAgeDays: 120,
+      localActorHash: () async => peerHash,
+    );
+
     return HarnessDependencies(
       queueCipher: queueCipher,
       syncQueue: syncQueue,
@@ -587,6 +624,8 @@ class HarnessDependencies {
       sandboxWikiBloc: sandboxWikiBloc,
       studyGroupBloc: studyGroupBloc,
       identityVerificationBloc: identityVerificationBloc,
+      karmaRepository: karmaRepository,
+      karmaBloc: karmaBloc,
     );
   }
 }
@@ -613,6 +652,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   late final _LedgerTab _ledgerTab;
   late final _AcademyTab _academyTab;
   late final _IdentityTab _identityTab;
+  late final _KarmaTab _karmaTab;
 
   @override
   void initState() {
@@ -623,6 +663,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     _ledgerTab = _LedgerTab(h: h);
     _academyTab = _AcademyTab(h: h);
     _identityTab = _IdentityTab(h: h);
+    _karmaTab = _KarmaTab(h: h);
   }
 
   @override
@@ -644,6 +685,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
             _ledgerTab,
             _academyTab,
             _identityTab,
+            _karmaTab,
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -674,6 +716,11 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
               icon: Icon(Icons.badge_outlined),
               selectedIcon: Icon(Icons.badge),
               label: 'Identity',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.star_outline),
+              selectedIcon: Icon(Icons.star),
+              label: 'Karma',
             ),
           ],
         ),
@@ -898,5 +945,18 @@ class _IdentityTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IdentityVerificationScreen(bloc: h.identityVerificationBloc);
+  }
+}
+
+// --- Karma tab (Task 10.2) ------------------------------------------------
+
+class _KarmaTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _KarmaTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return KarmaStatusScreen(bloc: h.karmaBloc);
   }
 }

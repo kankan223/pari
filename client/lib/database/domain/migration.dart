@@ -261,6 +261,27 @@ final class AppMigrations {
         'DROP TABLE study_groups',
       ],
     ),
+    const Migration(
+      version: 14,
+      description: 'Add the append-only karma event ledger for the Civic '
+          'Karma Engine (Task 10.2)',
+      upStatements: [
+        // Append-only, auditable karma events — event_id is the minted
+        // UUID v4 (wire Idempotency-Key), actor_hash the validated 64-hex
+        // BLIND hash (sensitive), action the fixed wire code, delta + the
+        // running balance_after, occurred_at the timestamp, and the
+        // SHA-256 prev_hash/self_hash chain links — ZERO identity columns.
+        'CREATE TABLE karma_events (event_id TEXT PRIMARY KEY NOT NULL, '
+            'seq INTEGER NOT NULL, actor_hash TEXT NOT NULL, '
+            'action TEXT NOT NULL, delta INTEGER NOT NULL, '
+            'balance_after INTEGER NOT NULL, '
+            'occurred_at INTEGER NOT NULL, prev_hash TEXT NOT NULL, '
+            'self_hash TEXT NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE karma_events',
+      ],
+    ),
   ];
 }
 

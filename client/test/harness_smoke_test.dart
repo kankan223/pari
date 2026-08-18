@@ -61,5 +61,15 @@ void main() {
     expect(find.text('❧ CIVIC COMMONS'), findsOneWidget);
     expect(find.text('IDENTITY VERIFIED'), findsOneWidget);
     expect(find.textContaining('@citizen_'), findsOneWidget);
+
+    // Civic Karma destination (Task 10.2).
+    await tester.tap(find.text('Karma'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('KARMA'), findsOneWidget);
+    // Seeded ledger reaches exactly 247 (matches the identity screen's
+    // karma claim) — the balance renders with the tier label.
+    expect(find.text('247'), findsOneWidget);
+    expect(find.textContaining('tier'), findsOneWidget);
   });
 }
