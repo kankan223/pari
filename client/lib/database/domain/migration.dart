@@ -282,6 +282,43 @@ final class AppMigrations {
         'DROP TABLE karma_events',
       ],
     ),
+    const Migration(
+      version: 15,
+      description: 'Add the local notification store for the Notification '
+          'System (Task 10.4)',
+      upStatements: [
+        // Local notification store — UUID notification id, fixed type wire
+        // code, public-label title/body text, timestamp, is_read flag.
+        // ZERO identity columns — no phones, no hashes, no tokens.
+        'CREATE TABLE notifications (notification_id TEXT PRIMARY KEY '
+            'NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL, '
+            'body TEXT NOT NULL, created_at INTEGER NOT NULL, '
+            'is_read INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE notifications',
+      ],
+    ),
+    const Migration(
+      version: 16,
+      description: 'Add the append-only transparency audit log for the '
+          'Transparency Log (Task 10.5)',
+      upStatements: [
+        // Append-only, auditable transparency events — record_id is the
+        // UUID v4 id, action the fixed wire code, summary the public
+        // non-PII label, pin_code the civic scope, occurred_at the
+        // timestamp, prev_hash/self_hash the SHA-256 chain links.
+        // ZERO identity columns.
+        'CREATE TABLE transparency_events (record_id TEXT PRIMARY KEY '
+            'NOT NULL, seq INTEGER NOT NULL, action TEXT NOT NULL, '
+            'summary TEXT NOT NULL, pin_code TEXT NOT NULL, '
+            'occurred_at INTEGER NOT NULL, prev_hash TEXT NOT NULL, '
+            'self_hash TEXT NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE transparency_events',
+      ],
+    ),
   ];
 }
 

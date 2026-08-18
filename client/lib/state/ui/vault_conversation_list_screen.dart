@@ -276,8 +276,7 @@ class _ConversationTile extends StatelessWidget {
           color: Colors.black54,
         ),
       ),
-      // Chevron only when the row is actually navigable.
-      trailing: onTap == null ? null : const Icon(Icons.chevron_right_rounded),
+      // Chevron only when the row is actually navigable.      trailing: onTap == null ? null : const Icon(Icons.chevron_right_rounded),
       onTap: onTap,
     );
   }

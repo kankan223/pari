@@ -356,6 +356,40 @@ class AppSchema {
     DbColumn('self_hash', 'TEXT', notNull: true),
   ]);
 
+  /// The local notification store (Task 10.4 Notification System).
+  ///
+  /// One row per notification. `notification_id` is the UUID v4 id,
+  /// `type` the fixed wire code, `title`/`body` public-label-only text,
+  /// `created_at` the timestamp, `is_read` the read/unread flag.
+  /// ZERO identity columns — no phones, no hashes, no tokens.
+  static const DbTable notifications = DbTable('notifications', [
+    DbColumn('notification_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('type', 'TEXT', notNull: true),
+    DbColumn('title', 'TEXT', notNull: true),
+    DbColumn('body', 'TEXT', notNull: true),
+    DbColumn('created_at', 'INTEGER', notNull: true),
+    DbColumn('is_read', 'INTEGER', notNull: true),
+  ]);
+
+  /// The append-only transparency audit log (Task 10.5).
+  ///
+  /// One row per transparency event. `record_id` is the UUID v4 id,
+  /// `seq` the monotonic chain position, `action` the fixed wire code,
+  /// `summary` the public non-PII label, `pin_code` the civic scope,
+  /// `occurred_at` the timestamp, `prev_hash`/`self_hash` the SHA-256
+  /// chain links for audit (SECURITY CHECKPOINT 10.5: append-only +
+  /// auditable, zero identity).
+  static const DbTable transparencyEvents = DbTable('transparency_events', [
+    DbColumn('record_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('seq', 'INTEGER', notNull: true),
+    DbColumn('action', 'TEXT', notNull: true),
+    DbColumn('summary', 'TEXT', notNull: true),
+    DbColumn('pin_code', 'TEXT', notNull: true),
+    DbColumn('occurred_at', 'INTEGER', notNull: true),
+    DbColumn('prev_hash', 'TEXT', notNull: true),
+    DbColumn('self_hash', 'TEXT', notNull: true),
+  ]);
+
   /// All tables, in creation order (foreign-key-safe).
   static const List<DbTable> tables = [
     users,
@@ -378,6 +412,8 @@ class AppSchema {
     studyGroups,
     studyGroupMembers,
     karmaEvents,
+    notifications,
+    transparencyEvents,
   ];
 
   /// Current schema version — MUST be bumped when tables are added/changed.
@@ -408,7 +444,13 @@ class AppSchema {
   /// v14 (Task 10.2): `karma_events` — the append-only, auditable Civic
   /// Karma ledger (UUID event id + 64-hex blinded actor + fixed action +
   /// running balance + SHA-256 chain links; zero identity columns).
-  static const int currentVersion = 14;
+  /// v15 (Task 10.4): `notifications` — local notification store (UUID
+  /// notification id + fixed type + public-label title/body + timestamp +
+  /// is_read flag; zero identity columns).
+  /// v16 (Task 10.5): `transparency_events` — append-only, auditable
+  /// transparency log (UUID record id + fixed action + public summary +
+  /// pin-code scope + timestamp + SHA-256 chain links; zero identity).
+  static const int currentVersion = 16;
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {

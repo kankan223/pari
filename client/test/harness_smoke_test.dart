@@ -71,5 +71,15 @@ void main() {
     // karma claim) — the balance renders with the tier label.
     expect(find.text('247'), findsOneWidget);
     expect(find.textContaining('tier'), findsOneWidget);
+
+    // Notification System destination (Task 10.4).
+    await tester.tap(find.text('Alerts'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    // 5 seeded notifications: 3 unread + 2 read.
+    expect(find.text('Notifications'), findsOneWidget);
+    expect(find.text('Karma +5'), findsOneWidget);
+    expect(find.text('Case CC-0047 assigned'), findsOneWidget);
+    expect(find.text('Mark all read'), findsOneWidget);
   });
 }

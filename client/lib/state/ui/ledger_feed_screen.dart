@@ -325,6 +325,7 @@ class _AllChip extends StatelessWidget {
 
 /// One feed card (DESIGN.md §7.2): chip + time, headline, pin/constituency,
 /// interactive vote bar, comment count, verified badge.
+
 class _PostCard extends StatelessWidget {
   const _PostCard({required this.post, this.onTap, this.onVote});
 

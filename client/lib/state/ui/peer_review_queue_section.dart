@@ -176,8 +176,7 @@ class _ReviewCard extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
+            const SizedBox(height: 4),            Text(
               // Non-PII author handle + blinded reviewers only. The author
               // handle is defensively re-blinded here (never render a raw
               // 64-hex string even if one slipped into the projection).

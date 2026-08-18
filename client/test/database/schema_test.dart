@@ -3,7 +3,7 @@ import 'package:civic_commons/database/domain/schema.dart';
 
 void main() {
   group('AppSchema - entity definitions', () {
-    test('defines all twenty tables', () {
+    test('defines all twenty-two tables', () {
       final names = AppSchema.tables.map((t) => t.name).toSet();
 
       expect(
@@ -29,6 +29,8 @@ void main() {
           'study_groups',
           'study_group_members',
           'karma_events',
+          'notifications',
+          'transparency_events',
         }),
       );
     });
@@ -66,6 +68,55 @@ void main() {
       );
       // The SHA-256 chain links (prev_hash/self_hash) are hash values —
       // never plaintext-sensitive, but the table is append-only by design.
+    });
+
+    test(
+        'notifications is the local notification store with zero identity '
+        'columns (10.4)', () {
+      final columns =
+          AppSchema.notifications.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'notification_id',
+        'type',
+        'title',
+        'body',
+        'created_at',
+        'is_read',
+      ]);
+      // ZERO identity columns — only public-label title/body + fixed type.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('email')));
+      expect(all, isNot(contains('user')));
+      expect(all, isNot(contains('hash')));
+      expect(all, isNot(contains('token')));
+      expect(all, isNot(contains('actor')));
+    });
+
+    test(
+        'transparency_events is the append-only audit log with zero identity '
+        'columns (10.5)', () {
+      final columns =
+          AppSchema.transparencyEvents.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'record_id',
+        'seq',
+        'action',
+        'summary',
+        'pin_code',
+        'occurred_at',
+        'prev_hash',
+        'self_hash',
+      ]);
+      // ZERO identity columns — only public-label summary + fixed action.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('email')));
+      expect(all, isNot(contains('user')));
+      expect(all, isNot(contains('actor')));
+      expect(all, isNot(contains('name')));
     });
 
     test(

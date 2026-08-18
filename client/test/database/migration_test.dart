@@ -44,11 +44,13 @@ void main() {
       // v11 (CREATE TABLE module_cache) +
       // v12 (2 CREATE TABLEs: sandbox_pages/sandbox_revisions) +
       // v13 (2 CREATE TABLEs: study_groups/study_group_members) +
-      // v14 (CREATE TABLE karma_events) =
-      // 20 table creates + 18 migration statements.
+      // v14 (CREATE TABLE karma_events) +
+      // v15 (CREATE TABLE notifications) +
+      // v16 (CREATE TABLE transparency_events) =
+      // 22 table creates + 20 migration statements.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 18,
+        AppSchema.tables.length + 20,
       );
       expect(
         executor.executed.first,
@@ -119,6 +121,16 @@ void main() {
         executor.executed,
         anyElement(startsWith('CREATE TABLE karma_events (')),
       );
+      // v15 adds the local notification store (Task 10.4).
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE notifications (')),
+      );
+      // v16 adds the append-only transparency audit log (Task 10.5).
+      expect(
+        executor.executed,
+        anyElement(startsWith('CREATE TABLE transparency_events (')),
+      );
       // v2 adds the retry-gating timestamp column (Task 5.2).
       expect(
         executor.executed,
@@ -156,10 +168,10 @@ void main() {
 
       await runner.migrate();
 
-      // v1..v14 applied once; version ends at current.
+      // v1..v16 applied once; version ends at current.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 18,
+        AppSchema.tables.length + 20,
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -172,7 +184,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 18);
+      expect(executor.executed.length, 20);
       expect(
         executor.executed[0],
         contains('ADD COLUMN last_attempt_at'),
@@ -245,6 +257,14 @@ void main() {
         executor.executed[17],
         startsWith('CREATE TABLE karma_events ('),
       );
+      expect(
+        executor.executed[18],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[19],
+        startsWith('CREATE TABLE transparency_events ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -254,9 +274,8 @@ void main() {
       final executor = FakeMigrationExecutor()..version = 2;
       final runner = MigrationRunner(executor);
 
-      await runner
-          .migrate(); // v3 (2) + v4..v9 (1 each) + v10 (3) + v11 (1) + v12 (2) + v13 (2) + v14 (1) = 17.
-      expect(executor.executed.length, 17);
+      await runner.migrate(); // v3 (2) + v4..v9 (1 each) + v10 (3) + v11 (1) + v12 (2) + v13 (2) + v14 (1) + v15 (1) + v16 (1) = 19.
+      expect(executor.executed.length, 19);
       expect(executor.executed[0], contains('ADD COLUMN direction'));
       expect(executor.executed[1], contains("SET direction = 'sent'"));
       expect(executor.executed[2], startsWith('CREATE TABLE devices ('));
@@ -279,6 +298,7 @@ void main() {
       expect(executor.executed[15],
           startsWith('CREATE TABLE study_group_members ('));
       expect(executor.executed[16], startsWith('CREATE TABLE karma_events ('));
+      expect(executor.executed[17], startsWith('CREATE TABLE notifications ('));
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -289,7 +309,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 15);
+      expect(executor.executed.length, 17);
       expect(executor.executed[0], startsWith('CREATE TABLE devices ('));
       expect(
         executor.executed[1],
@@ -337,16 +357,24 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -358,7 +386,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 14);
+      expect(executor.executed.length, 16);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE ledger_drafts ('),
@@ -405,16 +433,24 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -426,7 +462,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 13);
+      expect(executor.executed.length, 15);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE post_votes ('),
@@ -469,16 +505,24 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -490,7 +534,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 12);
+      expect(executor.executed.length, 14);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE peer_reviews ('),
@@ -526,16 +570,24 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -547,7 +599,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 11);
+      expect(executor.executed.length, 13);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE evidence ('),
@@ -582,21 +634,29 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v8 database upgrades through v9+v10+v11+v12 (7 statements total)',
+    test('a v8 database upgrades through v9+v10+v11+v12+v13+v14+v15 (11 statements total)',
         () async {
       final executor = FakeMigrationExecutor()..version = 8;
       final runner = MigrationRunner(executor);
@@ -605,7 +665,7 @@ void main() {
 
       // v9 (intake_drafts) + v10 (three academy CREATE TABLEs) +
       // v11 (module_cache) + v12 (sandbox_pages/sandbox_revisions).
-      expect(executor.executed.length, 10);
+      expect(executor.executed.length, 12);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE intake_drafts ('),
@@ -636,16 +696,24 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -660,7 +728,7 @@ void main() {
 
       // v10 (three academy CREATE TABLEs) + v11 (module_cache) +
       // v12 (sandbox_pages/sandbox_revisions).
-      expect(executor.executed.length, 9);
+      expect(executor.executed.length, 11);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE academy_domains ('),
@@ -687,21 +755,29 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v10 database upgrades through v11+v12+v13 (5 statements total)',
+    test('a v10 database upgrades through v11+v12+v13+v14+v15 (7 statements total)',
         () async {
       final executor = FakeMigrationExecutor()..version = 10;
       final runner = MigrationRunner(executor);
@@ -710,7 +786,7 @@ void main() {
 
       // v11 (module_cache) + v12 (sandbox_pages/sandbox_revisions) +
       // v13 (study_groups/study_group_members) + v14 (karma_events).
-      expect(executor.executed.length, 6);
+      expect(executor.executed.length, 8);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE module_cache ('),
@@ -725,21 +801,29 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v11 database upgrades through v12+v13 (4 statements total)',
+    test('a v11 database upgrades through v12+v13+v14+v15 (6 statements total)',
         () async {
       final executor = FakeMigrationExecutor()..version = 11;
       final runner = MigrationRunner(executor);
@@ -748,7 +832,7 @@ void main() {
 
       // v12 (sandbox_pages/sandbox_revisions) + v13 (study groups) +
       // v14 (karma_events).
-      expect(executor.executed.length, 5);
+      expect(executor.executed.length, 7);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE sandbox_pages ('),
@@ -759,29 +843,37 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 4],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 3],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
     test(
-        'a v12 database upgrades to v13+v14 with the study group + karma '
+        'a v12 database upgrades to v13+v14+v15+v16 with the study group + karma + notification + transparency '
         'CREATE TABLEs', () async {
       final executor = FakeMigrationExecutor()..version = 12;
       final runner = MigrationRunner(executor);
 
       await runner.migrate();
 
-      expect(executor.executed.length, 3);
+      expect(executor.executed.length, 5);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE study_groups ('),
@@ -793,6 +885,14 @@ void main() {
       expect(
         executor.executed[2],
         startsWith('CREATE TABLE karma_events ('),
+      );
+      expect(
+        executor.executed[3],
+        startsWith('CREATE TABLE notifications ('),
+      );
+      expect(
+        executor.executed[4],
+        startsWith('CREATE TABLE transparency_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -839,6 +939,18 @@ void main() {
       final v14 = AppMigrations.all.firstWhere((m) => m.version == 14);
       expect(v14.downStatements, isNotNull);
       expect(v14.downStatements!.first, contains('DROP TABLE karma_events'));
+    });
+
+    test('v15 rolls back by dropping the notifications table', () {
+      final v15 = AppMigrations.all.firstWhere((m) => m.version == 15);
+      expect(v15.downStatements, isNotNull);
+      expect(v15.downStatements!.first, contains('DROP TABLE notifications'));
+    });
+
+    test('v16 rolls back by dropping the transparency_events table', () {
+      final v16 = AppMigrations.all.firstWhere((m) => m.version == 16);
+      expect(v16.downStatements, isNotNull);
+      expect(v16.downStatements!.first, contains('DROP TABLE transparency_events'));
     });
 
     test('v8 rolls back by dropping the evidence table', () {

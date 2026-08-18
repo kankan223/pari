@@ -23,6 +23,11 @@ import 'identity/pillar_claim_sources.dart';
 import 'karma/data/karma_event_records.dart';
 import 'karma/data/local_karma_repository.dart';
 import 'karma/domain/karma_action.dart';
+import 'notification/data/in_memory_notification_repository.dart';
+import 'notification/domain/notification_record.dart';
+import 'notification/domain/notification_type.dart';
+import 'transparency/data/in_memory_transparency_repository.dart';
+
 import 'geo/domain/pin_code.dart';
 import 'geo/domain/pin_code_resolver.dart';
 import 'geo/domain/pin_code_store.dart';
@@ -55,6 +60,8 @@ import 'state/data/local_ledger_feed_bloc.dart';
 import 'state/data/local_ledger_geo_bloc.dart';
 import 'state/data/local_identity_verification_bloc.dart';
 import 'state/data/local_karma_bloc.dart';
+import 'state/data/local_notification_bloc.dart';
+import 'state/data/local_transparency_log_bloc.dart';
 import 'state/data/local_ledger_review_bloc.dart';
 import 'state/data/local_message_bloc.dart';
 import 'state/data/local_war_room_bloc.dart';
@@ -63,6 +70,8 @@ import 'state/ui/academy_syllabus_screen.dart';
 import 'state/ui/ledger_compose_screen.dart';
 import 'state/ui/identity_verification_screen.dart';
 import 'state/ui/karma_status_screen.dart';
+import 'state/ui/notification_history_screen.dart';
+import 'state/ui/transparency_log_screen.dart';
 import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
 import 'state/ui/quick_exit_safe_screen.dart';
@@ -221,6 +230,14 @@ class HarnessDependencies {
   final LocalKarmaRepository karmaRepository;
   final LocalKarmaBloc karmaBloc;
 
+  // Notification System (Task 10.4).
+  final InMemoryNotificationRepository notificationRepository;
+  final LocalNotificationBloc notificationBloc;
+
+  // Transparency Log (Task 10.5).
+  final InMemoryTransparencyRepository transparencyRepository;
+  final LocalTransparencyLogBloc transparencyLogBloc;
+
   const HarnessDependencies({
     required this.queueCipher,
     required this.syncQueue,
@@ -244,6 +261,10 @@ class HarnessDependencies {
     required this.identityVerificationBloc,
     required this.karmaRepository,
     required this.karmaBloc,
+    required this.notificationRepository,
+    required this.notificationBloc,
+    required this.transparencyRepository,
+    required this.transparencyLogBloc,
   });
 
   static Future<HarnessDependencies> build() async {
@@ -601,6 +622,61 @@ class HarnessDependencies {
       localActorHash: () async => peerHash,
     );
 
+    // Notification System (Task 10.4): seeded with demo notifications
+    // covering all three types. Zero PII — public labels only.
+    final notificationRepository = InMemoryNotificationRepository(
+      seed: [
+        NotificationRecord(
+          id: 'notif-1001',
+          type: NotificationType.karmaEvent,
+          title: 'Karma +5',
+          body: 'Your Ledger post was verified by a peer reviewer.',
+          createdAt: DateTime.utc(2026, 8, 18, 10, 30),
+        ),
+        NotificationRecord(
+          id: 'notif-1002',
+          type: NotificationType.caseAssignment,
+          title: 'Case CC-0047 assigned',
+          body: 'Digital extortion case assigned to you for investigation.',
+          createdAt: DateTime.utc(2026, 8, 18, 9, 15),
+        ),
+        NotificationRecord(
+          id: 'notif-1003',
+          type: NotificationType.ledgerReviewRequest,
+          title: 'Review requested',
+          body: 'Drainage repair deadline slips again — peer review needed.',
+          createdAt: DateTime.utc(2026, 8, 18, 8, 0),
+        ),
+        NotificationRecord(
+          id: 'notif-1004',
+          type: NotificationType.karmaEvent,
+          title: 'Karma −3',
+          body: 'Your Ledger post was rejected.',
+          createdAt: DateTime.utc(2026, 8, 17, 16, 45),
+          isRead: true,
+        ),
+        NotificationRecord(
+          id: 'notif-1005',
+          type: NotificationType.caseAssignment,
+          title: 'Case CC-0046 assigned',
+          body: 'Fake social media profile case assigned to you.',
+          createdAt: DateTime.utc(2026, 8, 17, 12, 0),
+          isRead: true,
+        ),
+      ],
+    );
+    final notificationBloc = LocalNotificationBloc(
+      repository: notificationRepository,
+    );
+
+    // Transparency Log (Task 10.5): seeded with demo audit records
+    // for the 800001 pin-code board. Zero PII — public labels only.
+    final transparencyRepository = InMemoryTransparencyRepository();
+    final transparencyLogBloc = LocalTransparencyLogBloc(
+      repository: transparencyRepository,
+      pinCode: '800001',
+    );
+
     return HarnessDependencies(
       queueCipher: queueCipher,
       syncQueue: syncQueue,
@@ -626,6 +702,10 @@ class HarnessDependencies {
       identityVerificationBloc: identityVerificationBloc,
       karmaRepository: karmaRepository,
       karmaBloc: karmaBloc,
+      notificationRepository: notificationRepository,
+      notificationBloc: notificationBloc,
+      transparencyRepository: transparencyRepository,
+      transparencyLogBloc: transparencyLogBloc,
     );
   }
 }
@@ -653,6 +733,8 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   late final _AcademyTab _academyTab;
   late final _IdentityTab _identityTab;
   late final _KarmaTab _karmaTab;
+  late final _NotificationsTab _notificationsTab;
+  late final _TransparencyTab _transparencyTab;
 
   @override
   void initState() {
@@ -664,6 +746,8 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     _academyTab = _AcademyTab(h: h);
     _identityTab = _IdentityTab(h: h);
     _karmaTab = _KarmaTab(h: h);
+    _notificationsTab = _NotificationsTab(h: h);
+    _transparencyTab = _TransparencyTab(h: h);
   }
 
   @override
@@ -686,6 +770,8 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
             _academyTab,
             _identityTab,
             _karmaTab,
+            _notificationsTab,
+            _transparencyTab,
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -721,6 +807,16 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
               icon: Icon(Icons.star_outline),
               selectedIcon: Icon(Icons.star),
               label: 'Karma',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.notifications_outlined),
+              selectedIcon: Icon(Icons.notifications),
+              label: 'Alerts',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'Log',
             ),
           ],
         ),
@@ -958,5 +1054,31 @@ class _KarmaTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return KarmaStatusScreen(bloc: h.karmaBloc);
+  }
+}
+
+// --- Notifications tab (Task 10.4) ----------------------------------------
+
+class _NotificationsTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _NotificationsTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationHistoryScreen(bloc: h.notificationBloc);
+  }
+}
+
+// --- Transparency Log tab (Task 10.5) ------------------------------------
+
+class _TransparencyTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _TransparencyTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return TransparencyLogScreen(bloc: h.transparencyLogBloc);
   }
 }

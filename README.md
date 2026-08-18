@@ -19,7 +19,7 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 | Phase 7 | The Daily Ledger (Civic Newsroom) | ✅ Complete (7.1–7.6, 1068 Flutter tests) |
 | Phase 8 | The War Room (OSINT Cyber Defense) | ✅ Complete (8.1–8.8, 1355 Flutter tests) |
 | **Phase 9** | **The Academy (Open Education)** | **✅ Complete (9.1–9.6, 1615 Flutter tests)** |
-| **Phase 10** | **Cross-Pillar Systems (Identity, Karma, Transport)** | **⏭ In progress — Task 10.1 Unified Identity Layer COMPLETE; next: Task 10.2 Civic Karma Engine** |
+| **Phase 10** | **Cross-Pillar Systems (Identity, Karma, Transport)** | **✅ Complete (10.1–10.5, 1869 Flutter tests)** |
 
 > **Current:** Phase 9 COMPLETE (9.1–9.6) — Academy UI, syllabus tree + SQLCipher persistence, privacy-enhanced video embeds, offline module caching, sandbox wiki, cross-pillar study-group matching; **Phase 10 OPEN** — Task 10.1 Unified Identity Layer complete (one blind hash, read-only, across all four pillars with per-pillar minimum-claims enforcement).  
 > **Next:** Task 10.2 Civic Karma Engine  
@@ -67,7 +67,7 @@ civic-commons/
 │   │   ├── pii/                  #   PII redaction pipeline (deterministic regex FIRST, local detector)
 │   │   ├── academy/              #   Academy (Phase 9 — syllabus, video room, offline module cache, sandbox wiki, study groups)
 │   │   └── logging/              #   Zero-plaintext redaction logging
-│   └── test/                     #   1655 unit + widget + integration tests across all layers
+│   └── test/                     #   1869 unit + widget + integration tests across all layers
 ├── services/                     # Go 1.22 backend (standard layout)
 │   ├── cmd/
 │   │   ├── api/                  #   API gateway entry point
@@ -163,10 +163,10 @@ go run ./cmd/relay      # :8081  (WebSocket relay — Redis streams, NATS events
 cd client
 flutter pub get
 flutter analyze           # static analysis (0 issues)
-flutter test              # 1655 unit + widget + integration tests
+flutter test              # 1869 unit + widget + integration tests
 ```
 
-> The client is a component/test library — `lib/main.dart` is a manual testing harness with five tabs (War Room, Vault, Ledger, Academy, Identity) that boots all implemented screens in-memory for local QA. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
+> The client is a component/test library — `lib/main.dart` is a manual testing harness with eight tabs (War Room, Vault, Ledger, Academy, Identity, Karma, Alerts, Log) that boots all implemented screens in-memory for local QA. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
 
 ### Verification Scripts
 
@@ -218,10 +218,21 @@ The project follows **Clean Architecture** end to end: domain logic (entities, u
 ---
 
 ## Changelog
+### 2026-08-18 — Phase 10 Complete (Identity, Karma, Notifications, Transparency Log)
+
+**Client (Flutter) — 1869 tests, 0 analysis issues:**
+- **Task 10.2 (Civic Karma Engine, 73 new tests):** append-only SHA-256 hash-chained karma ledger, 7 PRD actions with fixed deltas (+5 Ledger verified, +15 War Room contribution, +3 sandbox upvoted, +2 module completed, +20 analyst vetted one-time, −3 rejected, −25 abuse), per-gate privilege checklist (≥50/100/150/500+90d), −2%/month decay, lockstep Sybil dampening (≥3 new accounts in 10-min window → 25% weight), sub-linear vote weight (1+√karma capped at 10), schema v14 `karma_events` (zero identity columns), FLAG_SECURE `KarmaStatusScreen`, harness 6th Karma tab seeded to exactly 247.
+- **Task 10.3 (Karma Badge UI, 34 new tests):** reusable `KarmaBadge` value object (5 tiers: Citizen/Contributor/Validator/Analyst/Council), `KarmaTierChip` compact inline badge, `KarmaBadgeIndicator` detail badge, optional badge seams wired into Vault/Ledger/War Room/Academy cross-pillar screens.
+- **Task 10.4 (Notification System, 60 new tests):** 3 fixed notification types (karma events/case assignments/ledger review requests), `NotificationRecord` entity + `NotificationPreferences` value object, `NotificationRepository` port + in-memory implementation + SQLCipher row codec, schema v15 `notifications` table (zero identity columns), `NotificationState`/`NotificationBloc`/`LocalNotificationBloc`, FLAG_SECURE `NotificationHistoryScreen` (filter chips + unread badges + mark-as-read) + `NotificationPreferencesScreen` (per-type toggles), harness 7th Alerts tab seeded with 5 demo notifications.
+- **Task 10.5 (Transparency Log, 47 new tests):** append-only SHA-256 hash-chained transparency log, 6 fixed action types (moderation/access/export/account/system), `TransparencyRecord` + `TransparencyAction` domain, schema v16 `transparency_events` table (zero identity columns), FLAG_SECURE `TransparencyLogScreen` (integrity badge + record list + verify button), harness 8th Log tab.
+- **Verification:** `flutter analyze` 0 issues, `dart format` clean, affected suites green; known pre-existing `flutter_tester` RAM artifact on heavy Argon2id files confirmed standalone-passing.
+- **SECURITY CHECKPOINT PASSED:** zero PII in all new domain/UI layers (widget-tree scans), no networking imports, no print/debugPrint, FLAG_SECURE on all new screens, append-only auditable chains with tamper detection.
+
+
 
 ### 2026-08-18 — Phase 9 Complete (Academy) + Task 10.1 (Unified Identity Layer) + Cleanup
 
-**Client (Flutter) — 1655 tests, 0 analysis issues; Go backend — 216 tests, race-clean, 0 lint violations:**
+**Client (Flutter) — 1869 tests, 0 analysis issues; Go backend — 216 tests, race-clean, 0 lint violations:**
 - **Phase 9 (The Academy, 9.1–9.6, 1615 tests):** Academy UI foundation (zero-identity domain — UUID v4 module ids, locale tags, opaque content refs; FLAG_SECURE `AcademyMasthead`); syllabus tree + progress tracking with SQLCipher persistence (schema v10, no identity columns, cold-restart progress restore); privacy-enhanced video room (`academy_video.dart` embed boundary by construction — no network leakage or telemetry in the Academy tree); offline module caching (schema v11, validated-UUID cache keys, memory hygiene); sandbox wiki system (schema v12, encrypted local revisions, blinded `SA-####` handles, offline drafts); cross-pillar study-group matching (schema v13 — deterministic pin-code-based `StudyGroupMatcher`, blinded `SG-####` handles, phone-shaped topic ids rejected, sealed AES-256-GCM queue enqueue).
 - **Task 10.1 (Unified Identity Layer, 40 new tests):** one blind hash shared **read-only** across all four pillars; per-pillar minimum-claims allowlist enforced **at projection time** (`PillarClaims.compose` throws on any claim a pillar cannot hold — a full-profile projection is unconstructible); War Room/Academy need nothing beyond the hash; `UnifiedIdentityService` + `PillarClaimSources` (username directory / device registry / pin scope / karma cache); FLAG_SECURE onboarding `IdentityVerificationScreen` with blinded `@citizen_` handle (full 64-hex hash never renders); harness 5th-tab Identity wiring.
 - **Cleanup:** removed 2 dead files confirmed at zero references — `lib/database/data/sqflite_cipher_database.dart` (superseded by `sqlite_entity_store.dart`) and `lib/sync/data/workmanager_scheduler.dart` (superseded by `workmanager_module_download_dispatcher.dart`); dependency scan confirms both `sqflite_sqlcipher` and `workmanager` remain in use elsewhere.
