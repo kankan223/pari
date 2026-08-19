@@ -61,6 +61,12 @@ import 'state/data/local_ledger_geo_bloc.dart';
 import 'state/data/local_identity_verification_bloc.dart';
 import 'state/data/local_karma_bloc.dart';
 import 'state/data/local_notification_bloc.dart';
+import 'audit/data/in_memory_audit_repository.dart';
+import 'rate_limit/data/in_memory_rate_limit_repository.dart';
+import 'consent/data/in_memory_consent_repository.dart';
+import 'state/data/local_audit_log_bloc.dart';
+import 'state/data/local_rate_limit_bloc.dart';
+import 'state/data/local_consent_bloc.dart';
 import 'state/data/local_transparency_log_bloc.dart';
 import 'state/data/local_ledger_review_bloc.dart';
 import 'state/data/local_message_bloc.dart';
@@ -71,6 +77,9 @@ import 'state/ui/ledger_compose_screen.dart';
 import 'state/ui/identity_verification_screen.dart';
 import 'state/ui/karma_status_screen.dart';
 import 'state/ui/notification_history_screen.dart';
+import 'state/ui/audit_log_screen.dart';
+import 'state/ui/rate_limit_screen.dart';
+import 'state/ui/dpdp_consent_screen.dart';
 import 'state/ui/transparency_log_screen.dart';
 import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
@@ -238,6 +247,16 @@ class HarnessDependencies {
   final InMemoryTransparencyRepository transparencyRepository;
   final LocalTransparencyLogBloc transparencyLogBloc;
 
+  // DPDP Consent (Task 11.1).
+  final InMemoryConsentRepository consentRepository;
+  final LocalConsentBloc consentBloc;
+  final InMemoryAuditRepository auditRepository;
+  final LocalAuditLogBloc auditLogBloc;
+
+  // Rate Limiting & Abuse Prevention (Task 11.3).
+  final InMemoryRateLimitRepository rateLimitRepository;
+  final LocalRateLimitBloc rateLimitBloc;
+
   const HarnessDependencies({
     required this.queueCipher,
     required this.syncQueue,
@@ -265,6 +284,12 @@ class HarnessDependencies {
     required this.notificationBloc,
     required this.transparencyRepository,
     required this.transparencyLogBloc,
+    required this.consentRepository,
+    required this.consentBloc,
+    required this.auditRepository,
+    required this.auditLogBloc,
+    required this.rateLimitRepository,
+    required this.rateLimitBloc,
   });
 
   static Future<HarnessDependencies> build() async {
@@ -677,6 +702,24 @@ class HarnessDependencies {
       pinCode: '800001',
     );
 
+    // DPDP Consent (Task 11.1): starts with no consents granted.
+    final consentRepository = InMemoryConsentRepository();
+    final consentBloc = LocalConsentBloc(
+      repository: consentRepository,
+    );
+
+    // Audit Log (Task 11.2): starts with a few seeded audit events.
+    final auditRepository = InMemoryAuditRepository();
+    final auditLogBloc = LocalAuditLogBloc(
+      repository: auditRepository,
+    );
+
+    // Rate Limiting & Abuse Prevention (Task 11.3).
+    final rateLimitRepository = InMemoryRateLimitRepository();
+    final rateLimitBloc = LocalRateLimitBloc(
+      repository: rateLimitRepository,
+    );
+
     return HarnessDependencies(
       queueCipher: queueCipher,
       syncQueue: syncQueue,
@@ -706,6 +749,12 @@ class HarnessDependencies {
       notificationBloc: notificationBloc,
       transparencyRepository: transparencyRepository,
       transparencyLogBloc: transparencyLogBloc,
+      consentRepository: consentRepository,
+      consentBloc: consentBloc,
+      auditRepository: auditRepository,
+      auditLogBloc: auditLogBloc,
+      rateLimitRepository: rateLimitRepository,
+      rateLimitBloc: rateLimitBloc,
     );
   }
 }
@@ -735,6 +784,9 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   late final _KarmaTab _karmaTab;
   late final _NotificationsTab _notificationsTab;
   late final _TransparencyTab _transparencyTab;
+  late final _ConsentTab _consentTab;
+  late final _AuditTab _auditTab;
+  late final _RateLimitTab _rateLimitTab;
 
   @override
   void initState() {
@@ -748,6 +800,9 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     _karmaTab = _KarmaTab(h: h);
     _notificationsTab = _NotificationsTab(h: h);
     _transparencyTab = _TransparencyTab(h: h);
+    _consentTab = _ConsentTab(h: h);
+    _auditTab = _AuditTab(h: h);
+    _rateLimitTab = _RateLimitTab(h: h);
   }
 
   @override
@@ -772,6 +827,9 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
             _karmaTab,
             _notificationsTab,
             _transparencyTab,
+            _consentTab,
+            _auditTab,
+            _rateLimitTab,
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -817,6 +875,21 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long),
               label: 'Log',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.privacy_tip_outlined),
+              selectedIcon: Icon(Icons.privacy_tip),
+              label: 'Consent',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.fact_check_outlined),
+              selectedIcon: Icon(Icons.fact_check),
+              label: 'Audit',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.speed_outlined),
+              selectedIcon: Icon(Icons.speed),
+              label: 'Limits',
             ),
           ],
         ),
@@ -1080,5 +1153,40 @@ class _TransparencyTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TransparencyLogScreen(bloc: h.transparencyLogBloc);
+  }
+}
+
+// --- DPDP Consent tab (Task 11.1) ----------------------------------------
+
+class _ConsentTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _ConsentTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return DpdpConsentScreen(bloc: h.consentBloc);
+  }
+}
+
+class _AuditTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _AuditTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return AuditLogScreen(bloc: h.auditLogBloc);
+  }
+}
+
+class _RateLimitTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _RateLimitTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return RateLimitScreen(bloc: h.rateLimitBloc);
   }
 }

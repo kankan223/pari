@@ -1,0 +1,175 @@
+import 'dart:io';
+
+import 'package:civic_commons/consent/domain/consent_type.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('Consent Module Security Checkpoint (11.1)', () {
+    test('consent domain has no networking imports', () {
+      final domainDir = Directory('lib/consent/domain');
+      final files = domainDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .toList();
+
+      expect(files.isNotEmpty, true, reason: 'No domain files found');
+
+      for (final f in files) {
+        final source = f.readAsStringSync();
+        final lines = source.split('\n');
+        for (final line in lines) {
+          final trimmed = line.trim();
+          // Skip comments
+          if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
+          if (trimmed.contains("import 'dart:io'") ||
+              trimmed.contains("import 'package:http'") ||
+              trimmed.contains("import 'package:web_socket_channel'")) {
+            fail('${f.path} contains networking import: $trimmed');
+          }
+        }
+      }
+    });
+
+    test('consent data has no networking imports', () {
+      final dataDir = Directory('lib/consent/data');
+      final files = dataDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .toList();
+
+      expect(files.isNotEmpty, true, reason: 'No data files found');
+
+      for (final f in files) {
+        final source = f.readAsStringSync();
+        final lines = source.split('\n');
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
+          if (trimmed.contains("import 'dart:io'") ||
+              trimmed.contains("import 'package:http'") ||
+              trimmed.contains("import 'package:web_socket_channel'")) {
+            fail('${f.path} contains networking import: $trimmed');
+          }
+        }
+      }
+    });
+
+    test('consent files have no print/debugPrint calls', () {
+      final dirs = [
+        Directory('lib/consent/domain'),
+        Directory('lib/consent/data'),
+      ];
+
+      final printPattern = RegExp(r'\b(print|debugPrint)\s*\(');
+
+      for (final dir in dirs) {
+        if (!dir.existsSync()) continue;
+        final files = dir
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart'))
+            .toList();
+
+        for (final f in files) {
+          final source = f.readAsStringSync();
+          final lines = source.split('\n');
+          for (var i = 0; i < lines.length; i++) {
+            final trimmed = lines[i].trim();
+            if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
+            if (printPattern.hasMatch(trimmed)) {
+              fail(
+                '${f.path}:${i + 1} contains print/debugPrint: $trimmed',
+              );
+            }
+          }
+        }
+      }
+    });
+
+    test('consent records carry no PII fields', () {
+      final file = File('lib/consent/domain/consent_record.dart');
+      final source = file.readAsStringSync();
+
+      // Should NOT contain identity/PII fields
+      final piiFields = [
+        'phone',
+        'email',
+        'phoneNumber',
+        'rawPhone',
+        'userName',
+        'fullName',
+        'address',
+        'identity',
+        'blindHash',
+      ];
+
+      for (final field in piiFields) {
+        // Check for field declarations (not comments)
+        final regex = RegExp(r'^\s*(final|late)\s+\S+\s+' + field + r'\b',
+            multiLine: true);
+        expect(
+          regex.hasMatch(source),
+          false,
+          reason: 'ConsentRecord should not contain PII field: $field',
+        );
+      }
+    });
+
+    test('consent type wire names contain no PII', () {
+      for (final type in ConsentType.values) {
+        // Wire names should be safe, non-PII strings
+        expect(type.wireName, isNot(contains('@')));
+        expect(type.wireName, isNot(contains('+')));
+        expect(type.wireName, isNot(contains('phone')));
+        expect(type.wireName, isNot(contains('email')));
+      }
+    });
+
+    test('consent UI screen renders SecureScreenWrapper', () {
+      final file = File('lib/state/ui/dpdp_consent_screen.dart');
+      final source = file.readAsStringSync();
+
+      expect(
+        source.contains('SecureScreenWrapper'),
+        true,
+        reason:
+            'DPDP consent screen must use SecureScreenWrapper (FLAG_SECURE)',
+      );
+    });
+
+    test('consent UI screen has no networking imports', () {
+      final file = File('lib/state/ui/dpdp_consent_screen.dart');
+      final source = file.readAsStringSync();
+
+      final lines = source.split('\n');
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
+        if (trimmed.contains("import 'dart:io'") ||
+            trimmed.contains("import 'package:http'") ||
+            trimmed.contains("import 'package:web_socket_channel'")) {
+          fail('consent UI contains networking import: $trimmed');
+        }
+      }
+    });
+
+    test('consent screen has no print/debugPrint calls', () {
+      final file = File('lib/state/ui/dpdp_consent_screen.dart');
+      final source = file.readAsStringSync();
+
+      final printPattern = RegExp(r'\b(print|debugPrint)\s*\(');
+      final lines = source.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        final trimmed = lines[i].trim();
+        if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
+        expect(
+          printPattern.hasMatch(trimmed),
+          false,
+          reason: 'consent screen:${i + 1} contains print/debugPrint: $trimmed',
+        );
+      }
+    });
+  });
+}

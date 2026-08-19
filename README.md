@@ -20,10 +20,11 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 | Phase 8 | The War Room (OSINT Cyber Defense) | ✅ Complete (8.1–8.8, 1355 Flutter tests) |
 | **Phase 9** | **The Academy (Open Education)** | **✅ Complete (9.1–9.6, 1615 Flutter tests)** |
 | **Phase 10** | **Cross-Pillar Systems (Identity, Karma, Transport)** | **✅ Complete (10.1–10.5, 1869 Flutter tests)** |
+| **Phase 11** | **Security Hardening & Compliance** | **✅ Complete (11.1–11.5, 2083 Flutter tests)** |
 
-> **Current:** Phase 9 COMPLETE (9.1–9.6) — Academy UI, syllabus tree + SQLCipher persistence, privacy-enhanced video embeds, offline module caching, sandbox wiki, cross-pillar study-group matching; **Phase 10 OPEN** — Task 10.1 Unified Identity Layer complete (one blind hash, read-only, across all four pillars with per-pillar minimum-claims enforcement).  
-> **Next:** Task 10.2 Civic Karma Engine  
-> **Last Updated:** 2026-08-18
+> **Current:** Phase 11 COMPLETE (11.1–11.5) — DPDP consent, audit logging, rate limiting, OWASP MASVS security audit, compliance documentation; **2083 Flutter tests**, `flutter analyze` 0 issues  
+> **Next:** Phase 12 — Performance Optimization & Scalability  
+> **Last Updated:** 2026-08-19
 
 ---
 
@@ -67,7 +68,7 @@ civic-commons/
 │   │   ├── pii/                  #   PII redaction pipeline (deterministic regex FIRST, local detector)
 │   │   ├── academy/              #   Academy (Phase 9 — syllabus, video room, offline module cache, sandbox wiki, study groups)
 │   │   └── logging/              #   Zero-plaintext redaction logging
-│   └── test/                     #   1869 unit + widget + integration tests across all layers
+│   └── test/                     #   2083 unit + widget + integration tests across all layers
 ├── services/                     # Go 1.22 backend (standard layout)
 │   ├── cmd/
 │   │   ├── api/                  #   API gateway entry point
@@ -163,7 +164,7 @@ go run ./cmd/relay      # :8081  (WebSocket relay — Redis streams, NATS events
 cd client
 flutter pub get
 flutter analyze           # static analysis (0 issues)
-flutter test              # 1869 unit + widget + integration tests
+flutter test              # 2083 unit + widget + integration tests
 ```
 
 > The client is a component/test library — `lib/main.dart` is a manual testing harness with eight tabs (War Room, Vault, Ledger, Academy, Identity, Karma, Alerts, Log) that boots all implemented screens in-memory for local QA. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.

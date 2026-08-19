@@ -81,5 +81,13 @@ void main() {
     expect(find.text('Karma +5'), findsOneWidget);
     expect(find.text('Case CC-0047 assigned'), findsOneWidget);
     expect(find.text('Mark all read'), findsOneWidget);
+
+    // DPDP Consent destination (Task 11.1).
+    await tester.tap(find.text('Consent'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Data Protection Consent'), findsOneWidget);
+    expect(find.text('DIGITAL PERSONAL DATA PROTECTION'), findsOneWidget);
+    expect(find.text('Core Platform Functionality'), findsOneWidget);
   });
 }

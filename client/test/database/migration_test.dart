@@ -46,11 +46,14 @@ void main() {
       // v13 (2 CREATE TABLEs: study_groups/study_group_members) +
       // v14 (CREATE TABLE karma_events) +
       // v15 (CREATE TABLE notifications) +
-      // v16 (CREATE TABLE transparency_events) =
-      // 22 table creates + 20 migration statements.
+      // v16 (CREATE TABLE transparency_events) +
+      // v17 (CREATE TABLE consent_records) +
+      // v18 (CREATE TABLE audit_events) +
+      // v19 (CREATE TABLE rate_limit_buckets + abuse_events) =
+      // 26 table creates + 24 migration statements.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 20,
+        AppSchema.tables.length + 24,
       );
       expect(
         executor.executed.first,
@@ -168,10 +171,10 @@ void main() {
 
       await runner.migrate();
 
-      // v1..v16 applied once; version ends at current.
+      // v1..v19 applied once; version ends at current.
       expect(
         executor.executed.length,
-        AppSchema.tables.length + 20,
+        AppSchema.tables.length + 24,
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -184,7 +187,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 20);
+      expect(executor.executed.length, 24);
       expect(
         executor.executed[0],
         contains('ADD COLUMN last_attempt_at'),
@@ -265,6 +268,14 @@ void main() {
         executor.executed[19],
         startsWith('CREATE TABLE transparency_events ('),
       );
+      expect(
+        executor.executed[20],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[21],
+        startsWith('CREATE TABLE audit_events ('),
+      );
       expect(executor.version, AppSchema.currentVersion);
     });
 
@@ -274,8 +285,8 @@ void main() {
       final executor = FakeMigrationExecutor()..version = 2;
       final runner = MigrationRunner(executor);
 
-      await runner.migrate(); // v3 (2) + v4..v9 (1 each) + v10 (3) + v11 (1) + v12 (2) + v13 (2) + v14 (1) + v15 (1) + v16 (1) = 19.
-      expect(executor.executed.length, 19);
+      await runner.migrate(); // v3 (2) + v4..v9 (1 each) + v10 (3) + v11 (1) + v12 (2) + v13 (2) + v14 (1) + v15 (1) + v16 (1) + v17 (1) + v18 (1) + v19 (2) = 23.
+      expect(executor.executed.length, 23);
       expect(executor.executed[0], contains('ADD COLUMN direction'));
       expect(executor.executed[1], contains("SET direction = 'sent'"));
       expect(executor.executed[2], startsWith('CREATE TABLE devices ('));
@@ -309,7 +320,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 17);
+      expect(executor.executed.length, 21);
       expect(executor.executed[0], startsWith('CREATE TABLE devices ('));
       expect(
         executor.executed[1],
@@ -357,24 +368,40 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -386,7 +413,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 16);
+      expect(executor.executed.length, 20);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE ledger_drafts ('),
@@ -433,24 +460,40 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -462,7 +505,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 15);
+      expect(executor.executed.length, 19);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE post_votes ('),
@@ -505,24 +548,40 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -534,7 +593,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 14);
+      expect(executor.executed.length, 18);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE peer_reviews ('),
@@ -570,24 +629,40 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -599,7 +674,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 13);
+      expect(executor.executed.length, 17);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE evidence ('),
@@ -634,29 +709,45 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v8 database upgrades through v9+v10+v11+v12+v13+v14+v15 (11 statements total)',
+    test('a v8 database upgrades through v9+v10+v11+v12+v13+v14+v15 (13 statements total)',
         () async {
       final executor = FakeMigrationExecutor()..version = 8;
       final runner = MigrationRunner(executor);
@@ -665,7 +756,7 @@ void main() {
 
       // v9 (intake_drafts) + v10 (three academy CREATE TABLEs) +
       // v11 (module_cache) + v12 (sandbox_pages/sandbox_revisions).
-      expect(executor.executed.length, 12);
+      expect(executor.executed.length, 16);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE intake_drafts ('),
@@ -696,24 +787,40 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -728,7 +835,7 @@ void main() {
 
       // v10 (three academy CREATE TABLEs) + v11 (module_cache) +
       // v12 (sandbox_pages/sandbox_revisions).
-      expect(executor.executed.length, 11);
+      expect(executor.executed.length, 15);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE academy_domains ('),
@@ -755,29 +862,45 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v10 database upgrades through v11+v12+v13+v14+v15 (7 statements total)',
+    test('a v10 database upgrades through v11+v12+v13+v14+v15 (9 statements total)',
         () async {
       final executor = FakeMigrationExecutor()..version = 10;
       final runner = MigrationRunner(executor);
@@ -786,7 +909,7 @@ void main() {
 
       // v11 (module_cache) + v12 (sandbox_pages/sandbox_revisions) +
       // v13 (study_groups/study_group_members) + v14 (karma_events).
-      expect(executor.executed.length, 8);
+      expect(executor.executed.length, 12);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE module_cache ('),
@@ -801,29 +924,45 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
 
-    test('a v11 database upgrades through v12+v13+v14+v15 (6 statements total)',
+    test('a v11 database upgrades through v12+v13+v14+v15 (8 statements total)',
         () async {
       final executor = FakeMigrationExecutor()..version = 11;
       final runner = MigrationRunner(executor);
@@ -832,7 +971,7 @@ void main() {
 
       // v12 (sandbox_pages/sandbox_revisions) + v13 (study groups) +
       // v14 (karma_events).
-      expect(executor.executed.length, 7);
+      expect(executor.executed.length, 11);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE sandbox_pages ('),
@@ -843,24 +982,40 @@ void main() {
       );
       final len = executor.executed.length;
       expect(
-        executor.executed[len - 5],
+        executor.executed[len - 9],
         startsWith('CREATE TABLE study_groups ('),
       );
       expect(
-        executor.executed[len - 4],
+        executor.executed[len - 8],
         startsWith('CREATE TABLE study_group_members ('),
       );
       expect(
-        executor.executed[len - 3],
+        executor.executed[len - 7],
         startsWith('CREATE TABLE karma_events ('),
       );
       expect(
-        executor.executed[len - 2],
+        executor.executed[len - 6],
         startsWith('CREATE TABLE notifications ('),
       );
       expect(
-        executor.executed[len - 1],
+        executor.executed[len - 5],
         startsWith('CREATE TABLE transparency_events ('),
+      );
+      expect(
+        executor.executed[len - 4],
+        startsWith('CREATE TABLE consent_records ('),
+      );
+      expect(
+        executor.executed[len - 3],
+        startsWith('CREATE TABLE audit_events ('),
+      );
+      expect(
+        executor.executed[len - 2],
+        startsWith('CREATE TABLE rate_limit_buckets ('),
+      );
+      expect(
+        executor.executed[len - 1],
+        startsWith('CREATE TABLE abuse_events ('),
       );
       expect(executor.version, AppSchema.currentVersion);
     });
@@ -873,7 +1028,7 @@ void main() {
 
       await runner.migrate();
 
-      expect(executor.executed.length, 5);
+      expect(executor.executed.length, 9);
       expect(
         executor.executed[0],
         startsWith('CREATE TABLE study_groups ('),
@@ -981,6 +1136,14 @@ void main() {
       final v7 = AppMigrations.all.firstWhere((m) => m.version == 7);
       expect(v7.downStatements, isNotNull);
       expect(v7.downStatements!.first, contains('DROP TABLE peer_reviews'));
+    });
+
+    test('v19 rolls back by dropping abuse_events and rate_limit_buckets', () {
+      final v19 = AppMigrations.all.firstWhere((m) => m.version == 19);
+      expect(v19.downStatements, isNotNull);
+      expect(v19.downStatements, hasLength(2));
+      expect(v19.downStatements![0], contains('DROP TABLE abuse_events'));
+      expect(v19.downStatements![1], contains('DROP TABLE rate_limit_buckets'));
     });
 
     test('version pragma advances only after successful statements', () async {

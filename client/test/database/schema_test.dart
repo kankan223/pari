@@ -3,7 +3,7 @@ import 'package:civic_commons/database/domain/schema.dart';
 
 void main() {
   group('AppSchema - entity definitions', () {
-    test('defines all twenty-two tables', () {
+    test('defines all twenty-six tables', () {
       final names = AppSchema.tables.map((t) => t.name).toSet();
 
       expect(
@@ -31,6 +31,10 @@ void main() {
           'karma_events',
           'notifications',
           'transparency_events',
+          'consent_records',
+          'audit_events',
+          'rate_limit_buckets',
+          'abuse_events',
         }),
       );
     });
@@ -111,6 +115,97 @@ void main() {
         'self_hash',
       ]);
       // ZERO identity columns — only public-label summary + fixed action.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('email')));
+      expect(all, isNot(contains('user')));
+      expect(all, isNot(contains('actor')));
+      expect(all, isNot(contains('name')));
+    });
+
+    test(
+        'consent_records carries DPDP consent tracking with zero identity '
+        'columns (11.1)', () {
+      final columns =
+          AppSchema.consentRecords.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'record_id',
+        'type',
+        'consent_version',
+        'granted',
+        'timestamp',
+        'text_hash',
+      ]);
+      // ZERO identity columns — only consent type + boolean + timestamps.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('email')));
+      expect(all, isNot(contains('user')));
+      expect(all, isNot(contains('actor')));
+      expect(all, isNot(contains('name')));
+    });
+
+    test(
+        'audit_events carries append-only audit log with zero identity '
+        'columns (11.2)', () {
+      final columns =
+          AppSchema.auditEvents.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'record_id',
+        'seq',
+        'action',
+        'summary',
+        'occurred_at',
+        'prev_hash',
+        'self_hash',
+      ]);
+      // ZERO identity columns — only public-label summary + fixed action.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('email')));
+      expect(all, isNot(contains('user')));
+      expect(all, isNot(contains('actor')));
+      expect(all, isNot(contains('name')));
+    });
+
+    test(
+        'rate_limit_buckets carries per-policy throttling with zero '
+        'identity columns (11.3)', () {
+      final columns =
+          AppSchema.rateLimitBuckets.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'policy',
+        'request_count',
+        'window_start',
+        'cooldown_active',
+        'cooldown_started_at',
+      ]);
+      // ZERO identity columns — only fixed policy label + counts.
+      final all = columns.join(',').toLowerCase();
+      expect(all, isNot(contains('phone')));
+      expect(all, isNot(contains('email')));
+      expect(all, isNot(contains('user')));
+      expect(all, isNot(contains('actor')));
+      expect(all, isNot(contains('name')));
+    });
+
+    test(
+        'abuse_events carries abuse detection with zero identity '
+        'columns (11.3)', () {
+      final columns =
+          AppSchema.abuseEvents.columns.map((c) => c.name).toList();
+
+      expect(columns, [
+        'event_id',
+        'trigger_type',
+        'severity',
+        'detected_at',
+        'occurrence_count',
+      ]);
+      // ZERO identity columns — only fixed trigger/severity + timestamps.
       final all = columns.join(',').toLowerCase();
       expect(all, isNot(contains('phone')));
       expect(all, isNot(contains('email')));

@@ -319,6 +319,64 @@ final class AppMigrations {
         'DROP TABLE transparency_events',
       ],
     ),
+    const Migration(
+      version: 17,
+      description: 'Add DPDP consent tracking table for the Consent '
+          'Implementation (Task 11.1)',
+      upStatements: [
+        // DPDP consent records — UUID record id, fixed consent type,
+        // version string, granted flag, timestamp, text hash for tamper
+        // evidence. ZERO identity columns.
+        'CREATE TABLE consent_records (record_id TEXT PRIMARY KEY '
+            'NOT NULL, type TEXT NOT NULL, consent_version TEXT NOT NULL, '
+            'granted INTEGER NOT NULL, timestamp INTEGER NOT NULL, '
+            'text_hash TEXT NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE consent_records',
+      ],
+    ),
+    const Migration(
+      version: 18,
+      description: 'Add audit_events for tamper-evident audit logging '
+          '(Task 11.2)',
+      upStatements: [
+        // Append-only audit log — UUID record id, fixed action,
+        // public summary, timestamp, monotonic seq, SHA-256 chain
+        // links. ZERO identity columns.
+        'CREATE TABLE audit_events (record_id TEXT PRIMARY KEY '
+            'NOT NULL, seq INTEGER NOT NULL, action TEXT NOT NULL, '
+            'summary TEXT NOT NULL, occurred_at INTEGER NOT NULL, '
+            'prev_hash TEXT NOT NULL, self_hash TEXT NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE audit_events',
+      ],
+    ),
+    const Migration(
+      version: 19,
+      description: 'Add rate_limit_buckets and abuse_events for Rate Limiting '
+          '& Abuse Prevention (Task 11.3)',
+      upStatements: [
+        // Rate limiting buckets — per-policy request counts within
+        // sliding windows. ZERO identity columns.
+        'CREATE TABLE rate_limit_buckets (policy TEXT PRIMARY KEY '
+            'NOT NULL, request_count INTEGER NOT NULL, '
+            'window_start INTEGER NOT NULL, '
+            'cooldown_active INTEGER NOT NULL, '
+            'cooldown_started_at INTEGER)',
+        // Abuse detection events — fixed trigger types + severity +
+        // timestamps. ZERO identity columns.
+        'CREATE TABLE abuse_events (event_id TEXT PRIMARY KEY '
+            'NOT NULL, trigger_type TEXT NOT NULL, '
+            'severity TEXT NOT NULL, detected_at INTEGER NOT NULL, '
+            'occurrence_count INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE abuse_events',
+        'DROP TABLE rate_limit_buckets',
+      ],
+    ),
   ];
 }
 

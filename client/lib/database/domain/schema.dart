@@ -390,6 +390,57 @@ class AppSchema {
     DbColumn('self_hash', 'TEXT', notNull: true),
   ]);
 
+  /// The DPDP consent tracking table (Task 11.1).
+  ///
+  /// One row per consent grant or withdrawal. `record_id` is the UUID v4 id,
+  /// `type` the fixed consent wire code, `consent_version` the version the
+  /// user agreed to, `granted` the boolean status, `timestamp` the event
+  /// time, `text_hash` the SHA-256 of the consent document for tamper
+  /// evidence. ZERO identity columns.
+  static const DbTable consentRecords = DbTable('consent_records', [
+    DbColumn('record_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('type', 'TEXT', notNull: true),
+    DbColumn('consent_version', 'TEXT', notNull: true),
+    DbColumn('granted', 'INTEGER', notNull: true),
+    DbColumn('timestamp', 'INTEGER', notNull: true),
+    DbColumn('text_hash', 'TEXT', notNull: true),
+  ]);
+
+  /// Append-only, tamper-evident audit log (Task 11.2). `record_id` is
+  /// UUID v4, `action` the fixed audit wire code, `summary` a public
+  /// non-PII label, `occurred_at` the UTC timestamp, `seq` the monotonic
+  /// chain position, `prev_hash`/`self_hash` the SHA-256 chain links.
+  /// ZERO identity columns.
+  static const DbTable auditEvents = DbTable('audit_events', [
+    DbColumn('record_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('seq', 'INTEGER', notNull: true),
+    DbColumn('action', 'TEXT', notNull: true),
+    DbColumn('summary', 'TEXT', notNull: true),
+    DbColumn('occurred_at', 'INTEGER', notNull: true),
+    DbColumn('prev_hash', 'TEXT', notNull: true),
+    DbColumn('self_hash', 'TEXT', notNull: true),
+  ]);
+
+  /// Rate limiting buckets for request throttling (Task 11.3). Tracks
+  /// per-policy request counts within sliding windows. ZERO identity columns.
+  static const DbTable rateLimitBuckets = DbTable('rate_limit_buckets', [
+    DbColumn('policy', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('request_count', 'INTEGER', notNull: true),
+    DbColumn('window_start', 'INTEGER', notNull: true),
+    DbColumn('cooldown_active', 'INTEGER', notNull: true),
+    DbColumn('cooldown_started_at', 'INTEGER'),
+  ]);
+
+  /// Abuse detection events for auditing (Task 11.3). Records when
+  /// suspicious patterns were detected. ZERO identity columns.
+  static const DbTable abuseEvents = DbTable('abuse_events', [
+    DbColumn('event_id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('trigger_type', 'TEXT', notNull: true),
+    DbColumn('severity', 'TEXT', notNull: true),
+    DbColumn('detected_at', 'INTEGER', notNull: true),
+    DbColumn('occurrence_count', 'INTEGER', notNull: true),
+  ]);
+
   /// All tables, in creation order (foreign-key-safe).
   static const List<DbTable> tables = [
     users,
@@ -414,6 +465,10 @@ class AppSchema {
     karmaEvents,
     notifications,
     transparencyEvents,
+    consentRecords,
+    auditEvents,
+    rateLimitBuckets,
+    abuseEvents,
   ];
 
   /// Current schema version — MUST be bumped when tables are added/changed.
@@ -450,7 +505,16 @@ class AppSchema {
   /// v16 (Task 10.5): `transparency_events` — append-only, auditable
   /// transparency log (UUID record id + fixed action + public summary +
   /// pin-code scope + timestamp + SHA-256 chain links; zero identity).
-  static const int currentVersion = 16;
+  /// v17 (Task 11.1): `consent_records` — DPDP consent tracking (UUID
+  /// record id + fixed consent type + version + granted flag + timestamp +
+  /// text hash; zero identity columns).
+  /// v18 (Task 11.2): `audit_events` — append-only, tamper-evident audit
+  /// log (UUID record id + fixed action + public summary + timestamp +
+  /// SHA-256 chain links; zero identity columns).
+  /// v19 (Task 11.3): `rate_limit_buckets` / `abuse_events` — rate
+  /// limiting and abuse prevention tracking (per-policy request counts
+  /// + sliding windows + abuse detection events; zero identity columns).
+  static const int currentVersion = 19;
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {
