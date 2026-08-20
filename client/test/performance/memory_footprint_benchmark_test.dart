@@ -165,27 +165,14 @@ void main() {
 
 /// Minimal metrics for memory footprint testing.
 class _TestMetrics {
-  final int coldStartMs;
-  final int warmStartMs;
   final int memoryUsageBytes;
   final int peakMemoryBytes;
-  final int cachedImageCount;
-  final int cachedImageBytes;
-  final int lazyLoadedCount;
-  final int deferredLoadsCompleted;
 
   const _TestMetrics({
-    this.coldStartMs = 0,
-    this.warmStartMs = 0,
     this.memoryUsageBytes = 0,
     this.peakMemoryBytes = 0,
-    this.cachedImageCount = 0,
-    this.cachedImageBytes = 0,
-    this.lazyLoadedCount = 0,
-    this.deferredLoadsCompleted = 0,
   });
 
-  bool get coldStartTargetMet => coldStartMs > 0 && coldStartMs < 600;
   double get memoryUsageMB => memoryUsageBytes / (1024 * 1024);
   double get peakMemoryMB => peakMemoryBytes / (1024 * 1024);
 }
