@@ -67,6 +67,9 @@ import 'consent/data/in_memory_consent_repository.dart';
 import 'state/data/local_audit_log_bloc.dart';
 import 'state/data/local_rate_limit_bloc.dart';
 import 'state/data/local_consent_bloc.dart';
+import 'performance/data/in_memory_performance_repository.dart';
+import 'performance/data/in_memory_startup_optimizer.dart';
+import 'state/data/local_performance_bloc.dart';
 import 'state/data/local_transparency_log_bloc.dart';
 import 'state/data/local_ledger_review_bloc.dart';
 import 'state/data/local_message_bloc.dart';
@@ -80,6 +83,7 @@ import 'state/ui/notification_history_screen.dart';
 import 'state/ui/audit_log_screen.dart';
 import 'state/ui/rate_limit_screen.dart';
 import 'state/ui/dpdp_consent_screen.dart';
+import 'state/ui/performance_monitor_screen.dart';
 import 'state/ui/transparency_log_screen.dart';
 import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
@@ -257,6 +261,10 @@ class HarnessDependencies {
   final InMemoryRateLimitRepository rateLimitRepository;
   final LocalRateLimitBloc rateLimitBloc;
 
+  // Performance Optimization (Task 12.1).
+  final InMemoryPerformanceRepository performanceRepository;
+  final LocalPerformanceBloc performanceBloc;
+
   const HarnessDependencies({
     required this.queueCipher,
     required this.syncQueue,
@@ -290,6 +298,8 @@ class HarnessDependencies {
     required this.auditLogBloc,
     required this.rateLimitRepository,
     required this.rateLimitBloc,
+    required this.performanceRepository,
+    required this.performanceBloc,
   });
 
   static Future<HarnessDependencies> build() async {
@@ -720,6 +730,13 @@ class HarnessDependencies {
       repository: rateLimitRepository,
     );
 
+    // Performance Optimization (Task 12.1): startup metrics and deferred pillars.
+    final performanceRepository = InMemoryPerformanceRepository();
+    final performanceBloc = LocalPerformanceBloc(
+      repository: performanceRepository,
+      optimizer: InMemoryStartupOptimizer(),
+    );
+
     return HarnessDependencies(
       queueCipher: queueCipher,
       syncQueue: syncQueue,
@@ -755,6 +772,8 @@ class HarnessDependencies {
       auditLogBloc: auditLogBloc,
       rateLimitRepository: rateLimitRepository,
       rateLimitBloc: rateLimitBloc,
+      performanceRepository: performanceRepository,
+      performanceBloc: performanceBloc,
     );
   }
 }
@@ -787,6 +806,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   late final _ConsentTab _consentTab;
   late final _AuditTab _auditTab;
   late final _RateLimitTab _rateLimitTab;
+  late final _PerformanceTab _performanceTab;
 
   @override
   void initState() {
@@ -803,6 +823,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     _consentTab = _ConsentTab(h: h);
     _auditTab = _AuditTab(h: h);
     _rateLimitTab = _RateLimitTab(h: h);
+    _performanceTab = _PerformanceTab(h: h);
   }
 
   @override
@@ -830,6 +851,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
             _consentTab,
             _auditTab,
             _rateLimitTab,
+            _performanceTab,
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -890,6 +912,11 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
               icon: Icon(Icons.speed_outlined),
               selectedIcon: Icon(Icons.speed),
               label: 'Limits',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.analytics_outlined),
+              selectedIcon: Icon(Icons.analytics),
+              label: 'Perf',
             ),
           ],
         ),
@@ -1188,5 +1215,16 @@ class _RateLimitTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RateLimitScreen(bloc: h.rateLimitBloc);
+  }
+}
+
+class _PerformanceTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _PerformanceTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return PerformanceMonitorScreen(bloc: h.performanceBloc);
   }
 }

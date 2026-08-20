@@ -89,5 +89,13 @@ void main() {
     expect(find.text('Data Protection Consent'), findsOneWidget);
     expect(find.text('DIGITAL PERSONAL DATA PROTECTION'), findsOneWidget);
     expect(find.text('Core Platform Functionality'), findsOneWidget);
+
+    // Performance Monitor destination (Task 12.1).
+    await tester.tap(find.text('Perf'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('PERFORMANCE MONITOR'), findsOneWidget);
+    expect(find.text('STARTUP TIMES'), findsOneWidget);
+    expect(find.text('MEMORY USAGE'), findsOneWidget);
   });
 }

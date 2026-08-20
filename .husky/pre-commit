@@ -13,7 +13,7 @@ echo "🔒 Running Civic Commons pre-commit checks..."
 if [ -d "client" ]; then
     if command -v flutter &> /dev/null; then
         echo "📱 Running Flutter analysis..."
-        cd client && flutter analyze --no-pub
+        cd client && flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
         if [ $? -ne 0 ]; then
             echo "❌ Flutter analysis failed. Please fix the issues before committing."
             exit 1

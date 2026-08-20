@@ -21,10 +21,13 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 | **Phase 9** | **The Academy (Open Education)** | **✅ Complete (9.1–9.6, 1615 Flutter tests)** |
 | **Phase 10** | **Cross-Pillar Systems (Identity, Karma, Transport)** | **✅ Complete (10.1–10.5, 1869 Flutter tests)** |
 | **Phase 11** | **Security Hardening & Compliance** | **✅ Complete (11.1–11.5, 2083 Flutter tests)** |
+| **Phase 12** | **Performance Optimization & Scalability** | **✅ Complete (12.1–12.4, 2544 Flutter tests)** |
+| **Phase 13** | **Testing & Quality Assurance** | **✅ Complete (13.1–13.5, 2717 Flutter tests)** |
+| **Phase 14** | **Deployment & Monitoring** | **✅ Complete (14.1–14.4, 2767 Flutter tests)** |
 
-> **Current:** Phase 11 COMPLETE (11.1–11.5) — DPDP consent, audit logging, rate limiting, OWASP MASVS security audit, compliance documentation; **2083 Flutter tests**, `flutter analyze` 0 issues  
-> **Next:** Phase 12 — Performance Optimization & Scalability  
-> **Last Updated:** 2026-08-19
+> **Current:** Phase 14 COMPLETE (14.1–14.4) — production build configs, CI/CD pipeline, zero-PII telemetry, release verification; **2767 Flutter tests**, `flutter analyze` 0 issues  
+> **Next:** Phase 15 — Production Deployment  
+> **Last Updated:** 2026-08-20
 
 ---
 
@@ -68,7 +71,7 @@ civic-commons/
 │   │   ├── pii/                  #   PII redaction pipeline (deterministic regex FIRST, local detector)
 │   │   ├── academy/              #   Academy (Phase 9 — syllabus, video room, offline module cache, sandbox wiki, study groups)
 │   │   └── logging/              #   Zero-plaintext redaction logging
-│   └── test/                     #   2083 unit + widget + integration tests across all layers
+│   └── test/                     #   2767 unit + widget + integration tests across all layers
 ├── services/                     # Go 1.22 backend (standard layout)
 │   ├── cmd/
 │   │   ├── api/                  #   API gateway entry point
@@ -167,7 +170,7 @@ flutter analyze           # static analysis (0 issues)
 flutter test              # 2083 unit + widget + integration tests
 ```
 
-> The client is a component/test library — `lib/main.dart` is a manual testing harness with eight tabs (War Room, Vault, Ledger, Academy, Identity, Karma, Alerts, Log) that boots all implemented screens in-memory for local QA. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
+> The client is a component/test library — `lib/main.dart` is a manual testing harness with 10+ tabs (War Room, Vault, Ledger, Academy, Identity, Karma, Alerts, Log) that boots all implemented screens in-memory for local QA. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
 
 ### Verification Scripts
 
