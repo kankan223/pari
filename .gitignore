@@ -311,3 +311,8 @@ docs/.cache/
 .ruby-version
 .gemrc
 Gemfile.lock
+
+# Deployment secrets
+services/.secrets/
+services/jwt_*.pem
+.secrets/

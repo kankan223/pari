@@ -1,0 +1,33 @@
+# Fly.io configuration for Identity Service
+# Uses staging environment to allow dev fallbacks (no Vault required)
+
+app = "civic-commons-identity"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.identity"
+
+[env]
+  APP_ENV = "staging"
+  SERVICE_NAME = "identity"
+  HTTP_PORT = "8080"
+
+# No PostgreSQL needed — we'll use dev fallbacks for now
+# In production, set APP_REQUIRE_POSTGRES=true and provide POSTGRES_DSN
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 50
+    soft_limit = 25
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

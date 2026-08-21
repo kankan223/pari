@@ -1,0 +1,31 @@
+# Fly.io configuration for Relay Service
+# Uses staging environment to allow dev fallbacks (no Vault required)
+
+app = "civic-commons-relay"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.relay"
+
+[env]
+  APP_ENV = "staging"
+  SERVICE_NAME = "relay"
+  HTTP_PORT = "8081"
+  APP_REQUIRE_POSTGRES = "false"
+
+[http_service]
+  internal_port = 8081
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 50
+    soft_limit = 25
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
