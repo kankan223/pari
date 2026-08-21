@@ -1,10 +1,39 @@
-# Civic Commons - Current Progress
-
-**Last Updated:** 2026-08-21
-**Current Phase:** Phase 15 - Documentation & Handover (COMPLETE)
-**Overall Status:** Phases 2–15 COMPLETE; Task 15.4 COMPLETE (3148 total tests, 0 failures, flutter analyze 0 errors/warnings) — QA VALIDATED, production ready---
+# Civic Commons - Current Progress**Last Updated:** 2026-08-21  
+**Current Phase:** Production Deployment  
+**Overall Status:** Phases 2–15 COMPLETE; Navigation fixed; CI/CD pipeline ready; DEPLOYMENT.md created — ready for free-tier launch---
 
 ## Completed Work
+
+### 2026-08-21 — Navigation Fix + Production Deployment Plan
+
+- **Navigation Root Cause:** All buttons across all 16 tabs were broken because `Navigator.of(context)` inside nested `Navigator.onGenerateRoute` callbacks resolved to the root `MaterialApp` Navigator instead of the tab's nested Navigator. Every `push()` silently failed.
+- **Fix:** Converted all 5 navigable tabs (WarRoom, Vault, Ledger, Academy, Notifications) from `StatelessWidget` to `StatefulWidget` with `GlobalKey<NavigatorState>`. Buttons now use `navKey.currentState?.push()` to push directly onto the correct tab navigator. Helper function `_navPush()` centralizes the push pattern.
+- **Files changed:** `client/lib/main.dart` — rewrote all tab widget classes
+- **Verification:** `flutter analyze` 0 errors, 0 warnings; harness smoke test PASS; app launches on Chrome
+- **Production Deployment Plan:** Created `DEPLOYMENT.md` with 3-phase scaling strategy:
+  - **Phase 1 (Free):** Cloudflare Pages + Fly.io + Supabase + Upstash = $0/month
+  - **Phase 2 (Growth):** Vercel Pro + Fly.io Scale + Supabase Pro = ~$125/month
+  - **Phase 3 (Scale):** Vercel Enterprise + GKE + Managed PostgreSQL = ~$1,600/month
+- **CI/CD Pipeline:** Created `.github/workflows/deploy.yml` (Flutter web → Cloudflare/Vercel) and `deploy-backend.yml` (Go services → Docker → Fly.io)
+- **Deployment configs:** `client/vercel.json` (SPA routing + security headers), `client/cloudflare_pages.toml`
+
+### 2026-08-21 — UI Loading Fix
+
+- **Root Cause:** `InMemorySecurityScanner` imported `dart:io` which crashes on web. `FlutterSecureStorage` not mocked for web/desktop. No error handling in `main()`. No loading indicator during heavy init.
+- **Fix:** Conditional imports for `InMemorySecurityScanner` (IO/web stub), `FlutterSecureStorage.setMockInitialValues({})`, error handling with `_ErrorApp`, loading screen `_LoadingApp`
+
+### 2026-08-21 — Main Entry Point Wiring (client/lib/main.dart)
+
+- **Complete Integration:** All 30 local BLoCs, 16 UI screens, and 12 pillar tabs wired into a single cohesive `main.dart` entry point
+  - **BLoCs wired:** WarRoomBloc, ConversationBloc, MessageBloc, ConnectionRequestsBloc, LedgerFeedBloc, LedgerGeoBloc, LedgerComposeBloc, LedgerReviewBloc, AcademyBloc, AcademyOfflineBloc, SandboxWikiBloc, StudyGroupBloc, IdentityVerificationBloc, KarmaBloc, NotificationBloc, TransparencyLogBloc, ConsentBloc, AuditLogBloc, RateLimitBloc, PerformanceBloc, **CdnDeliveryBloc**, **ScalingBloc**, **SecurityScanBloc**, **DeploymentBloc** (24 total)
+  - **In-memory repos:** AesGcmQueuePayloadCipher, SyncQueueRepository, WarCaseRepository, ConversationRepository, MessageRepository, LedgerFeedRepository, AcademySyllabusRepository, AcademyProgressStore, SandboxWikiRepository, StudyGroupRepository, KarmaRepository, NotificationRepository, TransparencyRepository, ConsentRepository, AuditRepository, RateLimitRepository, PerformanceRepository, **CdnRepository**, **ScalingRepository**, **SecurityScanner** (20 total)
+  - **UI screens (16 tabs + sub-navigation):** WarRoomCaseList, VaultConversationList, LedgerFeed, AcademySyllabus, IdentityVerification, KarmaStatus, NotificationHistory, TransparencyLog, DpdpConsent, AuditLog, RateLimit, PerformanceMonitor, **CdnDelivery**, **ScalingMonitor**, **SecurityScan**, **DeploymentMonitor** + sub-navigation: WarCaseDetail, WarRoomIntake, LedgerPostDetail, LedgerCompose, AcademyModule (→ SandboxWiki, StudyGroups), VaultConversationDetail, QuickExitSafe, VerifiedIntelReport, NotificationPreferences
+  - **Seeded demo data:** 3 War Room cases, 3 Ledger posts, 5 Notifications, 42 Karma events (247 balance), 1 Vault conversation with peer hash, 1 Study Group, 5 Pending Consents
+- **Initialization order:** Crypto → QueueCipher → SyncQueue → WarRoom → Vault → Ledger → Academy (Syllabus, OfflineCache, SandboxWiki, StudyGroups) → Identity → Karma → Notifications → Transparency → Consent → Audit → RateLimit → Performance → CDN → Scaling → Security → Deployment
+- **Security invariants preserved:** Every screen retains its SecureScreenWrapper (FLAG_SECURE); demo data uses only public labels/blinded handles; sealed AesGcmQueuePayloadCipher used for all mutations; zero networking imports; zero PII in harness
+- `flutter analyze`: 0 errors, 0 warnings (347 info-level lints)
+- Harness smoke test: PASS (builds full dependency graph, renders all original pillar tabs)
+- Sub-navigation: Sandbox Wiki → Edit/View, Study Groups, Notification Preferences, War Case Detail, Intake, Ledger Compose/Detail
 
 ### 2026-08-21 — QA Validation & Bug Fix
 

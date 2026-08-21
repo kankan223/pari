@@ -1,0 +1,62 @@
+name: Deploy Backend Services
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/**'
+
+jobs:
+  test:
+    name: Test Go Services
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Run tests
+        working-directory: services
+        run: go test -race ./...
+      - name: Build
+        working-directory: services
+        run: go build ./...
+      - name: Vet
+        working-directory: services
+        run: go vet ./...
+
+  deploy-identity:
+    name: Deploy Identity Service
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t civic-commons-identity:latest -f services/cmd/identity/Dockerfile services/
+      - name: Push to registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+          docker tag civic-commons-identity:latest ${{ secrets.REGISTRY_URL }}/civic-commons-identity:latest
+          docker push ${{ secrets.REGISTRY_URL }}/civic-commons-identity:latest
+
+  deploy-relay:
+    name: Deploy Relay Service
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t civic-commons-relay:latest -f services/cmd/relay/Dockerfile services/
+      - name: Push to registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+          docker tag civic-commons-relay:latest ${{ secrets.REGISTRY_URL }}/civic-commons-relay:latest
+          docker push ${{ secrets.REGISTRY_URL }}/civic-commons-relay:latest

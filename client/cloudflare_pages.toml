@@ -1,0 +1,16 @@
+# Cloudflare Pages configuration for Civic Commons
+# Build command: flutter build web --release
+# Build output directory: build/web
+# Node.js version: not required (Flutter SDK handles build)
+
+[build]
+  command = "flutter build web --release"
+  output_directory = "build/web"
+
+[build.environment]
+  FLUTTER_VERSION = "3.19.0"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

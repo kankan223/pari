@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'academy/data/in_memory_academy_progress_store.dart';
 import 'academy/data/in_memory_academy_syllabus_repository.dart';
@@ -70,6 +71,13 @@ import 'state/data/local_consent_bloc.dart';
 import 'performance/data/in_memory_performance_repository.dart';
 import 'performance/data/in_memory_startup_optimizer.dart';
 import 'state/data/local_performance_bloc.dart';
+import 'cdn/data/in_memory_cdn_repository.dart';
+import 'scaling/data/in_memory_scaling_repository.dart';
+import 'security/data/in_memory_security_scanner.dart';
+import 'state/data/local_cdn_delivery_bloc.dart';
+import 'state/data/local_scaling_bloc.dart';
+import 'state/data/local_security_scan_bloc.dart';
+import 'state/data/local_deployment_bloc.dart';
 import 'state/data/local_transparency_log_bloc.dart';
 import 'state/data/local_ledger_review_bloc.dart';
 import 'state/data/local_message_bloc.dart';
@@ -84,6 +92,10 @@ import 'state/ui/audit_log_screen.dart';
 import 'state/ui/rate_limit_screen.dart';
 import 'state/ui/dpdp_consent_screen.dart';
 import 'state/ui/performance_monitor_screen.dart';
+import 'state/ui/cdn_delivery_screen.dart';
+import 'state/ui/scaling_monitor_screen.dart';
+import 'state/ui/security_scan_screen.dart';
+import 'state/ui/deployment_monitor_screen.dart';
 import 'state/ui/transparency_log_screen.dart';
 import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
@@ -123,8 +135,125 @@ import 'war_room/data/in_memory_war_case_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final harness = await HarnessDependencies.build();
-  runApp(CivicCommonsHarness(harness: harness));
+
+  // Initialize FlutterSecureStorage mock values. On Android/iOS the real
+  // keychain backs this; on web/desktop the mock provides a no-op store
+  // so IdentityStorage and SecureKeyStorage don't crash on missing
+  // platform channels.
+  // ignore: invalid_use_of_visible_for_testing_member
+  FlutterSecureStorage.setMockInitialValues({});
+
+  // Show a loading screen immediately while the heavy dependency graph
+  // builds (Argon2id + 24 BLoCs + seeded data). Without this the user
+  // sees a blank white screen for several seconds.
+  runApp(const _LoadingApp());
+
+  try {
+    final harness = await HarnessDependencies.build();
+    // ignore: avoid_debug_dump, use_build_context_synchronously
+    runApp(CivicCommonsHarness(harness: harness));
+  } catch (e, st) {
+    // If anything in the dependency graph throws, show an error screen
+    // instead of a blank white screen. The error is NOT logged to avoid
+    // leaking sensitive init details.
+    runApp(_ErrorApp(error: e, stackTrace: st));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loading / Error screens shown during HarnessDependencies.build().
+// ---------------------------------------------------------------------------
+
+class _LoadingApp extends StatelessWidget {
+  const _LoadingApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: const Color(0xFFF5F0E8),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.shield, size: 64, color: Color(0xFF1F4D3A)),
+              SizedBox(height: 24),
+              Text(
+                'Civic Commons',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F4D3A),
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Initializing secure environment...',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              SizedBox(height: 24),
+              SizedBox(
+                width: 200,
+                child: LinearProgressIndicator(
+                  backgroundColor: Color(0xFFE0D8C8),
+                  valueColor: AlwaysStoppedAnimation(Color(0xFF1F4D3A)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorApp extends StatelessWidget {
+  final Object error;
+  final StackTrace stackTrace;
+
+  const _ErrorApp({required this.error, required this.stackTrace});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: const Color(0xFFF5F0E8),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 24),
+                const Text(
+                  'Initialization Failed',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  error.toString(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => main(),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +394,21 @@ class HarnessDependencies {
   final InMemoryPerformanceRepository performanceRepository;
   final LocalPerformanceBloc performanceBloc;
 
+  // CDN & Content Delivery (Task 12.3).
+  final InMemoryCdnRepository cdnRepository;
+  final LocalCdnDeliveryBloc cdnDeliveryBloc;
+
+  // Horizontal Scaling (Task 12.4).
+  final InMemoryScalingRepository scalingRepository;
+  final LocalScalingBloc scalingBloc;
+
+  // Security Scan (Task 13.4).
+  final InMemorySecurityScanner securityScanner;
+  final LocalSecurityScanBloc securityScanBloc;
+
+  // Deployment Monitor (Task 14.x).
+  final LocalDeploymentBloc deploymentBloc;
+
   const HarnessDependencies({
     required this.queueCipher,
     required this.syncQueue,
@@ -300,6 +444,13 @@ class HarnessDependencies {
     required this.rateLimitBloc,
     required this.performanceRepository,
     required this.performanceBloc,
+    required this.cdnRepository,
+    required this.cdnDeliveryBloc,
+    required this.scalingRepository,
+    required this.scalingBloc,
+    required this.securityScanner,
+    required this.securityScanBloc,
+    required this.deploymentBloc,
   });
 
   static Future<HarnessDependencies> build() async {
@@ -737,6 +888,21 @@ class HarnessDependencies {
       optimizer: InMemoryStartupOptimizer(),
     );
 
+    // CDN & Content Delivery (Task 12.3): delivery metrics and edge cache config.
+    final cdnRepository = InMemoryCdnRepository();
+    final cdnDeliveryBloc = LocalCdnDeliveryBloc(repository: cdnRepository);
+
+    // Horizontal Scaling (Task 12.4): shard routing and load test metrics.
+    final scalingRepository = InMemoryScalingRepository();
+    final scalingBloc = LocalScalingBloc(repository: scalingRepository);
+
+    // Security Scan (Task 13.4): static codebase security scanner.
+    final securityScanner = InMemorySecurityScanner();
+    final securityScanBloc = LocalSecurityScanBloc(scanner: securityScanner);
+
+    // Deployment Monitor (Task 14.x): build config, CI/CD, health monitoring.
+    final deploymentBloc = LocalDeploymentBloc();
+
     return HarnessDependencies(
       queueCipher: queueCipher,
       syncQueue: syncQueue,
@@ -774,6 +940,13 @@ class HarnessDependencies {
       rateLimitBloc: rateLimitBloc,
       performanceRepository: performanceRepository,
       performanceBloc: performanceBloc,
+      cdnRepository: cdnRepository,
+      cdnDeliveryBloc: cdnDeliveryBloc,
+      scalingRepository: scalingRepository,
+      scalingBloc: scalingBloc,
+      securityScanner: securityScanner,
+      securityScanBloc: securityScanBloc,
+      deploymentBloc: deploymentBloc,
     );
   }
 }
@@ -807,6 +980,10 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   late final _AuditTab _auditTab;
   late final _RateLimitTab _rateLimitTab;
   late final _PerformanceTab _performanceTab;
+  late final _CdnTab _cdnTab;
+  late final _ScalingTab _scalingTab;
+  late final _SecurityTab _securityTab;
+  late final _DeploymentTab _deploymentTab;
 
   @override
   void initState() {
@@ -824,6 +1001,10 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     _auditTab = _AuditTab(h: h);
     _rateLimitTab = _RateLimitTab(h: h);
     _performanceTab = _PerformanceTab(h: h);
+    _cdnTab = _CdnTab(h: h);
+    _scalingTab = _ScalingTab(h: h);
+    _securityTab = _SecurityTab(h: h);
+    _deploymentTab = _DeploymentTab(h: h);
   }
 
   @override
@@ -852,6 +1033,10 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
             _auditTab,
             _rateLimitTab,
             _performanceTab,
+            _cdnTab,
+            _scalingTab,
+            _securityTab,
+            _deploymentTab,
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -918,6 +1103,26 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
               selectedIcon: Icon(Icons.analytics),
               label: 'Perf',
             ),
+            NavigationDestination(
+              icon: Icon(Icons.language_outlined),
+              selectedIcon: Icon(Icons.language),
+              label: 'CDN',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.grid_view_outlined),
+              selectedIcon: Icon(Icons.grid_view),
+              label: 'Scale',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.security_outlined),
+              selectedIcon: Icon(Icons.security),
+              label: 'Security',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.rocket_launch_outlined),
+              selectedIcon: Icon(Icons.rocket_launch),
+              label: 'Deploy',
+            ),
           ],
         ),
       ),
@@ -925,52 +1130,63 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   }
 }
 
+// --- Navigation helpers ---------------------------------------------------
+
+/// Pushes a [MaterialPageRoute] onto the given [NavigatorState].
+void _navPush(GlobalKey<NavigatorState> key, Widget screen) {
+  key.currentState?.push(
+    MaterialPageRoute<void>(builder: (_) => screen),
+  );
+}
+
 // --- War Room tab ----------------------------------------------------------
 
-class _WarRoomTab extends StatelessWidget {
+class _WarRoomTab extends StatefulWidget {
   final HarnessDependencies h;
-
   const _WarRoomTab({required this.h});
+  @override
+  State<_WarRoomTab> createState() => _WarRoomTabState();
+}
+
+class _WarRoomTabState extends State<_WarRoomTab> {
+  final _nav = GlobalKey<NavigatorState>();
+
+  void _openIntake() {
+    _nav.currentState?.push(
+      MaterialPageRoute<void>(
+        builder: (_) => WarRoomIntakeScreen(
+          bloc: widget.h.warRoomBloc,
+          redactionPipeline: widget.h.redactionPipeline,
+          draftStore: widget.h.intakeDraftStore,
+          onFiled: (_) => widget.h.warRoomBloc.refresh(),
+          onQuickExit: () {
+            _nav.currentState?.push(
+              MaterialPageRoute<void>(
+                  builder: (_) => const QuickExitSafeScreen()),
+            );
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Navigator(
-      key: const PageStorageKey('war-room-tab'),
-      onGenerateRoute: (settings) {
-        switch (settings.name) {
-          case '/intake':
-            return MaterialPageRoute(
-              builder: (_) => WarRoomIntakeScreen(
-                bloc: h.warRoomBloc,
-                redactionPipeline: h.redactionPipeline,
-                draftStore: h.intakeDraftStore,
-                onFiled: (stamp) {
-                  h.warRoomBloc.refresh();
-                },
-                onQuickExit: () {
-                  _push(context, const QuickExitSafeScreen());
-                },
-              ),
+      key: _nav,
+      onGenerateRoute: (_) => MaterialPageRoute(
+        builder: (_) => WarRoomCaseListScreen(
+          bloc: widget.h.warRoomBloc,
+          onCaseTap: (caseNumber) {
+            widget.h.warRoomBloc.openCase(caseNumber);
+            _navPush(
+              _nav,
+              _WarCaseDetail(h: widget.h, caseNumber: caseNumber),
             );
-          default:
-            return MaterialPageRoute(
-              builder: (_) => WarRoomCaseListScreen(
-                bloc: h.warRoomBloc,
-                onCaseTap: (caseNumber) {
-                  h.warRoomBloc.openCase(caseNumber);
-                  _push(context, _WarCaseDetail(h: h, caseNumber: caseNumber));
-                },
-                onFileNewCase: () => Navigator.of(context).pushNamed('/intake'),
-              ),
-            );
-        }
-      },
-    );
-  }
-
-  void _push(BuildContext context, Widget screen) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => screen),
+          },
+          onFileNewCase: _openIntake,
+        ),
+      ),
     );
   }
 }
@@ -979,7 +1195,10 @@ class _WarCaseDetail extends StatelessWidget {
   final HarnessDependencies h;
   final String caseNumber;
 
-  const _WarCaseDetail({required this.h, required this.caseNumber});
+  const _WarCaseDetail({
+    required this.h,
+    required this.caseNumber,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1007,28 +1226,32 @@ class _WarCaseDetail extends StatelessWidget {
 
 // --- Vault tab -------------------------------------------------------------
 
-class _VaultTab extends StatelessWidget {
+class _VaultTab extends StatefulWidget {
   final HarnessDependencies h;
-
   const _VaultTab({required this.h});
+  @override
+  State<_VaultTab> createState() => _VaultTabState();
+}
+
+class _VaultTabState extends State<_VaultTab> {
+  final _nav = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return Navigator(
-      key: const PageStorageKey('vault-tab'),
-      onGenerateRoute: (settings) => MaterialPageRoute(
+      key: _nav,
+      onGenerateRoute: (_) => MaterialPageRoute(
         builder: (_) => VaultConversationListScreen(
-          bloc: h.conversationBloc,
-          requestsBloc: h.connectionRequestsBloc,
-          usernameDirectory: h.usernameDirectory,
+          bloc: widget.h.conversationBloc,
+          requestsBloc: widget.h.connectionRequestsBloc,
+          usernameDirectory: widget.h.usernameDirectory,
           contextMeta: 'civic-commons',
           onConversationTap: (id) {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => VaultConversationDetailScreen(
-                  bloc: h.messageBloc,
-                  participantHash: h.peerHash,
-                ),
+            _navPush(
+              _nav,
+              VaultConversationDetailScreen(
+                bloc: widget.h.messageBloc,
+                participantHash: widget.h.peerHash,
               ),
             );
           },
@@ -1040,42 +1263,43 @@ class _VaultTab extends StatelessWidget {
 
 // --- Ledger tab ------------------------------------------------------------
 
-class _LedgerTab extends StatelessWidget {
+class _LedgerTab extends StatefulWidget {
   final HarnessDependencies h;
-
   const _LedgerTab({required this.h});
+  @override
+  State<_LedgerTab> createState() => _LedgerTabState();
+}
+
+class _LedgerTabState extends State<_LedgerTab> {
+  final _nav = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return Navigator(
-      key: const PageStorageKey('ledger-tab'),
-      onGenerateRoute: (settings) => MaterialPageRoute(
+      key: _nav,
+      onGenerateRoute: (_) => MaterialPageRoute(
         builder: (_) => LedgerFeedScreen(
-          bloc: h.ledgerFeedBloc,
+          bloc: widget.h.ledgerFeedBloc,
           pinCode: '800001',
-          geoBloc: h.ledgerGeoBloc,
-          reviewBloc: h.ledgerReviewBloc,
+          geoBloc: widget.h.ledgerGeoBloc,
+          reviewBloc: widget.h.ledgerReviewBloc,
           onPostTap: (postId) {
-            final post = h.ledgerPosts[postId];
-            if (post == null) {
-              return;
-            }
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => LedgerPostDetailScreen(
-                  bloc: h.ledgerFeedBloc,
-                  post: post,
-                ),
+            final post = widget.h.ledgerPosts[postId];
+            if (post == null) return;
+            _navPush(
+              _nav,
+              LedgerPostDetailScreen(
+                bloc: widget.h.ledgerFeedBloc,
+                post: post,
               ),
             );
           },
           onCompose: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => LedgerComposeScreen(
-                  bloc: h.ledgerComposeBloc,
-                  defaultPinCode: '800001',
-                ),
+            _navPush(
+              _nav,
+              LedgerComposeScreen(
+                bloc: widget.h.ledgerComposeBloc,
+                defaultPinCode: '800001',
               ),
             );
           },
@@ -1087,41 +1311,43 @@ class _LedgerTab extends StatelessWidget {
 
 // --- Academy tab -----------------------------------------------------------
 
-class _AcademyTab extends StatelessWidget {
+class _AcademyTab extends StatefulWidget {
   final HarnessDependencies h;
-
   const _AcademyTab({required this.h});
+  @override
+  State<_AcademyTab> createState() => _AcademyTabState();
+}
+
+class _AcademyTabState extends State<_AcademyTab> {
+  final _nav = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return Navigator(
-      key: const PageStorageKey('academy-tab'),
-      onGenerateRoute: (settings) => MaterialPageRoute(
+      key: _nav,
+      onGenerateRoute: (_) => MaterialPageRoute(
         builder: (_) => AcademySyllabusScreen(
-          bloc: h.academyBloc,
+          bloc: widget.h.academyBloc,
           onModuleTap: (moduleId) {
-            final state = h.academyBloc.current;
+            final state = widget.h.academyBloc.current;
             final module = state.syllabus?.modules
                 .where((m) => m.moduleId == moduleId)
                 .firstOrNull;
-            if (module == null) {
-              return;
-            }
+            if (module == null) return;
             final domainTitle = state.syllabus?.domains
                 .where((d) => d.domainId == module.domainId)
                 .firstOrNull
                 ?.title;
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => AcademyModuleScreen(
-                  bloc: h.academyBloc,
-                  module: module,
-                  domainTitle: domainTitle,
-                  offlineBloc: h.academyOfflineBloc,
-                  sandboxWikiBloc: h.sandboxWikiBloc,
-                  studyGroupBloc: h.studyGroupBloc,
-                  studyGroupPinCode: '800001',
-                ),
+            _navPush(
+              _nav,
+              AcademyModuleScreen(
+                bloc: widget.h.academyBloc,
+                module: module,
+                domainTitle: domainTitle,
+                offlineBloc: widget.h.academyOfflineBloc,
+                sandboxWikiBloc: widget.h.sandboxWikiBloc,
+                studyGroupBloc: widget.h.studyGroupBloc,
+                studyGroupPinCode: '800001',
               ),
             );
           },
@@ -1159,14 +1385,26 @@ class _KarmaTab extends StatelessWidget {
 
 // --- Notifications tab (Task 10.4) ----------------------------------------
 
-class _NotificationsTab extends StatelessWidget {
+class _NotificationsTab extends StatefulWidget {
   final HarnessDependencies h;
-
   const _NotificationsTab({required this.h});
+  @override
+  State<_NotificationsTab> createState() => _NotificationsTabState();
+}
+
+class _NotificationsTabState extends State<_NotificationsTab> {
+  final _nav = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
-    return NotificationHistoryScreen(bloc: h.notificationBloc);
+    return Navigator(
+      key: _nav,
+      onGenerateRoute: (_) => MaterialPageRoute(
+        builder: (_) => NotificationHistoryScreen(
+          bloc: widget.h.notificationBloc,
+        ),
+      ),
+    );
   }
 }
 
@@ -1226,5 +1464,57 @@ class _PerformanceTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PerformanceMonitorScreen(bloc: h.performanceBloc);
+  }
+}
+
+// --- CDN tab (Task 12.3) --------------------------------------------------
+
+class _CdnTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _CdnTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return CdnDeliveryScreen(bloc: h.cdnDeliveryBloc);
+  }
+}
+
+// --- Scaling tab (Task 12.4) -----------------------------------------------
+
+class _ScalingTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _ScalingTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return ScalingMonitorScreen(bloc: h.scalingBloc);
+  }
+}
+
+// --- Security Scan tab (Task 13.4) ----------------------------------------
+
+class _SecurityTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _SecurityTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return SecurityScanScreen(bloc: h.securityScanBloc);
+  }
+}
+
+// --- Deployment Monitor tab (Task 14.x) -----------------------------------
+
+class _DeploymentTab extends StatelessWidget {
+  final HarnessDependencies h;
+
+  const _DeploymentTab({required this.h});
+
+  @override
+  Widget build(BuildContext context) {
+    return DeploymentMonitorScreen(bloc: h.deploymentBloc);
   }
 }

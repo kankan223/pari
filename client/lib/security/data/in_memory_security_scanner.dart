@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'dart:math';
+import 'scanner_platform.dart' as platform;
 
 import '../domain/penetration_test_scenario.dart';
 import '../domain/scanner_config.dart';
@@ -38,15 +37,15 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   @override
   Future<SecurityScanResult> scanCodebase() async {
-    final scanId = _generateUuid();
+    final scanId = platform.generateUuid();
     final startedAt = DateTime.now().millisecondsSinceEpoch;
 
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     final findings = <VulnerabilityFinding>[];
     var totalLines = 0;
 
     for (final file in files) {
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       final lines = source.split('\n');
       totalLines += lines.length;
 
@@ -64,7 +63,7 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
           if (regex.hasMatch(line)) {
             findings.add(VulnerabilityFinding(
-              id: _generateUuid(),
+              id: platform.generateUuid(),
               type: pattern.vulnerabilityType,
               severity: pattern.severity,
               filePath: file.path,
@@ -88,7 +87,7 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
           if (regex.hasMatch(line)) {
             findings.add(VulnerabilityFinding(
-              id: _generateUuid(),
+              id: platform.generateUuid(),
               type: VulnerabilityType.hardcodedSecret,
               severity: VulnerabilitySeverity.critical,
               filePath: file.path,
@@ -117,13 +116,13 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   @override
   Future<List<VulnerabilityFinding>> scanForSecrets() async {
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     final findings = <VulnerabilityFinding>[];
 
     for (final file in files) {
       if (file.path.contains('test/')) continue;
 
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       final lines = source.split('\n');
 
       for (final pattern in secretPatterns) {
@@ -135,7 +134,7 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
           if (regex.hasMatch(line)) {
             findings.add(VulnerabilityFinding(
-              id: _generateUuid(),
+              id: platform.generateUuid(),
               type: VulnerabilityType.hardcodedSecret,
               severity: VulnerabilitySeverity.critical,
               filePath: file.path,
@@ -226,18 +225,18 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   @override
   Future<int> getFileCount() async {
-    return _dartFilesIn(rootDir).where((f) => !f.path.contains('test/')).length;
+    return platform.dartFilesIn(rootDir).where((f) => !f.path.contains('test/')).length;
   }
 
   // --- Private penetration test implementations ---
 
   bool _testSqlInjection() {
     // Check data layer for raw SQL string interpolation
-    final dataFiles = _dartFilesIn('$rootDir/repository/data');
-    dataFiles.addAll(_dartFilesIn('$rootDir/database'));
+    final dataFiles = platform.dartFilesIn('$rootDir/repository/data');
+    dataFiles.addAll(platform.dartFilesIn('$rootDir/database'));
 
     for (final file in dataFiles) {
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       // Check for string interpolation in SQL queries (excluding safe parameterized queries)
       final sqlWithInterpolation = RegExp(
         r"""['"].*SELECT.*\$\{.*\}.*['"]|['"].*INSERT.*\$\{.*\}.*['"]|['"].*UPDATE.*\$\{.*\}.*['"]|['"].*DELETE.*\$\{.*\}.*['"]""",
@@ -252,10 +251,10 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   bool _testBufferOverflow() {
     // Check for input size limits in key areas
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     for (final file in files) {
       if (file.path.contains('test/')) continue;
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       // Check for unbounded string operations
       if (source.contains('.split(') && source.contains('while (true)')) {
         return false;
@@ -266,10 +265,10 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   bool _testTimingAttack() {
     // Verify constant-time comparison for sensitive operations
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     for (final file in files) {
       if (file.path.contains('test/')) continue;
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       // Check for simple equality checks on secrets/tokens
       if (source.contains('token ==') && !source.contains('secureCompare')) {
         // Only flag if it's in a security-critical context
@@ -283,10 +282,10 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   bool _testAuthBypass() {
     // Check that auth middleware exists and is wired
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     for (final file in files) {
       if (file.path.contains('test/')) continue;
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       if (source.contains('middleware') && source.contains('auth')) {
         return true;
       }
@@ -297,10 +296,10 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   bool _testSessionHijacking() {
     // Verify secure session storage patterns
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     for (final file in files) {
       if (file.path.contains('test/')) continue;
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       // Check for session tokens in URLs (should be in body/header only)
       if (source.contains('token') && source.contains('query')) {
         if (file.path.contains('relay') || file.path.contains('websocket')) {
@@ -318,10 +317,10 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   bool _testDataLeakage() {
     // Check for print/debugPrint in production code
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     for (final file in files) {
       if (file.path.contains('test/')) continue;
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       final lines = source.split('\n');
       for (final line in lines) {
         if (line.trimLeft().startsWith('//')) continue;
@@ -340,10 +339,10 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   bool _testCryptoDowngrade() {
     // Check for deprecated cryptographic algorithms
-    final files = _dartFilesIn(rootDir);
+    final files = platform.dartFilesIn(rootDir);
     for (final file in files) {
       if (file.path.contains('test/')) continue;
-      final source = file.readAsStringSync();
+      final source = platform.readFileAsString(file);
       // Check for weak algorithms
       if (source.contains('MD5') || source.contains('SHA1')) {
         if (!source.contains('HMAC')) {
@@ -362,28 +361,6 @@ class InMemorySecurityScanner implements SecurityScannerPort {
 
   // --- Helpers ---
 
-  List<File> _dartFilesIn(String dir) {
-    final directory = Directory(dir);
-    if (!directory.existsSync()) return [];
-    return directory
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))
-        .toList();
-  }
-
-  String _generateUuid() {
-    final random = Random.secure();
-    final values = List<int>.generate(16, (_) => random.nextInt(256));
-    values[6] = (values[6] & 0x0f) | 0x40; // Version 4
-    values[8] = (values[8] & 0x3f) | 0x80; // Variant 1
-    return '${_hex(values.sublist(0, 4))}-'
-        '${_hex(values.sublist(4, 6))}-'
-        '${_hex(values.sublist(6, 8))}-'
-        '${_hex(values.sublist(8, 10))}-'
-        '${_hex(values.sublist(10, 16))}';
-  }
-
-  String _hex(List<int> bytes) =>
-      bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  // Platform-specific helpers delegated to scanner_platform.dart
+  // (dart:io on IO, web stub on web).
 }
