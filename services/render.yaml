@@ -1,0 +1,65 @@
+# Render Blueprint — Civic Commons Backend Services
+# Deploy via: render blueprint apply render.yaml
+# Or manually via Render Dashboard
+
+services:
+  # ---- Identity Service ----
+  - type: web
+    name: civic-commons-identity
+    runtime: docker
+    dockerfilePath: Dockerfile.identity
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: SERVICE_NAME
+        value: identity
+      - key: HTTP_PORT
+        value: "8080"
+      - key: OTP_PROVIDER
+        value: noop
+      - key: IDENTITY_DEV_SALT_HEX
+        generateValue: false
+      - key: IDENTITY_DEV_JWT_KEY
+        generateValue: false
+      - key: IDENTITY_DEV_JWT_PUB_KEY
+        generateValue: false
+      - key: APP_REQUIRE_POSTGRES
+        value: "false"
+      - key: REDIS_ADDR
+        fromDatabase:
+          name: civic-commons-redis
+          property: connectionString
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # ---- Relay Service ----
+  - type: web
+    name: civic-commons-relay
+    runtime: docker
+    dockerfilePath: Dockerfile.relay
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: SERVICE_NAME
+        value: relay
+      - key: HTTP_PORT
+        value: "8081"
+      - key: APP_REQUIRE_POSTGRES
+        value: "false"
+      - key: IDENTITY_DEV_JWT_PUB_KEY
+        generateValue: false
+      - key: REDIS_ADDR
+        fromDatabase:
+          name: civic-commons-redis
+          property: connectionString
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # ---- PostgreSQL (free 90 days) ----
+  - type: postgresql
+    name: civic-commons-db
+    plan: free
+    databaseName: civic_commons
+    ipAllowList: []
