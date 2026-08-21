@@ -28,7 +28,7 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 
 > **Current:** Phase 15 COMPLETE — developer docs, operations docs, user docs, security docs (whitepaper/pentest/FAQ/bug bounty); **3147 Flutter tests**, `flutter analyze` 0 issues  
 > **Status:** All phases (2–15) COMPLETE — ready for production handover  
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-21
 
 ---
 
