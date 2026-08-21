@@ -38,10 +38,9 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 void main() {
-  final now = DateTime.utc(2026, 8, 15, 12);
-
   group('Dynamic radius feed UI (Task 7.3)', () {
     testWidgets('NearbyBadge renders on nearby posts only', (tester) async {
+      final now = DateTime.now();
       final bloc = LocalLedgerFeedBloc(
         repository: InMemoryLedgerFeedRepository(
           seed: [
@@ -81,6 +80,7 @@ void main() {
     });
 
     testWidgets('nearby strip announces the expanded feed', (tester) async {
+      final now = DateTime.now();
       final bloc = LocalLedgerFeedBloc(
         repository: InMemoryLedgerFeedRepository(
           seed: [
@@ -107,6 +107,7 @@ void main() {
 
     testWidgets('blended feed shows both local and nearby cards',
         (tester) async {
+      final now = DateTime.now();
       final bloc = LocalLedgerFeedBloc(
         repository: InMemoryLedgerFeedRepository(
           seed: [
@@ -134,6 +135,7 @@ void main() {
 
     testWidgets('dense local feed does not expand (badge stays absent)',
         (tester) async {
+      final now = DateTime.now();
       final bloc = LocalLedgerFeedBloc(
         repository: InMemoryLedgerFeedRepository(
           seed: [

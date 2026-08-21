@@ -2,11 +2,19 @@
 
 **Last Updated:** 2026-08-21
 **Current Phase:** Phase 15 - Documentation & Handover (COMPLETE)
-**Overall Status:** Phases 2–15 COMPLETE; Task 15.4 COMPLETE (3147 total tests, 0 warnings, flutter analyze 0 issues) — ready for production handover
-
----
+**Overall Status:** Phases 2–15 COMPLETE; Task 15.4 COMPLETE (3148 total tests, 0 failures, flutter analyze 0 errors/warnings) — QA VALIDATED, production ready---
 
 ## Completed Work
+
+### 2026-08-21 — QA Validation & Bug Fix
+
+- **Full QA Pass:** comprehensive test suite verification + codebase audit
+  - **Bug fixed:** `test/state/ui/dynamic_radius_feed_test.dart` — the test used a hardcoded `DateTime.utc(2026, 8, 15, 12)` for post creation dates, but `FeedScope` uses `DateTime.now()` (2026-08-21) for the 7-day recency window. Posts created 2–4 days before the fixed date fell outside the 7-day window relative to today, reducing `recentExact` from 5 to 2, which incorrectly triggered radius expansion. Fix: changed all test posts to use `DateTime.now()` as the base date so they're always within the recency window.
+  - **Full test suite:** 3148 Flutter tests pass, 0 failures; Go backend: 11 packages all pass with race detector
+  - `flutter analyze`: 0 errors, 0 warnings (347 info-level lints)
+  - Go `go build ./...` and `go vet ./...`: clean
+  - Pre-commit hooks: all passing (flutter analyze, secret scanning, commit format)
+  - **MASTER_PLAN validation:** all 15 phases verified against actual codebase — all features implemented, no missing requirements
 
 ### 2026-08-21 — Task 15.4: Security Documentation (Handover)
 
