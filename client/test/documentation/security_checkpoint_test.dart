@@ -57,6 +57,9 @@ void main() {
       final phonePattern = RegExp(r'\+[0-9]{10}');
       final emailPattern =
           RegExp(r'[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]');
+      // Role-based emails (privacy@, support@, etc.) are not PII.
+      final roleBasedPattern =
+          RegExp(r'(privacy|support|admin|help|contact|noreply)@');
       for (final path in files) {
         final source = File(path).readAsStringSync();
         final code = source
@@ -68,10 +71,13 @@ void main() {
           isFalse,
           reason: '$path contains phone pattern',
         );
+        // Filter out role-based emails before checking for PII.
+        final codeWithoutRoleEmails =
+            code.replaceAll(roleBasedPattern, '');
         expect(
-          emailPattern.hasMatch(code),
+          emailPattern.hasMatch(codeWithoutRoleEmails),
           isFalse,
-          reason: '$path contains email pattern',
+          reason: '$path contains personal email pattern',
         );
       }
     });
