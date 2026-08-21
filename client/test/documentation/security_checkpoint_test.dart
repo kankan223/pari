@@ -57,9 +57,9 @@ void main() {
       final phonePattern = RegExp(r'\+[0-9]{10}');
       final emailPattern =
           RegExp(r'[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]');
-      // Role-based emails (privacy@, support@, etc.) are not PII.
+      // Role-based emails (privacy@, support@, security@, etc.) are not PII.
       final roleBasedPattern =
-          RegExp(r'(privacy|support|admin|help|contact|noreply)@');
+          RegExp(r'(privacy|support|security|admin|help|contact|noreply)@');
       for (final path in files) {
         final source = File(path).readAsStringSync();
         final code = source

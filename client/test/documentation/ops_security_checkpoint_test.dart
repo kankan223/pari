@@ -64,7 +64,7 @@ void main() {
       final phonePattern = RegExp(r'\+\d{10,15}');
       final emailPattern = RegExp(r'\S+@\S+\.\S+');
       final roleBasedPattern =
-          RegExp(r'(privacy|support|admin|help|contact|noreply)@');
+          RegExp(r'(privacy|support|security|admin|help|contact|noreply)@');
       final hex64Pattern = RegExp(r'\b[0-9a-fA-F]{64}\b');
       for (final path in files) {
         final source = File(path).readAsStringSync();
