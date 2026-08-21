@@ -24,9 +24,9 @@ A privacy-first, local-first civic engagement platform. Civic Commons lets peopl
 | **Phase 12** | **Performance Optimization & Scalability** | **✅ Complete (12.1–12.4, 2544 Flutter tests)** |
 | **Phase 13** | **Testing & Quality Assurance** | **✅ Complete (13.1–13.5, 2717 Flutter tests)** |
 | **Phase 14** | **Deployment & Monitoring** | **✅ Complete (14.1–14.5, 2818 Flutter tests)** |
-| **Phase 15** | **Documentation & Handover** | **✅ Complete (15.4, 3495 Flutter tests)** |
+| **Phase 15** | **Documentation & Handover** | **✅ Complete (15.4, 3147 Flutter tests)** |
 
-> **Current:** Phase 15 COMPLETE — developer docs, operations docs, user docs, security docs (whitepaper/pentest/FAQ/bug bounty); **3495 Flutter tests**, `flutter analyze` 0 issues  
+> **Current:** Phase 15 COMPLETE — developer docs, operations docs, user docs, security docs (whitepaper/pentest/FAQ/bug bounty); **3147 Flutter tests**, `flutter analyze` 0 issues  
 > **Status:** All phases (2–15) COMPLETE — ready for production handover  
 > **Last Updated:** 2026-08-20
 
@@ -72,7 +72,7 @@ civic-commons/
 │   │   ├── pii/                  #   PII redaction pipeline (deterministic regex FIRST, local detector)
 │   │   ├── academy/              #   Academy (Phase 9 — syllabus, video room, offline module cache, sandbox wiki, study groups)
 │   │   └── logging/              #   Zero-plaintext redaction logging
-│   └── test/                     #   3495 unit + widget + integration tests across all layers
+│   └── test/                     #   3147 unit + widget + integration tests across all layers
 ├── services/                     # Go 1.22 backend (standard layout)
 │   ├── cmd/
 │   │   ├── api/                  #   API gateway entry point
@@ -168,7 +168,7 @@ go run ./cmd/relay      # :8081  (WebSocket relay — Redis streams, NATS events
 cd client
 flutter pub get
 flutter analyze           # static analysis (0 issues)
-flutter test              # 3495 unit + widget + integration tests
+flutter test              # 3147 unit + widget + integration tests
 ```
 
 > The client is a component/test library — `lib/main.dart` is a manual testing harness with 10+ tabs (War Room, Vault, Ledger, Academy, Identity, Karma, Alerts, Log) that boots all implemented screens in-memory for local QA. See [`RUN.md`](RUN.md) for the full bootstrap, per-platform launch commands, and the security-boundary test suite.
