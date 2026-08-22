@@ -117,6 +117,11 @@ func (c *UpstashClient) resultStr(results []any, idx int) string {
 	if !ok {
 		return ""
 	}
+	// Upstash returns {"result":null} for non-existent keys.
+	// Return empty string so callers map it to redis.Nil.
+	if r == nil {
+		return ""
+	}
 	switch t := r.(type) {
 	case string:
 		return t

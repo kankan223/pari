@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,20 +16,20 @@ import (
 // TestUpstashGetMissingKey verifies that a GET for a non-existent key
 // returns redis.Nil (not a garbage string like "%!v(<nil>)").
 // This was the root cause of the identity service returning 500 on
-// OTP verify — Upstash returns HTTP 200 with body "null" for missing keys.
+// OTP verify — Upstash returns {"result":null} for missing keys.
 func TestUpstashGetMissingKey(t *testing.T) {
-	// Mock Upstash: GET /get/missing returns "null" (key doesn't exist).
+	// Mock Upstash: GET /get/missing returns {"result":null} (key doesn't exist).
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/get/missing" {
 			w.WriteHeader(200)
-			_, _ = w.Write([]byte("null"))
+			_, _ = w.Write([]byte(`{"result":null}`))
 			return
 		}
 		// GET /get/existing returns the stored value.
 		if r.URL.Path == "/get/existing" {
 			w.WriteHeader(200)
-			_, _ = w.Write([]byte(`"$2a$10$fakehash"`))
+			_, _ = w.Write([]byte(`{"result":"$2a$10$fakehash"}`))
 			return
 		}
 		w.WriteHeader(404)
@@ -63,21 +64,20 @@ func TestUpstashSetAndGetRoundTrip(t *testing.T) {
 
 		switch {
 		case path == "/set/testkey" || path == "/set/testkey?ex=600":
-			body, _ := json.Marshal(string("newval"))
-			_, _ = w.Write(body)
+			// Upstash returns {"result":"OK"}
+			_, _ = w.Write([]byte(`{"result":"OK"}`))
 			store["testkey"] = "newval"
 			return
 		case path == "/get/testkey":
 			if v, ok := store["testkey"]; ok {
-				body, _ := json.Marshal(v)
-				_, _ = w.Write(body)
+				fmt.Fprintf(w, `{"result":"%s"}`, v)
 			} else {
-				_, _ = w.Write([]byte("null"))
+				_, _ = w.Write([]byte(`{"result":null}`))
 			}
 			return
 		case path == "/del/testkey":
 			delete(store, "testkey")
-			_, _ = w.Write([]byte("1"))
+			_, _ = w.Write([]byte(`{"result":1}`))
 			return
 		}
 		w.WriteHeader(404)
@@ -132,9 +132,9 @@ func TestUpstashPipelineIncrExpire(t *testing.T) {
 				case "INCR":
 					key := cmd[1].(string)
 					counters[key]++
-					results[i] = counters[key]
+					results[i] = map[string]any{"result": counters[key]}
 				case "EXPIRE":
-					results[i] = 1 // OK
+					results[i] = map[string]any{"result": true}
 				}
 			}
 			body, _ := json.Marshal(results)
