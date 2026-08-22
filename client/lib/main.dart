@@ -113,6 +113,11 @@ import 'war_room/domain/war_room_case.dart';
 import 'war_room/data/encrypted_intake_draft_store.dart';
 import 'war_room/data/in_memory_war_case_repository.dart';
 
+import 'auth/identity_api_client.dart';
+import 'auth/auth_storage.dart';
+import 'auth/auth_bloc.dart';
+import 'state/ui/login_screen.dart';
+
 /// Civic Commons — MANUAL TESTING HARNESS (entry point).
 ///
 /// This is NOT the production app shell (that lands with Phase 9
@@ -150,8 +155,20 @@ Future<void> main() async {
 
   try {
     final harness = await HarnessDependencies.build();
+
+    // Build auth layer — talks to the real identity service.
+    final authStorage = AuthStorage();
+    final apiClient = IdentityApiClient(
+      baseUrl: 'https://civic-commons-identity.onrender.com',
+    );
+    final authBloc = AuthBloc(api: apiClient, storage: authStorage);
+    await authBloc.init();
+
     // ignore: avoid_debug_dump, use_build_context_synchronously
-    runApp(CivicCommonsHarness(harness: harness));
+    runApp(CivicCommonsApp(
+      harness: harness,
+      authBloc: authBloc,
+    ));
   } catch (e, st) {
     // If anything in the dependency graph throws, show an error screen
     // instead of a blank white screen. The error is NOT logged to avoid
@@ -251,6 +268,49 @@ class _ErrorApp extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// App shell: checks auth state → shows LoginScreen or main harness.
+// ---------------------------------------------------------------------------
+
+class CivicCommonsApp extends StatelessWidget {
+  final HarnessDependencies harness;
+  final AuthBloc authBloc;
+
+  const CivicCommonsApp({
+    super.key,
+    required this.harness,
+    required this.authBloc,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Civic Commons',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF1F4D3A),
+        scaffoldBackgroundColor: WarRoomTheme.manilaPaper,
+      ),
+      home: StreamBuilder<AuthState>(
+        stream: authBloc.state,
+        initialData: authBloc.current,
+        builder: (context, snapshot) {
+          final authState = snapshot.data ?? const AuthState.initial();
+          if (authState.isAuthenticated) {
+            return CivicCommonsHarness(
+              harness: harness,
+              authBloc: authBloc,
+              username: authState.username ?? 'anonymous',
+            );
+          }
+          return LoginScreen(authBloc: authBloc);
+        },
       ),
     );
   }
@@ -958,8 +1018,15 @@ class HarnessDependencies {
 
 class CivicCommonsHarness extends StatefulWidget {
   final HarnessDependencies harness;
+  final AuthBloc authBloc;
+  final String username;
 
-  const CivicCommonsHarness({super.key, required this.harness});
+  const CivicCommonsHarness({
+    super.key,
+    required this.harness,
+    required this.authBloc,
+    this.username = 'anonymous',
+  });
 
   @override
   State<CivicCommonsHarness> createState() => _CivicCommonsHarnessState();
@@ -990,7 +1057,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     super.initState();
     final h = widget.harness;
     _warRoomTab = _WarRoomTab(h: h);
-    _vaultTab = _VaultTab(h: h);
+    _vaultTab = _VaultTab(h: h, username: widget.username);
     _ledgerTab = _LedgerTab(h: h);
     _academyTab = _AcademyTab(h: h);
     _identityTab = _IdentityTab(h: h);
@@ -1228,7 +1295,8 @@ class _WarCaseDetail extends StatelessWidget {
 
 class _VaultTab extends StatefulWidget {
   final HarnessDependencies h;
-  const _VaultTab({required this.h});
+  final String username;
+  const _VaultTab({required this.h, this.username = 'anonymous'});
   @override
   State<_VaultTab> createState() => _VaultTabState();
 }
@@ -1245,7 +1313,7 @@ class _VaultTabState extends State<_VaultTab> {
           bloc: widget.h.conversationBloc,
           requestsBloc: widget.h.connectionRequestsBloc,
           usernameDirectory: widget.h.usernameDirectory,
-          contextMeta: 'civic-commons',
+          contextMeta: widget.username,
           onConversationTap: (id) {
             _navPush(
               _nav,

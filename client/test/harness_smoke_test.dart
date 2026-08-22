@@ -1,3 +1,6 @@
+import 'package:civic_commons/auth/auth_bloc.dart';
+import 'package:civic_commons/auth/auth_storage.dart';
+import 'package:civic_commons/auth/identity_api_client.dart';
 import 'package:civic_commons/main.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,7 +24,20 @@ void main() {
     final harness = await tester.runAsync(HarnessDependencies.build);
     expect(harness, isNotNull);
 
-    await tester.pumpWidget(CivicCommonsHarness(harness: harness!));
+    // Create a mock auth bloc that starts authenticated.
+    final authBloc = AuthBloc(
+      api: IdentityApiClient(
+        baseUrl: 'http://localhost:9999', // unreachable — won't be called
+      ),
+      storage: AuthStorage(),
+    );
+    // Force authenticated state for the smoke test.
+    authBloc.skipUsername();
+
+    await tester.pumpWidget(CivicCommonsHarness(
+      harness: harness!,
+      authBloc: authBloc,
+    ));
     // Explicit pumps instead of pumpAndSettle: the harness screens run
     // real (never-ending) SecureScreenWrapper/status animations in test
     // mode, so settling would never complete. A few extra cycles let the
