@@ -36,6 +36,8 @@ var (
 	ErrAuthRequired       = errors.New("identity: authentication required")
 	ErrTokenUnauthorized  = errors.New("identity: token rejected")
 	ErrInternal           = errors.New("identity: internal error")
+	ErrInvalidPreKeyBundle = errors.New("identity: invalid prekey bundle")
+	ErrPreKeyUnavailable  = errors.New("identity: prekey store unavailable")
 )
 
 var blindHashIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -67,6 +69,7 @@ type Service struct {
 	users       UserStore
 	usernames   UsernameStore
 	devices     DeviceStore
+	prekeys     PreKeyStore
 	signer      *JWTSigner
 	verifier    *JWTVerifier
 	refresh     *RefreshManager
@@ -85,6 +88,7 @@ func NewService(
 	users UserStore,
 	usernames UsernameStore,
 	devices DeviceStore,
+	prekeys PreKeyStore,
 	signer *JWTSigner,
 	verifier *JWTVerifier,
 	refresh *RefreshManager,
@@ -100,6 +104,7 @@ func NewService(
 		users:       users,
 		usernames:   usernames,
 		devices:     devices,
+		prekeys:     prekeys,
 		signer:      signer,
 		verifier:    verifier,
 		refresh:     refresh,
@@ -426,4 +431,42 @@ func (s *Service) GetUser(ctx context.Context, blindHashID string) (User, []Devi
 		return User{}, nil, ErrInternal
 	}
 	return user, devices, nil
+}
+
+// PublishPreKeys stores the authenticated user's X3DH prekey bundle.
+// The bundle must carry only public key material; private keys must never
+// be transmitted.
+//
+// SECURITY: the bundle is validated before storage — invalid keys are rejected
+// with ErrInvalidPreKeyBundle. The stored bundle is only accessible via
+// authenticated FetchPreKeys calls.
+func (s *Service) PublishPreKeys(ctx context.Context, blindHashID string, bundle PreKeyBundle) error {
+	if err := ValidatePreKeyBundle(bundle); err != nil {
+		return ErrInvalidPreKeyBundle
+	}
+	if err := s.prekeys.Publish(ctx, blindHashID, bundle); err != nil {
+		return ErrPreKeyUnavailable
+	}
+	s.log.Info("prekeys_published", "event", "prekeys_published", "hash_id", blindHashID)
+	return nil
+}
+
+// FetchPreKeys retrieves the prekey bundle for [peerHashID] (used by the
+// initiator during X3DH). Returns nil when no bundle has been published.
+//
+// SECURITY: the response contains only public key material — no identity
+// hashes beyond the requested peer's blind hash.
+func (s *Service) FetchPreKeys(ctx context.Context, peerHashID string) (*PreKeyBundle, error) {
+	bundle, err := s.prekeys.Get(ctx, peerHashID)
+	if err != nil {
+		return nil, ErrPreKeyUnavailable
+	}
+	return bundle, nil
+}
+
+// ConsumeOneTimePreKey removes one one-time prekey for [blindHashID].
+// Called internally when the server needs to include a one-time prekey in
+// a key exchange response.
+func (s *Service) ConsumeOneTimePreKey(ctx context.Context, blindHashID string) (*OneTimePreKeyEntry, error) {
+	return s.prekeys.ConsumeOneTimePreKey(ctx, blindHashID)
 }

@@ -118,11 +118,14 @@ import 'war_room/data/in_memory_war_case_repository.dart';
 import 'auth/identity_api_client.dart';
 import 'auth/auth_storage.dart';
 import 'auth/auth_bloc.dart';
-import 'auth/user_search_api_client.dart';import 'relay/data/web_socket_relay_socket.dart';
+import 'auth/user_search_api_client.dart';import 'relay/data/api_prekey_bundle_source.dart';
+import 'relay/data/prekey_publisher.dart';
+import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/relay_messaging_bloc.dart';
 import 'signal/double_ratchet_service.dart';
 import 'signal/session_manager.dart';
 import 'signal/session_store.dart';
+import 'signal/prekey_manager.dart';
 import 'signal/x3dh_service.dart';
 import 'state/data/signal_message_cipher.dart';
 import 'state/domain/message_cipher.dart';
@@ -334,7 +337,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
     final token = await storage.getAccessToken();
     if (token == null || token.isEmpty) return;
 
-    // Create the crypto stack and self-session for E2E encryption.
+    // Create the crypto stack for E2E encryption.
     if (_cipher == null) {
       try {
         final crypto = CryptoServiceImpl();
@@ -344,15 +347,56 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
           crypto: crypto,
           store: sessionStore,
         );
-        // Establish a self-session for dev mode: generate a random shared
-        // secret and initialize the Double Ratchet. This allows encrypt/decrypt
-        // in a single-user harness. In production, X3DH key exchange with the
-        // peer's prekey bundle would establish the real session.
-        final sharedSecret = List<int>.generate(32, (i) => i + 0x42);
-        await sessionStore.save(
-          widget.harness.peerHash,
-          await _createSelfRatchet(crypto, sharedSecret),
+
+        // Publish our prekey bundle to the identity service so other users
+        // can initiate X3DH with us.
+        final tokenProvider = () async => token;
+        final prekeyPublisher = PreKeyPublisher(
+          crypto: crypto,
+          prekeyManager: PrekeyManager(
+            cryptoService: crypto,
+            secureStorage: SecureKeyStorage(),
+          ),
+          baseUrl: 'https://civic-commons-identity.onrender.com',
+          tokenProvider: tokenProvider,
         );
+        // Non-blocking: publish prekeys in the background.
+        prekeyPublisher.publishIfNeeded();
+
+        // Create the API-backed prekey bundle source for fetching peer bundles.
+        final bundleSource = ApiPreKeyBundleSource(
+          baseUrl: 'https://civic-commons-identity.onrender.com',
+          tokenProvider: tokenProvider,
+        );
+
+        // Try to establish a real X3DH session with the seeded peer.
+        // If the peer has published prekey bundles, we get real E2E encryption.
+        // If not (dev harness or peer not registered), fall back to a self-session.
+        try {
+          final peerBundle = await bundleSource.fetchFor(widget.harness.peerHash);
+          if (peerBundle != null) {
+            // Real X3DH session established with the peer's published bundle!
+            final identityKeyPair = await crypto.generateCurve25519KeyPair();
+            await sessionManager.establishInitiatorSession(
+              peerBlindHash: widget.harness.peerHash,
+              bundle: peerBundle,
+              myIdentityKeyPair: identityKeyPair,
+            );
+          } else {
+            // Peer hasn't published prekeys — fall back to self-session.
+            await sessionStore.save(
+              widget.harness.peerHash,
+              await _createSelfRatchet(crypto),
+            );
+          }
+        } catch (_) {
+          // X3DH failed — fall back to self-session for dev harness.
+          await sessionStore.save(
+            widget.harness.peerHash,
+            await _createSelfRatchet(crypto),
+          );
+        }
+
         _cipher = SignalMessageCipher(sessions: sessionManager);
       } catch (_) {
         // Crypto init failed — continue without encryption (dev harness).
@@ -394,12 +438,19 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
   }
 
   /// Creates a self-session Double Ratchet for dev mode encryption.
-  Future<DoubleRatchetService> _createSelfRatchet(
-    CryptoService crypto,
-    List<int> sharedSecret,
-  ) async {
+  /// Creates a self-session Double Ratchet for dev mode encryption.
+  /// Generates a deterministic shared secret from the peer hash.
+  Future<DoubleRatchetService> _createSelfRatchet(CryptoService crypto) async {
+    // Generate a deterministic shared secret from the peer hash for dev mode.
+    // In production, X3DH with the peer's published prekey bundle provides
+    // the real shared secret.
+    final peerHash = widget.harness.peerHash;
+    final sharedSecret = Uint8List(32);
+    for (var i = 0; i < 32; i++) {
+      sharedSecret[i] = peerHash.codeUnitAt(i % peerHash.length) & 0xff;
+    }
     final ratchet = DoubleRatchetService(cryptoService: crypto);
-    await ratchet.initialize(Uint8List.fromList(sharedSecret));
+    await ratchet.initialize(sharedSecret);
     return ratchet;
   }
 

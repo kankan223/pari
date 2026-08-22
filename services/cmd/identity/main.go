@@ -127,7 +127,6 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		otpStore = identity.NewRedisOtpStore(redisClient)
 		refreshStore = identity.NewRedisRefreshStore(redisClient)
 	}
-	refreshStore = identity.NewRedisRefreshStore(redisClient)
 	refreshManager := identity.NewRefreshManager(refreshStore, cfg.RefreshTokenTTL)
 
 	// --- SMS provider ---
@@ -155,6 +154,7 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	var users identity.UserStore
 	var usernames identity.UsernameStore
 	var devices identity.DeviceStore
+var prekeys identity.PreKeyStore
 
 	if cfg.RequirePostgres {
 		pgDB, err := database.Open(database.DriverPostgres, cfg.PostgresDSN)
@@ -173,11 +173,13 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		users = pg.Users()
 		usernames = pg.Usernames()
 		devices = pg.Devices()
+		prekeys = identity.NewInMemoryPreKeyStore() // TODO: pg.PreKeys() when schema lands
 	} else {
 		logger.Warn("postgres disabled — using in-memory stores (data lost on restart)")
 		users = identity.NewInMemoryUserStore()
 		usernames = identity.NewInMemoryUsernameStore()
 		devices = identity.NewInMemoryDeviceStore()
+		prekeys = identity.NewInMemoryPreKeyStore()
 	}
 
 	svc := identity.NewService(
@@ -188,6 +190,7 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		users,
 		usernames,
 		devices,
+		prekeys,
 		signer,
 		verifier,
 		refreshManager,

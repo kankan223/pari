@@ -187,6 +187,7 @@ func newTestService(t *testing.T) *testService {
 		NewInMemoryUserStore(),
 		NewInMemoryUsernameStore(),
 		NewInMemoryDeviceStore(),
+		NewInMemoryPreKeyStore(),
 		signer,
 		verifier,
 		refresh,

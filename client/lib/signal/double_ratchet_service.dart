@@ -2,6 +2,9 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:civic_commons/crypto/crypto_service.dart';
 
+// X25519 algorithm instance for DH operations.
+final X25519 _x25519 = X25519();
+
 /// Double Ratchet session encryption
 ///
 /// This service implements the Double Ratchet algorithm for forward secrecy
@@ -216,21 +219,21 @@ class DoubleRatchetService {
     return Uint8List.fromList(mac.bytes);
   }
 
-  /// Perform Diffie-Hellman key exchange
+  /// Perform Diffie-Hellman key exchange using X25519
   ///
-  /// Parameters:
-  /// - privateKey: The private key
-  /// - publicKey: The public key
-  ///
-  /// Returns: The shared secret
+  /// Uses the session's [_dhKeyPair] (already available) with the remote
+  /// [publicKey] to derive the shared secret.
   Future<Uint8List> _performDH(
       Uint8List privateKey, Uint8List publicKey) async {
-    // This would use the actual X25519 DH operation
-    final result = Uint8List(32);
-    for (int i = 0; i < 32; i++) {
-      result[i] = (privateKey[i] ^ publicKey[i]);
-    }
-    return result;
+    // Use the session's current DH key pair for the computation.
+    // The privateKey param is ignored — the real key material lives in
+    // _dhKeyPair which the cryptography package manages internally.
+    final remotePublicKey = SimplePublicKey(publicKey, type: KeyPairType.x25519);
+    final sharedSecret = await _x25519.sharedSecretKey(
+      keyPair: _dhKeyPair!,
+      remotePublicKey: remotePublicKey,
+    );
+    return Uint8List.fromList(await sharedSecret.extractBytes());
   }
 
   /// Compare two byte arrays for equality

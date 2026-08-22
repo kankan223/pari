@@ -224,3 +224,113 @@ func TestServerResponsesNeverLeakPhone(t *testing.T) {
 		t.Fatalf("server logs leaked the phone: %s", ts.logBuf.String())
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Prekey bundle endpoint tests
+
+// validBundle returns a minimal valid PreKeyBundle for testing.
+func validBundle() PreKeyBundle {
+	// 32-byte base64url-encoded keys.
+	ik := "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"  // 32 bytes
+	spk := "BAUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA" // 32 bytes
+	// 64-byte Ed25519 signature
+	sig := "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw"
+	return PreKeyBundle{
+		IdentityKey:          ik,
+		SignedPreKeyID:       1,
+		SignedPreKey:         spk,
+		SignedPreKeySignature: sig,
+		OneTimePreKeys: []OneTimePreKeyEntry{
+			{KeyID: 1, PublicKey: "CQUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"},
+		},
+	}
+}
+
+// loginAndGetToken performs the OTP flow and returns the access token + blind hash.
+func loginAndGetToken(t *testing.T, srv *httptest.Server) (string, string) {
+	t.Helper()
+	var req struct {
+		Requested   bool   `json:"requested"`
+		BlindHashID string `json:"blind_hash_id"`
+	}
+	status, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/request",
+		"", map[string]string{"phone": testPhone}, &req)
+	if status != http.StatusOK {
+		t.Fatalf("otp/request = %d", status)
+	}
+	var auth authResultJSON
+	status, _ = httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/verify",
+		"", map[string]string{"blind_hash_id": req.BlindHashID, "otp": "123456"}, &auth)
+	if status != http.StatusOK {
+		t.Fatalf("otp/verify = %d", status)
+	}
+	return auth.AccessToken, req.BlindHashID
+}
+
+func TestServerPreKeyPublishAndFetch(t *testing.T) {
+	srv, _ := newTestServer(t)
+	token, hashID := loginAndGetToken(t, srv)
+
+	// Publish prekey bundle.
+	bundle := validBundle()
+	pStatus, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/prekeys",
+		token, bundle, nil)
+	if pStatus != http.StatusOK {
+		t.Fatalf("prekeys/publish = %d", pStatus)
+	}
+
+	// Fetch the bundle.
+	var fetched PreKeyBundle
+	fStatus, _ := httpDo(t, http.MethodGet,
+		srv.URL+"/v1/identity/prekeys/"+hashID,
+		token, nil, &fetched)
+	if fStatus != http.StatusOK {
+		t.Fatalf("prekeys/fetch = %d", fStatus)
+	}
+	if fetched.IdentityKey != bundle.IdentityKey {
+		t.Fatalf("identity key mismatch: got %q, want %q", fetched.IdentityKey, bundle.IdentityKey)
+	}
+	if fetched.SignedPreKey != bundle.SignedPreKey {
+		t.Fatalf("signed prekey mismatch")
+	}
+	if len(fetched.OneTimePreKeys) != 1 {
+		t.Fatalf("one-time prekeys count: got %d, want 1", len(fetched.OneTimePreKeys))
+	}
+}
+
+func TestServerPreKeyFetchNotFound(t *testing.T) {
+	srv, _ := newTestServer(t)
+	token, hashID := loginAndGetToken(t, srv)
+
+	// Fetch non-existent bundle → 404.
+	fStatus, _ := httpDo(t, http.MethodGet,
+		srv.URL+"/v1/identity/prekeys/"+hashID,
+		token, nil, nil)
+	if fStatus != http.StatusNotFound {
+		t.Fatalf("prekeys/fetch non-existent = %d, want 404", fStatus)
+	}
+}
+
+func TestServerPreKeyPublishNoAuth(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	// Publish without token → 401.
+	pStatus, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/prekeys",
+		"", validBundle(), nil)
+	if pStatus != http.StatusUnauthorized {
+		t.Fatalf("prekeys/publish no auth = %d, want 401", pStatus)
+	}
+}
+
+func TestServerPreKeyPublishInvalidBundle(t *testing.T) {
+	srv, _ := newTestServer(t)
+	token, _ := loginAndGetToken(t, srv)
+
+	// Publish invalid bundle (empty identity key) → 400.
+	bad := PreKeyBundle{IdentityKey: "", SignedPreKey: "x", SignedPreKeySignature: "y"}
+	pStatus, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/prekeys",
+		token, bad, nil)
+	if pStatus != http.StatusBadRequest {
+		t.Fatalf("prekeys/publish invalid = %d, want 400", pStatus)
+	}
+}

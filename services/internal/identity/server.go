@@ -25,6 +25,8 @@ const (
 	// #nosec G101 -- route path, not a credential.
 	routeTokenRevoke = "POST /v1/identity/token/revoke"
 	routeMe          = "GET /v1/identity/me"
+	routePreKeyPublish = "POST /v1/identity/prekeys"
+	routePreKeyFetch   = "GET /v1/identity/prekeys/{blind_hash_id}"
 	routeHealth = "GET /health"
 )
 
@@ -53,6 +55,8 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 	s.mux.HandleFunc(routeTokenRefresh, s.handleTokenRefresh)
 	s.mux.HandleFunc(routeTokenRevoke, s.handleTokenRevoke)
 	s.mux.HandleFunc(routeMe, s.requireAuth(s.handleMe))
+	s.mux.HandleFunc(routePreKeyPublish, s.requireAuth(s.handlePreKeyPublish))
+	s.mux.HandleFunc(routePreKeyFetch, s.requireAuth(s.handlePreKeyFetch))
 	s.mux.HandleFunc(routeHealth, s.handleHealth)
 
 	return s
@@ -209,6 +213,10 @@ func (s *Server) mapError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "token rejected")
 	case errors.Is(err, ErrUserNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "identity not found")
+	case errors.Is(err, ErrInvalidPreKeyBundle):
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid prekey bundle")
+	case errors.Is(err, ErrPreKeyUnavailable):
+		writeError(w, http.StatusInternalServerError, "internal_error", "prekey store unavailable")
 	default:
 		s.log.Error("internal_error", "err", err.Error())
 		writeError(w, http.StatusInternalServerError, "internal_error", "internal error")
@@ -384,6 +392,40 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		"user":    user,
 		"devices": devices,
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Prekey bundle handlers (X3DH key exchange)
+
+func (s *Server) handlePreKeyPublish(w http.ResponseWriter, r *http.Request) {
+	var req PreKeyBundle
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	hashID := mustSubject(r.Context())
+	if err := s.svc.PublishPreKeys(r.Context(), hashID, req); err != nil {
+		s.mapError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"published": true})
+}
+
+func (s *Server) handlePreKeyFetch(w http.ResponseWriter, r *http.Request) {
+	peerHash := r.PathValue("blind_hash_id")
+	if !ValidBlindHashID(peerHash) {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid blind hash id")
+		return
+	}
+	bundle, err := s.svc.FetchPreKeys(r.Context(), peerHash)
+	if err != nil {
+		s.mapError(w, err)
+		return
+	}
+	if bundle == nil {
+		writeError(w, http.StatusNotFound, "not_found", "no prekey bundle published")
+		return
+	}
+	writeJSON(w, http.StatusOK, bundle)
 }
 
 // mustSubject returns the authenticated subject; handlers under requireAuth
