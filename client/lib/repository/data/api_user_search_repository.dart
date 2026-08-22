@@ -1,4 +1,5 @@
 import '../../auth/user_search_api_client.dart';
+import '../domain/user_list_result.dart';
 import '../domain/user_search_repository.dart';
 import '../domain/username_lookup_result.dart';
 
@@ -31,9 +32,11 @@ class ApiUserSearchRepository implements UserSearchRepository {
   }
 
   @override
-  Future<List<UsernameLookupResult>> listUsers() async {
+  Future<UserListResult> listUsers({int limit = 50, int offset = 0}) async {
     final token = _tokenProvider();
-    if (token.isEmpty) return [];
-    return _api.listUsers(accessToken: token);
+    if (token.isEmpty) {
+      return const UserListResult(users: [], total: 0, hasMore: false);
+    }
+    return _api.listUsers(accessToken: token, limit: limit, offset: offset);
   }
 }

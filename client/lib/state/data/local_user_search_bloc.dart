@@ -13,6 +13,10 @@ import '../domain/user_search_state.dart';
 /// so the Vault can render `@username` handles thereafter — making the raw
 /// username available client-side without ever exposing the blind hash in
 /// the UI tree.
+///
+/// User list pagination: [loadUsers] resets and fetches page 1;
+/// [loadMoreUsers] appends the next page. [hasMoreUsers] reflects
+/// whether additional pages are available.
 class LocalUserSearchBloc implements UserSearchBloc {
   final UserSearchRepository _repository;
   final UsernameDirectory? _directory;
@@ -20,6 +24,9 @@ class LocalUserSearchBloc implements UserSearchBloc {
       StreamController<UserSearchState>.broadcast();
   bool _closed = false;
   List<UsernameLookupResult> _users = [];
+  bool _hasMore = false;
+  int _nextOffset = 0;
+  static const _pageSize = 50;
 
   LocalUserSearchBloc({
     required UserSearchRepository repository,
@@ -32,6 +39,9 @@ class LocalUserSearchBloc implements UserSearchBloc {
 
   @override
   List<UsernameLookupResult> get users => _users;
+
+  @override
+  bool get hasMoreUsers => _hasMore;
 
   @override
   Future<void> search(String username) async {
@@ -70,11 +80,33 @@ class LocalUserSearchBloc implements UserSearchBloc {
   Future<void> loadUsers() async {
     if (_closed) return;
     try {
-      _users = await _repository.listUsers();
+      final result = await _repository.listUsers(limit: _pageSize, offset: 0);
+      _users = result.users;
+      _hasMore = result.hasMore;
+      _nextOffset = result.users.length;
       // Remember all users in the directory for username resolution.
       final directory = _directory;
       if (directory != null) {
         for (final u in _users) {
+          await directory.remember(username: u.username, blindHashId: u.blindHashId);
+        }
+      }
+    } catch (_) {
+      // Silently fail — user list is best-effort.
+    }
+  }
+
+  @override
+  Future<void> loadMoreUsers() async {
+    if (_closed || !_hasMore) return;
+    try {
+      final result = await _repository.listUsers(limit: _pageSize, offset: _nextOffset);
+      _users = [..._users, ...result.users];
+      _hasMore = result.hasMore;
+      _nextOffset += result.users.length;
+      final directory = _directory;
+      if (directory != null) {
+        for (final u in result.users) {
           await directory.remember(username: u.username, blindHashId: u.blindHashId);
         }
       }

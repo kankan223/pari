@@ -53,6 +53,13 @@ type UsernameLookup struct {
 	BlindHashID string `json:"blind_hash_id"`
 }
 
+// UserListResult carries a paginated slice of usernames plus the total
+// count of all actively claimed usernames.
+type UserListResult struct {
+	Users []UsernameLookup `json:"users"`
+	Total int              `json:"total"`
+}
+
 // UsernameStore manages username claim/release with a release cooldown.
 //
 // NOTE (Task 4.5): the production implementation lands with the PostgreSQL
@@ -67,8 +74,10 @@ type UsernameStore interface {
 	// Get returns the current record.
 	Get(ctx context.Context, username string) (UsernameRecord, error)
 	// ListAll returns all actively claimed usernames (OwnerHash != "")
-	// with their owner hashes. Used by the user-list endpoint.
-	ListAll(ctx context.Context) ([]UsernameLookup, error)
+	// with their owner hashes. [limit] caps the number returned (0 = no cap);
+	// [offset] skips the first N entries. The Total field in UserListResult
+	// always reflects the full count before pagination.
+	ListAll(ctx context.Context, limit, offset int) (UserListResult, error)
 }
 
 // InMemoryUsernameStore is a mutex-guarded in-memory UsernameStore.
@@ -131,28 +140,36 @@ func (s *InMemoryUsernameStore) Get(_ context.Context, username string) (Usernam
 	return rec, nil
 }
 
-// ListAll implements UsernameStore. Returns all actively claimed usernames
-// (where OwnerHash is non-empty) sorted alphabetically.
-func (s *InMemoryUsernameStore) ListAll(_ context.Context) ([]UsernameLookup, error) {
+// ListAll implements UsernameStore. Returns a paginated slice of actively
+// claimed usernames (where OwnerHash is non-empty) sorted alphabetically.
+func (s *InMemoryUsernameStore) ListAll(_ context.Context, limit, offset int) (UserListResult, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var result []UsernameLookup
+	var all []UsernameLookup
 	for username, rec := range s.usernames {
 		if rec.OwnerHash == "" {
 			continue // released / cooldown — not listed
 		}
-		result = append(result, UsernameLookup{
+		all = append(all, UsernameLookup{
 			Username:    username,
 			BlindHashID: rec.OwnerHash,
 		})
 	}
 	// Sort alphabetically for deterministic output.
-	for i := 0; i < len(result); i++ {
-		for j := i + 1; j < len(result); j++ {
-			if result[i].Username > result[j].Username {
-				result[i], result[j] = result[j], result[i]
+	for i := 0; i < len(all); i++ {
+		for j := i + 1; j < len(all); j++ {
+			if all[i].Username > all[j].Username {
+				all[i], all[j] = all[j], all[i]
 			}
 		}
 	}
-	return result, nil
+	total := len(all)
+	if offset > total {
+		offset = total
+	}
+	end := total
+	if limit > 0 && offset+limit < total {
+		end = offset + limit
+	}
+	return UserListResult{Users: all[offset:end], Total: total}, nil
 }

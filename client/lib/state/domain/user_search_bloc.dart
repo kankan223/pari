@@ -14,14 +14,20 @@ abstract class UserSearchBloc {
   /// Stream of search states (idle → searching → found | notFound | error).
   Stream<UserSearchState> get state;
 
-  /// The cached list of all users on the platform.
+  /// The cached list of users on the platform (accumulated across pages).
   List<UsernameLookupResult> get users;
+
+  /// Whether more users are available to load.
+  bool get hasMoreUsers;
 
   /// Searches for [username]. Emits searching, then found/notFound/error.
   Future<void> search(String username);
 
-  /// Loads the full user list from the server.
+  /// Loads the first page of users from the server.
   Future<void> loadUsers();
+
+  /// Loads the next page of users from the server.
+  Future<void> loadMoreUsers();
 
   /// Returns to the idle state (clears the previous result).
   Future<void> clear();

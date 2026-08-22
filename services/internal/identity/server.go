@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -396,15 +397,36 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleUsers returns all users who have claimed a username.
-// Response: { "users": [{"username": "...", "blind_hash_id": "..."}, ...] }
+// handleUsers returns a paginated list of users who have claimed a
+// username. Query params: limit (default 50, max 200), offset (default 0).
+// Response: { "users": [...], "total": N, "has_more": bool }
 func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := s.svc.ListUsers(r.Context())
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := 0
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	result, err := s.svc.ListUsers(r.Context(), limit, offset)
 	if err != nil {
 		s.mapError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"users": users})
+	hasMore := offset+len(result.Users) < result.Total
+	writeJSON(w, http.StatusOK, map[string]any{
+		"users":    result.Users,
+		"total":    result.Total,
+		"has_more": hasMore,
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../repository/domain/user_list_result.dart';
 import '../repository/domain/username_lookup_result.dart';
 
 /// HTTP client for the Civic Commons identity service's username search.
@@ -48,29 +49,42 @@ class UserSearchApiClient {
     return null;
   }
 
-  /// Lists all users who have claimed a username.
+  /// Lists users who have claimed a username, with pagination.
   ///
-  /// Returns a list of [UsernameLookupResult] — public usernames + blind hashes.
-  Future<List<UsernameLookupResult>> listUsers({
+  /// Returns a [UserListResult] containing the page of users, total count,
+  /// and whether more pages exist.
+  Future<UserListResult> listUsers({
     required String accessToken,
+    int limit = 50,
+    int offset = 0,
   }) async {
+    final uri = Uri.parse('$baseUrl/v1/identity/users').replace(
+      queryParameters: {
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      },
+    );
     final response = await _client.get(
-      Uri.parse('$baseUrl/v1/identity/users'),
+      uri,
       headers: {'Authorization': 'Bearer $accessToken'},
     );
 
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final users = body['users'] as List<dynamic>? ?? [];
-      return users.map((u) {
-        final map = u as Map<String, dynamic>;
-        return UsernameLookupResult(
-          username: map['username'] as String,
-          blindHashId: map['blind_hash_id'] as String,
-        );
-      }).toList();
+      return UserListResult(
+        users: users.map((u) {
+          final map = u as Map<String, dynamic>;
+          return UsernameLookupResult(
+            username: map['username'] as String,
+            blindHashId: map['blind_hash_id'] as String,
+          );
+        }).toList(),
+        total: body['total'] as int? ?? 0,
+        hasMore: body['has_more'] as bool? ?? false,
+      );
     }
-    return [];
+    return const UserListResult(users: [], total: 0, hasMore: false);
   }
 
   void dispose() {

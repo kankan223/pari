@@ -108,13 +108,25 @@ func (p *UsernameStore) Get(ctx context.Context, username string) (identity.User
 	return rec, nil
 }
 
-// ListAll implements identity.UsernameStore. Returns all actively claimed
-// usernames (owner_hash is non-empty) sorted alphabetically.
-func (p *UsernameStore) ListAll(ctx context.Context) ([]identity.UsernameLookup, error) {
-	var result []identity.UsernameLookup
+// ListAll implements identity.UsernameStore. Returns a paginated slice of
+// actively claimed usernames sorted alphabetically.
+func (p *UsernameStore) ListAll(ctx context.Context, limit, offset int) (identity.UserListResult, error) {
+	var result identity.UserListResult
 	err := p.s.withTx(ctx, func(ctx context.Context, tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx,
-			`SELECT username, owner_hash FROM usernames WHERE owner_hash != '' ORDER BY username ASC`)
+		// Count total.
+		err := tx.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM usernames WHERE owner_hash != ''`).Scan(&result.Total)
+		if err != nil {
+			return err
+		}
+		// Fetch page.
+		query := `SELECT username, owner_hash FROM usernames WHERE owner_hash != '' ORDER BY username ASC`
+		args := []any{}
+		if limit > 0 {
+			query += ` LIMIT $1 OFFSET $2`
+			args = append(args, limit, offset)
+		}
+		rows, err := tx.QueryContext(ctx, query, args...)
 		if err != nil {
 			return err
 		}
@@ -124,12 +136,12 @@ func (p *UsernameStore) ListAll(ctx context.Context) ([]identity.UsernameLookup,
 			if err := rows.Scan(&l.Username, &l.BlindHashID); err != nil {
 				return err
 			}
-			result = append(result, l)
+			result.Users = append(result.Users, l)
 		}
 		return rows.Err()
 	})
 	if err != nil {
-		return nil, err
+		return identity.UserListResult{}, err
 	}
 	return result, nil
 }

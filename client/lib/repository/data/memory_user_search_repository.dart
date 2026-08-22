@@ -1,3 +1,4 @@
+import '../domain/user_list_result.dart';
 import '../domain/user_search_repository.dart';
 import '../domain/username_lookup_result.dart';
 
@@ -34,11 +35,20 @@ class MemoryUserSearchRepository implements UserSearchRepository {
   }
 
   @override
-  Future<List<UsernameLookupResult>> listUsers() async {
+  Future<UserListResult> listUsers({int limit = 50, int offset = 0}) async {
     final entries = _directory.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
-    return entries
+    final total = entries.length;
+    final start = offset > total ? total : offset;
+    final end = (limit > 0 && start + limit < total) ? start + limit : total;
+    final page = entries
+        .sublist(start, end)
         .map((e) => UsernameLookupResult(username: e.key, blindHashId: e.value))
         .toList();
+    return UserListResult(
+      users: page,
+      total: total,
+      hasMore: end < total,
+    );
   }
 }

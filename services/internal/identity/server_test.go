@@ -323,7 +323,9 @@ func TestServerUsersEndpoint(t *testing.T) {
 	}
 
 	var resp struct {
-		Users []UsernameLookup `json:"users"`
+		Users   []UsernameLookup `json:"users"`
+		Total   int              `json:"total"`
+		HasMore bool             `json:"has_more"`
 	}
 	status, _ := httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users",
 		userToken, nil, &resp)
@@ -332,6 +334,12 @@ func TestServerUsersEndpoint(t *testing.T) {
 	}
 	if len(resp.Users) != 2 {
 		t.Fatalf("expected 2 users, got %d", len(resp.Users))
+	}
+	if resp.Total != 2 {
+		t.Fatalf("expected total=2, got %d", resp.Total)
+	}
+	if resp.HasMore {
+		t.Fatalf("expected has_more=false")
 	}
 	// Verify usernames are present (sorted alphabetically).
 	if resp.Users[0].Username != "alice" {
@@ -361,7 +369,9 @@ func TestServerUsersEndpointEmpty(t *testing.T) {
 	srv, _ := newTestServer(t)
 	token, _ := loginAndGetToken(t, srv)
 	var resp struct {
-		Users []UsernameLookup `json:"users"`
+		Users   []UsernameLookup `json:"users"`
+		Total   int              `json:"total"`
+		HasMore bool             `json:"has_more"`
 	}
 	status, _ := httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users",
 		token, nil, &resp)
@@ -370,5 +380,114 @@ func TestServerUsersEndpointEmpty(t *testing.T) {
 	}
 	if len(resp.Users) != 0 {
 		t.Fatalf("expected 0 users, got %d", len(resp.Users))
+	}
+	if resp.Total != 0 {
+		t.Fatalf("expected total=0, got %d", resp.Total)
+	}
+}
+
+func TestServerUsersEndpointPagination(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	// Register 5 users.
+	for i := 0; i < 5; i++ {
+		phone := "+1202555110" + string(rune('0'+i))
+		name := []string{"alpha", "bravo", "charlie", "delta", "echo"}[i]
+		var req struct {
+			Requested   bool   `json:"requested"`
+			BlindHashID string `json:"blind_hash_id"`
+		}
+		httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/request",
+			"", map[string]string{"phone": phone}, &req)
+		var auth authResultJSON
+		httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/verify",
+			"", map[string]string{"blind_hash_id": req.BlindHashID, "otp": "123456"}, &auth)
+		httpDo(t, http.MethodPost, srv.URL+"/v1/identity/username/claim",
+			auth.AccessToken, map[string]string{"username": name}, nil)
+		if i == 0 {
+			_ = auth // just to use the variable
+		}
+	}
+
+	// Use first user's token.
+	var firstToken string
+	for i := 0; i < 1; i++ {
+		phone := "+12025551100"
+		var req struct {
+			Requested   bool   `json:"requested"`
+			BlindHashID string `json:"blind_hash_id"`
+		}
+		httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/request",
+			"", map[string]string{"phone": phone}, &req)
+		var auth authResultJSON
+		httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/verify",
+			"", map[string]string{"blind_hash_id": req.BlindHashID, "otp": "123456"}, &auth)
+		firstToken = auth.AccessToken
+	}
+
+	// Page 1: limit=2.
+	var page1 struct {
+		Users   []UsernameLookup `json:"users"`
+		Total   int              `json:"total"`
+		HasMore bool             `json:"has_more"`
+	}
+	status, _ := httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users?limit=2",
+		firstToken, nil, &page1)
+	if status != http.StatusOK {
+		t.Fatalf("users page 1 = %d", status)
+	}
+	if len(page1.Users) != 2 {
+		t.Fatalf("page 1: expected 2 users, got %d", len(page1.Users))
+	}
+	if page1.Total != 5 {
+		t.Fatalf("page 1: expected total=5, got %d", page1.Total)
+	}
+	if !page1.HasMore {
+		t.Fatalf("page 1: expected has_more=true")
+	}
+	if page1.Users[0].Username != "alpha" {
+		t.Fatalf("page 1: expected alpha, got %s", page1.Users[0].Username)
+	}
+
+	// Page 2: limit=2, offset=2.
+	var page2 struct {
+		Users   []UsernameLookup `json:"users"`
+		Total   int              `json:"total"`
+		HasMore bool             `json:"has_more"`
+	}
+	status, _ = httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users?limit=2&offset=2",
+		firstToken, nil, &page2)
+	if status != http.StatusOK {
+		t.Fatalf("users page 2 = %d", status)
+	}
+	if len(page2.Users) != 2 {
+		t.Fatalf("page 2: expected 2 users, got %d", len(page2.Users))
+	}
+	if !page2.HasMore {
+		t.Fatalf("page 2: expected has_more=true")
+	}
+	if page2.Users[0].Username != "charlie" {
+		t.Fatalf("page 2: expected charlie, got %s", page2.Users[0].Username)
+	}
+
+	// Page 3: limit=2, offset=4 → only 1 user remaining.
+	var page3 struct {
+		Users   []UsernameLookup `json:"users"`
+		Total   int              `json:"total"`
+		HasMore bool             `json:"has_more"`
+	}
+	status, _ = httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users?limit=2&offset=4",
+		firstToken, nil, &page3)
+	if status != http.StatusOK {
+		t.Fatalf("users page 3 = %d", status)
+	}
+	if len(page3.Users) != 1 {
+		t.Fatalf("page 3: expected 1 user, got %d", len(page3.Users))
+	}
+	if page3.HasMore {
+		t.Fatalf("page 3: expected has_more=false")
+	}
+	if page3.Users[0].Username != "echo" {
+		t.Fatalf("page 3: expected echo, got %s", page3.Users[0].Username)
 	}
 }

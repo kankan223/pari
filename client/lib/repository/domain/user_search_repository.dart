@@ -1,3 +1,4 @@
+import 'user_list_result.dart';
 import 'username_lookup_result.dart';
 
 /// The ONLY boundary for username search (port, Task 6.2).
@@ -13,6 +14,6 @@ abstract class UserSearchRepository {
   /// username does not resolve (unknown, released, or reserved).
   Future<UsernameLookupResult?> searchByUsername(String username);
 
-  /// Lists all users who have claimed a username.
-  Future<List<UsernameLookupResult>> listUsers();
+  /// Lists users who have claimed a username, with pagination.
+  Future<UserListResult> listUsers({int limit, int offset});
 }

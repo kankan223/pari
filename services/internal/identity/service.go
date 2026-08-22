@@ -503,13 +503,14 @@ func (s *Service) CountOTPKs(ctx context.Context, blindHashID string) (int, erro
 	return count, nil
 }
 
-// ListUsers returns all users who have claimed a username. The result
-// contains only the username and blind_hash_id — no phone numbers, no
-// device keys, no PII.
-func (s *Service) ListUsers(ctx context.Context) ([]UsernameLookup, error) {
-	lookups, err := s.usernames.ListAll(ctx)
+// ListUsers returns a paginated list of users who have claimed a username.
+// The result contains only the username and blind_hash_id — no phone
+// numbers, no device keys, no PII. [limit] caps the page size (0 = all);
+// [offset] skips the first N entries.
+func (s *Service) ListUsers(ctx context.Context, limit, offset int) (UserListResult, error) {
+	result, err := s.usernames.ListAll(ctx, limit, offset)
 	if err != nil {
-		return nil, ErrInternal
+		return UserListResult{}, ErrInternal
 	}
-	return lookups, nil
+	return result, nil
 }

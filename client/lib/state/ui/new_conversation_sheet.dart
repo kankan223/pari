@@ -152,45 +152,60 @@ class _NewConversationSheetState extends State<NewConversationSheet> {
       final users = widget.searchBloc.users;
       if (users.isNotEmpty) {
         return ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 240),
-          child: ListView.separated(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: ListView.builder(
             shrinkWrap: true,
-            itemCount: users.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemCount: users.length + (widget.searchBloc.hasMoreUsers ? 1 : 0),
             itemBuilder: (context, index) {
+              // "Load More" button at the end.
+              if (index == users.length) {
+                return TextButton(
+                  onPressed: () async {
+                    await widget.searchBloc.loadMoreUsers();
+                    setState(() {});
+                  },
+                  child: const Text('Load more users...'),
+                );
+              }
               final user = users[index];
-              return ListTile(
-                dense: true,
-                leading: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: VaultTheme.vaultBlue,
-                  child: Text(
-                    user.username[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: VaultTheme.vaultBlue,
+                      child: Text(
+                        user.username[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
+                    title: Text(
+                      '@${user.username}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: VaultTheme.vaultBlue,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      formatPeerHandle(user.blindHashId),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                        fontFamily: VaultTheme.monoFont,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => _startConversation(user.blindHashId),
                   ),
-                ),
-                title: Text(
-                  '@${user.username}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: VaultTheme.vaultBlue,
-                    fontSize: 14,
-                  ),
-                ),
-                subtitle: Text(
-                  formatPeerHandle(user.blindHashId),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[500],
-                    fontFamily: VaultTheme.monoFont,
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: () => _startConversation(user.blindHashId),
+                  const Divider(height: 1),
+                ],
               );
             },
           ),

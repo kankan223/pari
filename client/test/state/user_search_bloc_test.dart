@@ -1,5 +1,6 @@
 import 'package:civic_commons/repository/data/memory_user_search_repository.dart';
 import 'package:civic_commons/repository/data/memory_username_directory.dart';
+import 'package:civic_commons/repository/domain/user_list_result.dart';
 import 'package:civic_commons/repository/domain/user_search_repository.dart';
 import 'package:civic_commons/repository/domain/username_lookup_result.dart';
 import 'package:civic_commons/state/data/local_user_search_bloc.dart';
@@ -123,7 +124,7 @@ class _ThrowingSearchRepository implements UserSearchRepository {
   }
 
   @override
-  Future<List<UsernameLookupResult>> listUsers() async {
+  Future<UserListResult> listUsers({int limit = 50, int offset = 0}) async {
     throw StateError('search unavailable');
   }
 }
