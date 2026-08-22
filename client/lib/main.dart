@@ -46,9 +46,11 @@ import 'repository/data/local_message_repository.dart';
 import 'repository/data/local_sync_queue_repository.dart';
 import 'repository/data/memory_username_directory.dart';
 import 'repository/domain/connection_request.dart';
+import 'repository/data/api_user_search_repository.dart';
 import 'repository/domain/conversation.dart';
 import 'repository/domain/entity_store.dart';
 import 'repository/domain/message.dart';
+import 'state/data/local_user_search_bloc.dart';
 import 'repository/domain/sync_queue_item.dart';
 import 'repository/domain/sync_queue_repository.dart';
 import 'repository/domain/sync_sink.dart';
@@ -115,16 +117,17 @@ import 'war_room/data/in_memory_war_case_repository.dart';
 import 'auth/identity_api_client.dart';
 import 'auth/auth_storage.dart';
 import 'auth/auth_bloc.dart';
-import 'relay/data/web_socket_relay_socket.dart';
+import 'auth/user_search_api_client.dart';import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/relay_messaging_bloc.dart';
-
 import 'repository/domain/username_directory.dart';
 import 'security/ui/secure_screen_wrapper.dart';
 import 'state/domain/conversation_bloc.dart';
 import 'state/domain/local_data_stream.dart';
 import 'state/domain/message_bloc.dart';
 import 'state/domain/message_state.dart';
+import 'state/domain/user_search_bloc.dart';
 import 'state/ui/login_screen.dart';
+import 'state/ui/new_conversation_sheet.dart';
 import 'state/domain/peer_handle.dart';
 import 'state/ui/vault_theme.dart';
 
@@ -303,6 +306,7 @@ class CivicCommonsApp extends StatefulWidget {
 
 class _CivicCommonsAppState extends State<CivicCommonsApp> {
   RelayMessagingBloc? _relayBloc;
+  LocalUserSearchBloc? _userSearchBloc;
   AuthState? _lastAuthState;
 
   @override
@@ -330,6 +334,20 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
         conversationStore: h.conversationStore,
         myBlindHash: h.peerHash,
         deviceId: 'civic-web-${DateTime.now().millisecondsSinceEpoch}',
+      );
+    }
+
+    // Create user search bloc if not already created.
+    if (_userSearchBloc == null) {
+      final apiClient = UserSearchApiClient(
+        baseUrl: 'https://civic-commons-identity.onrender.com',
+      );
+      _userSearchBloc = LocalUserSearchBloc(
+        repository: ApiUserSearchRepository(
+          api: apiClient,
+          tokenProvider: () => token,
+        ),
+        directory: widget.harness.usernameDirectory,
       );
     }
 
@@ -373,6 +391,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
               authBloc: widget.authBloc,
               username: authState.username ?? 'anonymous',
               relayBloc: _relayBloc,
+              userSearchBloc: _userSearchBloc,
             );
           }
           // Disconnect relay on logout.
@@ -1101,6 +1120,7 @@ class CivicCommonsHarness extends StatefulWidget {
   final AuthBloc authBloc;
   final String username;
   final RelayMessagingBloc? relayBloc;
+  final LocalUserSearchBloc? userSearchBloc;
 
   const CivicCommonsHarness({
     super.key,
@@ -1108,6 +1128,7 @@ class CivicCommonsHarness extends StatefulWidget {
     required this.authBloc,
     this.username = 'anonymous',
     this.relayBloc,
+    this.userSearchBloc,
   });
 
   @override
@@ -1139,7 +1160,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     super.initState();
     final h = widget.harness;
     _warRoomTab = _WarRoomTab(h: h);
-    _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc);
+    _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc, userSearchBloc: widget.userSearchBloc);
     _ledgerTab = _LedgerTab(h: h);
     _academyTab = _AcademyTab(h: h);
     _identityTab = _IdentityTab(h: h);
@@ -1379,13 +1400,58 @@ class _VaultTab extends StatefulWidget {
   final HarnessDependencies h;
   final String username;
   final RelayMessagingBloc? relayBloc;
-  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc});
+  final UserSearchBloc? userSearchBloc;
+  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc, this.userSearchBloc});
   @override
   State<_VaultTab> createState() => _VaultTabState();
 }
 
 class _VaultTabState extends State<_VaultTab> {
   final _nav = GlobalKey<NavigatorState>();
+
+  void _showNewConversationSheet() {
+    final searchBloc = widget.userSearchBloc;
+    if (searchBloc == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NewConversationSheet(
+        searchBloc: searchBloc,
+        onStartConversation: (blindHashId) {
+          _startNewConversation(blindHashId);
+        },
+      ),
+    );
+  }
+
+  void _startNewConversation(String peerHash) async {
+    // Create a new conversation in the local store.
+    final conv = Conversation(
+      id: 'conv-${DateTime.now().millisecondsSinceEpoch}',
+      participantHash: peerHash,
+      encryptedSessionState: Uint8List(0),
+    );
+    await widget.h.conversationBloc.repository.create(conv);
+    await widget.h.conversationBloc.refresh();
+
+    // Remember the peer in the directory.
+    await widget.h.usernameDirectory.remember(username: '', blindHashId: peerHash);
+
+    // Navigate to the new conversation.
+    if (mounted) {
+      _navPush(
+        _nav,
+        _VaultConversationDetailWrapper(
+          messageBloc: widget.h.messageBloc,
+          conversationBloc: widget.h.conversationBloc,
+          peerHash: peerHash,
+          relayBloc: widget.relayBloc,
+          usernameDirectory: widget.h.usernameDirectory,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1397,6 +1463,7 @@ class _VaultTabState extends State<_VaultTab> {
           requestsBloc: widget.h.connectionRequestsBloc,
           usernameDirectory: widget.h.usernameDirectory,
           contextMeta: widget.username,
+          onNewConversation: _showNewConversationSheet,
           onConversationTap: (id) {
             _navPush(
               _nav,
