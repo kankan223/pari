@@ -2,6 +2,8 @@ import 'package:civic_commons/auth/auth_bloc.dart';
 import 'package:civic_commons/auth/auth_storage.dart';
 import 'package:civic_commons/auth/identity_api_client.dart';
 import 'package:civic_commons/main.dart';
+import 'package:civic_commons/repository/data/memory_user_search_repository.dart';
+import 'package:civic_commons/state/data/local_user_search_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,6 +46,9 @@ void main() {
     await tester.pumpWidget(CivicCommonsHarness(
       harness: harness!,
       authBloc: authBloc,
+      userSearchBloc: LocalUserSearchBloc(
+        repository: MemoryUserSearchRepository(),
+      ),
     ));
     // Explicit pumps instead of pumpAndSettle: the harness screens run
     // real (never-ending) SecureScreenWrapper/status animations in test

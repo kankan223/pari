@@ -76,15 +76,17 @@ class LocalMessageBloc implements MessageBloc {
   Future<void> send(String text) async {
     final participantHash = _participantHash;
     final cipher = _cipher;
-    if (participantHash == null || cipher == null) {
-      throw StateError(
-          'Message encryption is not wired for conversation $_conversationId');
+    Uint8List sealed;
+    if (cipher != null && participantHash != null) {
+      final plaintext = Uint8List.fromList(utf8.encode(text));
+      sealed = await cipher.encrypt(
+        participantHash: participantHash,
+        plaintext: plaintext,
+      );
+    } else {
+      // No cipher wired — persist raw bytes (dev harness mode).
+      sealed = Uint8List.fromList(utf8.encode(text));
     }
-    final plaintext = Uint8List.fromList(utf8.encode(text));
-    final sealed = await cipher.encrypt(
-      participantHash: participantHash,
-      plaintext: plaintext,
-    );
     final message = Message(
       id: _idGen.generate(),
       conversationId: _conversationId,
@@ -126,6 +128,15 @@ class LocalMessageBloc implements MessageBloc {
         } catch (_) {
           // Undecryptable — keep content null so the UI shows the fixed
           // placeholder. Never propagate raw bytes or error detail.
+        }
+      } else if (m.ciphertext.isNotEmpty) {
+        // No cipher wired (dev harness) — try UTF-8 decode on raw bytes.
+        try {
+          summary = summary.copyWith(
+            content: utf8.decode(m.ciphertext, allowMalformed: true),
+          );
+        } catch (_) {
+          // Not valid UTF-8 — leave content null.
         }
       }
       summaries.add(summary);

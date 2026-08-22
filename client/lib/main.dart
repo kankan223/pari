@@ -317,14 +317,26 @@ class CivicCommonsApp extends StatefulWidget {
 
 class _CivicCommonsAppState extends State<CivicCommonsApp> {
   RelayMessagingBloc? _relayBloc;
-  LocalUserSearchBloc? _userSearchBloc;
+  late final LocalUserSearchBloc _userSearchBloc;
   AuthState? _lastAuthState;
+  String _authToken = '';
 
   @override
   void initState() {
     super.initState();
     _lastAuthState = widget.authBloc.current;
-    // Relay is created lazily on first auth — see _connectRelay.
+    // Create user search bloc synchronously so the vault tab can use it
+    // immediately (no async gap between auth and first render).
+    final apiClient = UserSearchApiClient(
+      baseUrl: 'https://civic-commons-identity.onrender.com',
+    );
+    _userSearchBloc = LocalUserSearchBloc(
+      repository: ApiUserSearchRepository(
+        api: apiClient,
+        tokenProvider: () => _authToken,
+      ),
+      directory: widget.harness.usernameDirectory,
+    );
     // Connect relay if already authenticated.
     if (_lastAuthState?.isAuthenticated == true) {
       _connectRelay(_lastAuthState!);
@@ -432,19 +444,9 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
       );
     }
 
-    // Create user search bloc if not already created.
-    if (_userSearchBloc == null) {
-      final apiClient = UserSearchApiClient(
-        baseUrl: 'https://civic-commons-identity.onrender.com',
-      );
-      _userSearchBloc = LocalUserSearchBloc(
-        repository: ApiUserSearchRepository(
-          api: apiClient,
-          tokenProvider: () => token,
-        ),
-        directory: widget.harness.usernameDirectory,
-      );
-    }
+    // Update the auth token on the user search bloc (created synchronously
+    // in initState so the vault tab can use it immediately).
+    _authToken = token;
 
     _relayBloc?.connect(
       accessToken: token,
@@ -1232,7 +1234,7 @@ class CivicCommonsHarness extends StatefulWidget {
   final AuthBloc authBloc;
   final String username;
   final RelayMessagingBloc? relayBloc;
-  final LocalUserSearchBloc? userSearchBloc;
+  final LocalUserSearchBloc userSearchBloc;
 
   const CivicCommonsHarness({
     super.key,
@@ -1240,7 +1242,7 @@ class CivicCommonsHarness extends StatefulWidget {
     required this.authBloc,
     this.username = 'anonymous',
     this.relayBloc,
-    this.userSearchBloc,
+    required this.userSearchBloc,
   });
 
   @override
@@ -1512,8 +1514,8 @@ class _VaultTab extends StatefulWidget {
   final HarnessDependencies h;
   final String username;
   final RelayMessagingBloc? relayBloc;
-  final UserSearchBloc? userSearchBloc;
-  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc, this.userSearchBloc});
+  final UserSearchBloc userSearchBloc;
+  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc, required this.userSearchBloc});
   @override
   State<_VaultTab> createState() => _VaultTabState();
 }
@@ -1522,14 +1524,12 @@ class _VaultTabState extends State<_VaultTab> {
   final _nav = GlobalKey<NavigatorState>();
 
   void _showNewConversationSheet() {
-    final searchBloc = widget.userSearchBloc;
-    if (searchBloc == null) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => NewConversationSheet(
-        searchBloc: searchBloc,
+        searchBloc: widget.userSearchBloc,
         onStartConversation: (blindHashId) {
           _startNewConversation(blindHashId);
         },
