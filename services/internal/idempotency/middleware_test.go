@@ -14,6 +14,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/kankan223/pari/services/internal/cache"
 )
 
 // validUUID is a well-formed UUID v4 (shape the client emits, Task 5.2).
@@ -24,7 +26,7 @@ func newTestMiddleware(t *testing.T, ttl time.Duration) (func(http.HandlerFunc) 
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
-	m := NewMiddleware(NewRedisStore(rdb), ttl, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m := NewMiddleware(NewRedisStore(cache.WrapRedis(rdb)), ttl, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return m.Wrap, mr
 }
 
@@ -326,7 +328,7 @@ func TestActorScopingSeparatesUsers(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
-	m := NewMiddleware(NewRedisStore(rdb), time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil))).
+	m := NewMiddleware(NewRedisStore(cache.WrapRedis(rdb)), time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil))).
 		ScopedBy(func(r *http.Request) string { return r.Header.Get("X-Actor") })
 
 	alice := "1111111111111111111111111111111111111111111111111111111111111111"
@@ -409,7 +411,7 @@ func TestDefaultTTLApplied(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
-	m := NewMiddleware(NewRedisStore(rdb), 0, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m := NewMiddleware(NewRedisStore(cache.WrapRedis(rdb)), 0, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec, code := do(m.Wrap(countingHandler(http.StatusOK, `{}`, &atomic.Int64{})), validUUID)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d", code)

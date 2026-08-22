@@ -14,6 +14,9 @@ import (
 	"github.com/kankan223/pari/services/internal/cache"
 )
 
+// compile-time check that RedisOtpStore satisfies OtpStore.
+var _ OtpStore = (*RedisOtpStore)(nil)
+
 // OTP namespace and policy (Task 4.3): codes live in Redis under
 // `otp:{blind_hash_id}` for 10 minutes, stored bcrypt-hashed so a Redis
 // compromise never reveals live codes. Attempts are capped to slow
@@ -76,13 +79,14 @@ type OtpStore interface {
 	ClearAttempts(ctx context.Context, blindHashID string) error
 }
 
-// RedisOtpStore is the production OtpStore backed by go-redis.
+// RedisOtpStore is the production OtpStore backed by a Redis-compatible client
+// (go-redis *redis.Client or Upstash HTTP client).
 type RedisOtpStore struct {
-	rdb *redis.Client
+	rdb cache.RedisClient
 }
 
 // NewRedisOtpStore wraps [rdb].
-func NewRedisOtpStore(rdb *redis.Client) *RedisOtpStore {
+func NewRedisOtpStore(rdb cache.RedisClient) *RedisOtpStore {
 	return &RedisOtpStore{rdb: rdb}
 }
 

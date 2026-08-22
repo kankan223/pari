@@ -55,15 +55,16 @@ type OfflineQueue interface {
 	Len(ctx context.Context, recipientHash string) (int64, error)
 }
 
-// RedisOfflineQueue is the production OfflineQueue.
+// RedisOfflineQueue is the production OfflineQueue backed by a
+// Redis-compatible client (go-redis *redis.Client or Upstash HTTP).
 type RedisOfflineQueue struct {
-	rdb *redis.Client
+	rdb cache.RedisClient
 	ttl time.Duration
 }
 
 // NewRedisOfflineQueue wraps [rdb] with a retention window of [ttl]
 // (30 days in production; shortened in tests).
-func NewRedisOfflineQueue(rdb *redis.Client, ttl time.Duration) *RedisOfflineQueue {
+func NewRedisOfflineQueue(rdb cache.RedisClient, ttl time.Duration) *RedisOfflineQueue {
 	return &RedisOfflineQueue{rdb: rdb, ttl: ttl}
 }
 

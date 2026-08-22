@@ -82,49 +82,65 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		verifier: identity.NewJWTVerifier(pubKey, cfg.JWTIssuer, cfg.JWTAudience),
 	}
 
-	// --- Redis-backed offline queue (Sentinel HA when REDIS_SENTINEL_ADDRS is set) ---
-	rdb := cache.NewClient(cache.Options{
-		Addr:               cfg.RedisAddr,
-		Password:           cfg.RedisPass,
-		DB:                 cfg.RedisDB,
-		SentinelAddrs:      cfg.RedisSentinelAddrs,
-		SentinelMasterName: cfg.RedisSentinelMaster,
-		SentinelPassword:   cfg.RedisSentinelPass,
-		PoolSize:           cfg.RedisPoolSize,
-		MinIdleConns:       cfg.RedisMinIdleConns,
-		MaxRetries:         cfg.RedisMaxRetries,
-		MinRetryBackoff:    cfg.RedisMinRetryBackoff,
-		MaxRetryBackoff:    cfg.RedisMaxRetryBackoff,
-		DialTimeout:        cfg.RedisDialTimeout,
-		ReadTimeout:        cfg.RedisReadTimeout,
-		WriteTimeout:       cfg.RedisWriteTimeout,
-		PoolTimeout:        cfg.RedisPoolTimeout,
-	})
-	defer func() { _ = rdb.Close() }()
-	// Health-check probe: ping with a short deadline. In production a core
-	// dependency that is unreachable at startup is a deploy error — fail
-	// fast (like the PG migration). In dev the failure is logged and the
-	// lazy client recovers when Redis returns.
-	probeCtx, cancelProbe := context.WithTimeout(ctx, 5*time.Second)
-	probeErr := cache.Ping(probeCtx, rdb)
-	cancelProbe()
-	if probeErr != nil {
-		logger.Error("redis health probe failed at startup", "error", probeErr.Error(), "mode", redisMode(cfg))
-		if cfg.Environment == "production" {
-			return fmt.Errorf("redis unreachable at startup: %w", probeErr)
-		}
-	} else {
-		logger.Info("redis connected", "mode", redisMode(cfg))
-	}
+	// --- Redis-backed offline queue (Upstash HTTP when URL detected, otherwise Sentinel/standalone) ---
+	var redisClient cache.RedisClient
+	var redisCloser func() error
+	var redisHealthy bool
 
-	queue := relay.NewRedisOfflineQueue(rdb, cfg.OfflineQueueTTL)
+	if upstashBase, upstashToken, ok := cache.ParseUpstashURL(cfg.RedisAddr); ok {
+		redisClient = cache.NewUpstashClient(upstashBase, upstashToken)
+		redisCloser = func() error { return nil }
+		redisHealthy = true
+		logger.Info("redis client", "mode", "upstash-http")
+	} else {
+		rdb := cache.NewClient(cache.Options{
+			Addr:               cfg.RedisAddr,
+			Password:           cfg.RedisPass,
+			DB:                 cfg.RedisDB,
+			SentinelAddrs:      cfg.RedisSentinelAddrs,
+			SentinelMasterName: cfg.RedisSentinelMaster,
+			SentinelPassword:   cfg.RedisSentinelPass,
+			PoolSize:           cfg.RedisPoolSize,
+			MinIdleConns:       cfg.RedisMinIdleConns,
+			MaxRetries:         cfg.RedisMaxRetries,
+			MinRetryBackoff:    cfg.RedisMinRetryBackoff,
+			MaxRetryBackoff:    cfg.RedisMaxRetryBackoff,
+			DialTimeout:        cfg.RedisDialTimeout,
+			ReadTimeout:        cfg.RedisReadTimeout,
+			WriteTimeout:       cfg.RedisWriteTimeout,
+			PoolTimeout:        cfg.RedisPoolTimeout,
+		})
+		redisClient = &cache.RedisClientAdapter{Client: rdb}
+		redisCloser = rdb.Close
+		probeCtx, cancelProbe := context.WithTimeout(ctx, 5*time.Second)
+		probeErr := cache.Ping(probeCtx, rdb)
+		cancelProbe()
+		if probeErr != nil {
+			logger.Error("redis health probe failed at startup", "error", probeErr.Error(), "mode", redisMode(cfg))
+			if cfg.Environment == "production" {
+				return fmt.Errorf("redis unreachable at startup: %w", probeErr)
+			}
+		} else {
+			redisHealthy = true
+			logger.Info("redis connected", "mode", redisMode(cfg))
+		}
+	}
+	defer func() { _ = redisCloser() }()
+
+	var queue relay.OfflineQueue
+	var idemStore idempotency.Store
+	if !redisHealthy {
+		logger.Warn("redis unavailable — using in-memory stores (data lost on restart)")
+		queue = relay.NewInMemoryOfflineQueue(cfg.OfflineQueueTTL)
+		idemStore = idempotency.NewInMemoryStore()
+	} else {
+		queue = relay.NewRedisOfflineQueue(redisClient, cfg.OfflineQueueTTL)
+		idemStore = idempotency.NewRedisStore(redisClient)
+	}
 	hub := relay.NewHub(queue)
 
 	// --- Idempotency dedup for mutation endpoints (Task 5.3) ---
-	// Retried client mutations (network drop / timeout) must not be applied
-	// twice: the Idempotency-Key header (UUID v4, Task 5.2) is deduped in
-	// Redis for 24h, replaying the cached response on retry.
-	idem := idempotency.NewMiddleware(idempotency.NewRedisStore(rdb), cfg.IdempotencyTTL, logger)
+	idem := idempotency.NewMiddleware(idemStore, cfg.IdempotencyTTL, logger)
 
 	// --- Event bus (NATS JetStream; noop fallback so dev runs without a
 	// broker) ---

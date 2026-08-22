@@ -72,45 +72,62 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	signer := identity.NewJWTSigner(jwtKey, cfg.JWTKid, cfg.JWTIssuer, cfg.JWTAudience, cfg.AccessTokenTTL)
 	verifier := identity.NewJWTVerifier(&jwtKey.PublicKey, cfg.JWTIssuer, cfg.JWTAudience)
 
-	// --- Redis-backed stores (Sentinel HA when REDIS_SENTINEL_ADDRS is set) ---
-	rdb := cache.NewClient(cache.Options{
-		Addr:               cfg.RedisAddr,
-		Password:           cfg.RedisPass,
-		DB:                 cfg.RedisDB,
-		SentinelAddrs:      cfg.RedisSentinelAddrs,
-		SentinelMasterName: cfg.RedisSentinelMaster,
-		SentinelPassword:   cfg.RedisSentinelPass,
-		PoolSize:           cfg.RedisPoolSize,
-		MinIdleConns:       cfg.RedisMinIdleConns,
-		MaxRetries:         cfg.RedisMaxRetries,
-		MinRetryBackoff:    cfg.RedisMinRetryBackoff,
-		MaxRetryBackoff:    cfg.RedisMaxRetryBackoff,
-		DialTimeout:        cfg.RedisDialTimeout,
-		ReadTimeout:        cfg.RedisReadTimeout,
-		WriteTimeout:       cfg.RedisWriteTimeout,
-		PoolTimeout:        cfg.RedisPoolTimeout,
-	})
-	defer func() { _ = rdb.Close() }()
-	// Health-check probe: ping with a short deadline. In production a core
-	// dependency that is unreachable at startup is a deploy error — fail
-	// fast (like the PG migration). In dev the failure is logged and the
-	// lazy client recovers when Redis returns.
-	probeCtx, cancelProbe := context.WithTimeout(ctx, 5*time.Second)
-	probeErr := cache.Ping(probeCtx, rdb)
-	cancelProbe()
+	// --- Redis-backed stores (Upstash HTTP when URL detected, otherwise Sentinel/standalone) ---
+	var redisClient cache.RedisClient
+	var redisCloser func() error
+	var redisHealthy bool
+
+	if upstashBase, upstashToken, ok := cache.ParseUpstashURL(cfg.RedisAddr); ok {
+		// Upstash HTTP REST API (port 443) — works from Render free tier
+		// where the RESP protocol (port 6389) is blocked.
+		redisClient = cache.NewUpstashClient(upstashBase, upstashToken)
+		redisCloser = func() error { return nil }
+		redisHealthy = true
+		logger.Info("redis client", "mode", "upstash-http")
+	} else {
+		// Standard go-redis RESP client (Sentinel HA when REDIS_SENTINEL_ADDRS is set)
+		rdb := cache.NewClient(cache.Options{
+			Addr:               cfg.RedisAddr,
+			Password:           cfg.RedisPass,
+			DB:                 cfg.RedisDB,
+			SentinelAddrs:      cfg.RedisSentinelAddrs,
+			SentinelMasterName: cfg.RedisSentinelMaster,
+			SentinelPassword:   cfg.RedisSentinelPass,
+			PoolSize:           cfg.RedisPoolSize,
+			MinIdleConns:       cfg.RedisMinIdleConns,
+			MaxRetries:         cfg.RedisMaxRetries,
+			MinRetryBackoff:    cfg.RedisMinRetryBackoff,
+			MaxRetryBackoff:    cfg.RedisMaxRetryBackoff,
+			DialTimeout:        cfg.RedisDialTimeout,
+			ReadTimeout:        cfg.RedisReadTimeout,
+			WriteTimeout:       cfg.RedisWriteTimeout,
+			PoolTimeout:        cfg.RedisPoolTimeout,
+		})
+		redisClient = &cache.RedisClientAdapter{Client: rdb}
+		redisCloser = rdb.Close
+		probeCtx, cancelProbe := context.WithTimeout(ctx, 5*time.Second)
+		probeErr := cache.Ping(probeCtx, rdb)
+		cancelProbe()
+		if probeErr != nil {
+			logger.Warn("redis health probe failed at startup", "error", probeErr.Error(), "mode", redisMode(cfg))
+		} else {
+			redisHealthy = true
+		}
+	}
+	defer func() { _ = redisCloser() }()
 
 	var otpStore identity.OtpStore
 	var refreshStore identity.RefreshStore
 
-	if probeErr != nil {
-		logger.Warn("redis unavailable — using in-memory stores (data lost on restart)", "error", probeErr.Error())
+	if !redisHealthy {
+		logger.Warn("redis unavailable — using in-memory stores (data lost on restart)")
 		otpStore = identity.NewInMemoryOtpStore()
 		refreshStore = identity.NewInMemoryRefreshStore()
 	} else {
-		logger.Info("redis connected", "mode", redisMode(cfg))
-		otpStore = identity.NewRedisOtpStore(rdb)
-		refreshStore = identity.NewRedisRefreshStore(rdb)
+		otpStore = identity.NewRedisOtpStore(redisClient)
+		refreshStore = identity.NewRedisRefreshStore(redisClient)
 	}
+	refreshStore = identity.NewRedisRefreshStore(redisClient)
 	refreshManager := identity.NewRefreshManager(refreshStore, cfg.RefreshTokenTTL)
 
 	// --- SMS provider ---

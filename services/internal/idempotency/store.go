@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/kankan223/pari/services/internal/cache"
 )
 
 // Entry statuses stored in the Redis value.
@@ -65,13 +67,13 @@ type Store interface {
 }
 
 // RedisStore is the go-redis-backed Store (works with the Sentinel-HA client
-// produced by cache.NewClient — same *redis.Client type).
+// produced by cache.NewClient or the Upstash HTTP client).
 type RedisStore struct {
-	rdb *redis.Client
+	rdb cache.RedisClient
 }
 
 // NewRedisStore builds a Store over [rdb].
-func NewRedisStore(rdb *redis.Client) *RedisStore { return &RedisStore{rdb: rdb} }
+func NewRedisStore(rdb cache.RedisClient) *RedisStore { return &RedisStore{rdb: rdb} }
 
 // Claim implements Store.
 func (s *RedisStore) Claim(ctx context.Context, key string, ttl time.Duration) (bool, error) {

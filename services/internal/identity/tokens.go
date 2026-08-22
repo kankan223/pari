@@ -319,13 +319,14 @@ type RefreshStore interface {
 	RevokeFamily(ctx context.Context, familyID string, ttl time.Duration) error
 }
 
-// RedisRefreshStore is the production RefreshStore.
+// RedisRefreshStore is the production RefreshStore backed by a
+// Redis-compatible client (go-redis *redis.Client or Upstash HTTP).
 type RedisRefreshStore struct {
-	rdb *redis.Client
+	rdb cache.RedisClient
 }
 
 // NewRedisRefreshStore wraps [rdb].
-func NewRedisRefreshStore(rdb *redis.Client) *RedisRefreshStore {
+func NewRedisRefreshStore(rdb cache.RedisClient) *RedisRefreshStore {
 	return &RedisRefreshStore{rdb: rdb}
 }
 

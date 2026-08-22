@@ -14,6 +14,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/kankan223/pari/services/internal/cache"
 	"github.com/kankan223/pari/services/internal/idempotency"
 	"github.com/kankan223/pari/services/internal/logging"
 )
@@ -25,7 +26,8 @@ func newIdemTestEnv(t *testing.T) *wsTestEnv {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
-	queue := NewRedisOfflineQueue(rdb, testQueueTTL)
+	wrappedRdb := cache.WrapRedis(rdb)
+	queue := NewRedisOfflineQueue(wrappedRdb, testQueueTTL)
 	hub := NewHub(queue)
 	auth := &stubAuthenticator{tokens: map[string]string{
 		"token-alice": alice,
@@ -33,7 +35,7 @@ func newIdemTestEnv(t *testing.T) *wsTestEnv {
 	}}
 	logBuf := &syncBuf{}
 	logger := logging.NewRedactingLogger(logBuf, slog.LevelInfo)
-	idem := idempotency.NewMiddleware(idempotency.NewRedisStore(rdb), time.Hour, logger)
+	idem := idempotency.NewMiddleware(idempotency.NewRedisStore(wrappedRdb), time.Hour, logger)
 	srv := NewServer(ServerOptions{
 		Hub:           hub,
 		Authenticator: auth,

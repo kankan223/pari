@@ -7,6 +7,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/kankan223/pari/services/internal/cache"
 )
 
 func newTestStore(t *testing.T) (Store, *miniredis.Miniredis) {
@@ -14,7 +16,7 @@ func newTestStore(t *testing.T) (Store, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
-	return NewRedisStore(rdb), mr
+	return NewRedisStore(cache.WrapRedis(rdb)), mr
 }
 
 func TestClaimFirstCallerWins(t *testing.T) {

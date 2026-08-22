@@ -16,6 +16,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/kankan223/pari/services/internal/cache"
 	"github.com/kankan223/pari/services/internal/logging"
 )
 
@@ -135,7 +136,7 @@ func (f *fakeCodeGen) Generate() (string, error) {
 // testService bundles a fully wired identity service for tests.
 type testService struct {
 	svc      *Service
-	rdb      *redis.Client
+	rdb      cache.RedisClient
 	mr       *miniredis.Miniredis
 	provider *fakeProvider
 	codeGen  *fakeCodeGen
@@ -151,7 +152,7 @@ func newTestService(t *testing.T) *testService {
 	mr := miniredis.RunT(t)
 	// miniredis v2.36 has no Client() helper; connect the pinned go-redis v9
 	// client to its ephemeral address.
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	rdb := cache.WrapRedis(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
 
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

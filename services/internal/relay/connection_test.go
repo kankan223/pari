@@ -64,7 +64,7 @@ func newWSTestEnv(t *testing.T) *wsTestEnv {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	queue := NewRedisOfflineQueue(rdb, testQueueTTL)
+	queue := NewRedisOfflineQueue(cache.WrapRedis(rdb), testQueueTTL)
 	hub := NewHub(queue)
 	auth := &stubAuthenticator{tokens: map[string]string{
 		"token-alice": alice,

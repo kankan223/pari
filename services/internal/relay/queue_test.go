@@ -38,7 +38,7 @@ func newTestQueue(t *testing.T) (*RedisOfflineQueue, *miniredis.Miniredis) {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	return NewRedisOfflineQueue(rdb, testQueueTTL), mr
+	return NewRedisOfflineQueue(cache.WrapRedis(rdb), testQueueTTL), mr
 }
 
 func TestQueueEnqueueReadOldestFirst(t *testing.T) {
