@@ -3,7 +3,6 @@ package cache
 
 import (
 	"context"
-	"crypto/tls"
 	"strings"
 	"time"
 
@@ -117,30 +116,29 @@ func NewClient(opts Options) *redis.Client {
 		})
 	}
 	// Parse redis:// or rediss:// URLs (Upstash, Redis Cloud, etc.)
-	addr := opts.Addr
-	password := opts.Password
-	if strings.HasPrefix(addr, "redis://") || strings.HasPrefix(addr, "rediss://") {
-		parsed, err := redis.ParseURL(addr)
+	// redis.ParseURL handles TLS config automatically for rediss:// scheme.
+	if strings.HasPrefix(opts.Addr, "redis://") || strings.HasPrefix(opts.Addr, "rediss://") {
+		parsed, err := redis.ParseURL(opts.Addr)
 		if err == nil {
-			addr = parsed.Addr
-			password = parsed.Password
-			if opts.DB == 0 {
-				opts.DB = parsed.DB
-			}
+			// Preserve caller's tuning (pool size, retries, etc.)
+			parsed.MaxRetries = opts.MaxRetries
+			parsed.MinRetryBackoff = opts.MinRetryBackoff
+			parsed.MaxRetryBackoff = opts.MaxRetryBackoff
+			parsed.DialTimeout = opts.DialTimeout
+			parsed.ReadTimeout = opts.ReadTimeout
+			parsed.WriteTimeout = opts.WriteTimeout
+			parsed.PoolSize = opts.PoolSize
+			parsed.PoolTimeout = opts.PoolTimeout
+			parsed.MinIdleConns = opts.MinIdleConns
+			parsed.MaxIdleConns = opts.MaxIdleConns
+			parsed.ConnMaxIdleTime = opts.ConnMaxIdleTime
+			return redis.NewClient(parsed)
 		}
 	}
 
-	// TLS: enable automatically when address uses rediss:// scheme
-	var tlsCfg *tls.Config
-	if strings.HasPrefix(opts.Addr, "rediss://") {
-		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
-
 	return redis.NewClient(&redis.Options{
-		Addr:            addr,
-		Password:        password,
-		TLSConfig:       tlsCfg,
-		DB:              opts.DB,
+		Addr:            opts.Addr,
+		Password:        opts.Password,
 		MaxRetries:      opts.MaxRetries,
 		MinRetryBackoff: opts.MinRetryBackoff,
 		MaxRetryBackoff: opts.MaxRetryBackoff,
