@@ -492,3 +492,13 @@ func (s *Service) FetchBundle(ctx context.Context, peerHashID string) (*PreKeyBu
 	consumed, _ := s.prekeys.ConsumeOneTimePreKey(ctx, peerHashID)
 	return bundle, consumed, nil
 }
+
+// CountOTPKs returns the number of remaining one-time prekeys for
+// [blindHashID]. Used by the client to decide when to replenish.
+func (s *Service) CountOTPKs(ctx context.Context, blindHashID string) (int, error) {
+	count, err := s.prekeys.CountOneTimePreKeys(ctx, blindHashID)
+	if err != nil {
+		return 0, ErrPreKeyUnavailable
+	}
+	return count, nil
+}

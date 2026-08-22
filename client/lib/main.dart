@@ -119,6 +119,7 @@ import 'auth/identity_api_client.dart';
 import 'auth/auth_storage.dart';
 import 'auth/auth_bloc.dart';
 import 'auth/user_search_api_client.dart';import 'relay/data/api_prekey_bundle_source.dart';
+import 'relay/data/otpk_replenisher.dart';
 import 'relay/data/prekey_publisher.dart';
 import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/relay_messaging_bloc.dart';
@@ -369,17 +370,31 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
           tokenProvider: tokenProvider,
         );
 
+        // Create the OTPK replenisher — monitors pool and auto-replenishes.
+        final otpkReplenisher = OtpkReplenisher(
+          crypto: crypto,
+          prekeyManager: PrekeyManager(
+            cryptoService: crypto,
+            secureStorage: SecureKeyStorage(),
+          ),
+          baseUrl: 'https://civic-commons-identity.onrender.com',
+          tokenProvider: tokenProvider,
+        );
+        otpkReplenisher.startPeriodicCheck();
+
         // Try to establish a real X3DH session with the seeded peer.
         // If the peer has published prekey bundles, we get real E2E encryption.
         // If not (dev harness or peer not registered), fall back to a self-session.
         try {
-          final peerBundle = await bundleSource.fetchFor(widget.harness.peerHash);
-          if (peerBundle != null) {
+          final fetchResult = await bundleSource.fetchWithCount(widget.harness.peerHash);
+          // Piggyback: check if the peer's OTPK pool is low and replenish.
+          otpkReplenisher.checkAndReplenish(fetchResult.remainingOTPKs);
+          if (fetchResult.bundle != null) {
             // Real X3DH session established with the peer's published bundle!
             final identityKeyPair = await crypto.generateCurve25519KeyPair();
             await sessionManager.establishInitiatorSession(
               peerBlindHash: widget.harness.peerHash,
-              bundle: peerBundle,
+              bundle: fetchResult.bundle!,
               myIdentityKeyPair: identityKeyPair,
             );
           } else {

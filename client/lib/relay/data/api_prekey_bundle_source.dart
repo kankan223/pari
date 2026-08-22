@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../../signal/models.dart';
-import '../../signal/prekey_bundle_source.dart';
+import 'prekey_bundle_fetch_result.dart';
 
 /// Fetches peer X3DH prekey bundles from the identity service API.
 ///
@@ -15,7 +15,7 @@ import '../../signal/prekey_bundle_source.dart';
 /// SECURITY CHECKPOINT: only public key material is transmitted; private
 /// keys never leave the device. The API endpoint requires authentication
 /// so bundles cannot be scraped anonymously.
-class ApiPreKeyBundleSource implements PreKeyBundleSource {
+class ApiPreKeyBundleSource {
   final String baseUrl;
   final Future<String?> Function() tokenProvider;
 
@@ -24,34 +24,42 @@ class ApiPreKeyBundleSource implements PreKeyBundleSource {
     required this.tokenProvider,
   });
 
-  @override
-  Future<PreKeyBundle?> fetchFor(String peerBlindHash) async {
+  /// Fetch the peer's prekey bundle and remaining OTPK count.
+  ///
+  /// Returns a [PreKeyBundleFetchResult] with the bundle and OTPK count,
+  /// or null values if no bundle is published.
+  Future<PreKeyBundleFetchResult> fetchWithCount(String peerBlindHash) async {
     final token = await tokenProvider();
-    if (token == null || token.isEmpty) return null;
+    if (token == null || token.isEmpty) {
+      return const PreKeyBundleFetchResult();
+    }
 
     try {
       final url = Uri.parse('$baseUrl/v1/identity/prekeys/$peerBlindHash');
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 404) {
-        return null; // No bundle published for this peer
+        return const PreKeyBundleFetchResult();
       }
 
       if (response.statusCode != 200) {
-        return null; // Server error — degrade gracefully
+        return const PreKeyBundleFetchResult();
       }
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      return _parseBundle(json);
+      final bundle = _parseBundle(json);
+      final remaining = json['otpk_remaining'] as int?;
+      return PreKeyBundleFetchResult(bundle: bundle, remainingOTPKs: remaining);
     } catch (_) {
-      // Network error, timeout, etc. — degrade gracefully.
-      return null;
+      return const PreKeyBundleFetchResult();
     }
   }
 
@@ -97,7 +105,6 @@ class ApiPreKeyBundleSource implements PreKeyBundleSource {
   }
 
   static Uint8List _base64Decode(String data) {
-    // Try standard base64 first, then base64url.
     try {
       return Uint8List.fromList(base64Decode(data));
     } catch (_) {

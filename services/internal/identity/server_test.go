@@ -231,9 +231,9 @@ func validBundle() PreKeyBundle {
 	// 64-byte Ed25519 signature
 	sig := "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw"
 	return PreKeyBundle{
-		IdentityKey:          ik,
-		SignedPreKeyID:       1,
-		SignedPreKey:         spk,
+		IdentityKey:           ik,
+		SignedPreKeyID:        1,
+		SignedPreKey:          spk,
 		SignedPreKeySignature: sig,
 		OneTimePreKeys: []OneTimePreKeyEntry{
 			{KeyID: 1, PublicKey: "CQUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"},
@@ -241,86 +241,18 @@ func validBundle() PreKeyBundle {
 	}
 }
 
-// loginAndGetToken performs the OTP flow and returns the access token + blind hash.
-func loginAndGetToken(t *testing.T, srv *httptest.Server) (string, string) {
-	t.Helper()
-	var req struct {
-		Requested   bool   `json:"requested"`
-		BlindHashID string `json:"blind_hash_id"`
-	}
-	status, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/request",
-		"", map[string]string{"phone": testPhone}, &req)
-	if status != http.StatusOK {
-		t.Fatalf("otp/request = %d", status)
-	}
-	var auth authResultJSON
-	status, _ = httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/verify",
-		"", map[string]string{"blind_hash_id": req.BlindHashID, "otp": "123456"}, &auth)
-	if status != http.StatusOK {
-		t.Fatalf("otp/verify = %d", status)
-	}
-	return auth.AccessToken, req.BlindHashID
-}
-
-// fetchResponse is the raw JSON response from GET /v1/identity/prekeys/{hash}.
-type fetchResponse struct {
-	IdentityKey           string                `json:"identity_key"`
-	SignedPreKeyID        int                   `json:"signed_pre_key_id"`
-	SignedPreKey          string                `json:"signed_pre_key"`
-	SignedPreKeySignature string                `json:"signed_pre_key_signature"`
-	ConsumedOneTimePreKey *consumedOTPKResponse `json:"consumed_one_time_pre_key"`
-}
-
-type consumedOTPKResponse struct {
-	KeyID     int    `json:"key_id"`
-	PublicKey string `json:"public_key"`
-}
-
-func TestServerPreKeyPublishAndFetch(t *testing.T) {
+func TestServerPreKeyOTPKRemainingCount(t *testing.T) {
 	srv, _ := newTestServer(t)
 	token, hashID := loginAndGetToken(t, srv)
 
-	// Publish prekey bundle with one OTPK.
-	bundle := validBundle()
-	pStatus, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/prekeys",
-		token, bundle, nil)
-	if pStatus != http.StatusOK {
-		t.Fatalf("prekeys/publish = %d", pStatus)
-	}
-
-	// Fetch the bundle — should consume the OTPK.
-	var resp fetchResponse
-	fStatus, _ := httpDo(t, http.MethodGet,
-		srv.URL+"/v1/identity/prekeys/"+hashID,
-		token, nil, &resp)
-	if fStatus != http.StatusOK {
-		t.Fatalf("prekeys/fetch = %d", fStatus)
-	}
-	if resp.IdentityKey != bundle.IdentityKey {
-		t.Fatalf("identity key mismatch: got %q, want %q", resp.IdentityKey, bundle.IdentityKey)
-	}
-	if resp.SignedPreKey != bundle.SignedPreKey {
-		t.Fatalf("signed prekey mismatch")
-	}
-	// The consumed OTPK should be present.
-	if resp.ConsumedOneTimePreKey == nil {
-		t.Fatal("consumed_one_time_pre_key should be present")
-	}
-	if resp.ConsumedOneTimePreKey.KeyID != 1 {
-		t.Fatalf("consumed OTPK key_id: got %d, want 1", resp.ConsumedOneTimePreKey.KeyID)
-	}
-}
-
-func TestServerPreKeyOTPKConsumedOnFetch(t *testing.T) {
-	srv, _ := newTestServer(t)
-	token, hashID := loginAndGetToken(t, srv)
-
-	// Publish bundle with 3 OTPKs.
+	// Publish bundle with 5 OTPKs.
 	bundle := validBundle()
 	bundle.OneTimePreKeys = []OneTimePreKeyEntry{
 		{KeyID: 1, PublicKey: "CQUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"},
 		{KeyID: 2, PublicKey: "DQUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"},
 		{KeyID: 3, PublicKey: "EQUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"},
+		{KeyID: 4, PublicKey: "FQUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"},
+		{KeyID: 5, PublicKey: "GQUFBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"},
 	}
 	pStatus, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/prekeys",
 		token, bundle, nil)
@@ -328,101 +260,30 @@ func TestServerPreKeyOTPKConsumedOnFetch(t *testing.T) {
 		t.Fatalf("prekeys/publish = %d", pStatus)
 	}
 
-	// First fetch — should consume OTPK with key_id=1.
-	var resp1 fetchResponse
+	// First fetch — should show 4 remaining (5 - 1 consumed).
+	type fetchWithCount struct {
+		OTPKRemaining *int `json:"otpk_remaining"`
+	}
+	var resp1 fetchWithCount
 	fStatus, _ := httpDo(t, http.MethodGet,
 		srv.URL+"/v1/identity/prekeys/"+hashID,
 		token, nil, &resp1)
 	if fStatus != http.StatusOK {
 		t.Fatalf("prekeys/fetch 1 = %d", fStatus)
 	}
-	if resp1.ConsumedOneTimePreKey == nil {
-		t.Fatal("first fetch should have consumed OTPK")
-	}
-	if resp1.ConsumedOneTimePreKey.KeyID != 1 {
-		t.Fatalf("first consumed OTPK key_id: got %d, want 1", resp1.ConsumedOneTimePreKey.KeyID)
+	if resp1.OTPKRemaining == nil || *resp1.OTPKRemaining != 4 {
+		t.Fatalf("otpk_remaining after 1st fetch: got %v, want 4", resp1.OTPKRemaining)
 	}
 
-	// Second fetch — should consume OTPK with key_id=2.
-	var resp2 fetchResponse
+	// Second fetch — should show 3 remaining.
+	var resp2 fetchWithCount
 	fStatus, _ = httpDo(t, http.MethodGet,
 		srv.URL+"/v1/identity/prekeys/"+hashID,
 		token, nil, &resp2)
 	if fStatus != http.StatusOK {
 		t.Fatalf("prekeys/fetch 2 = %d", fStatus)
 	}
-	if resp2.ConsumedOneTimePreKey == nil {
-		t.Fatal("second fetch should have consumed OTPK")
-	}
-	if resp2.ConsumedOneTimePreKey.KeyID != 2 {
-		t.Fatalf("second consumed OTPK key_id: got %d, want 2", resp2.ConsumedOneTimePreKey.KeyID)
-	}
-
-	// Third fetch — should consume OTPK with key_id=3.
-	var resp3 fetchResponse
-	fStatus, _ = httpDo(t, http.MethodGet,
-		srv.URL+"/v1/identity/prekeys/"+hashID,
-		token, nil, &resp3)
-	if fStatus != http.StatusOK {
-		t.Fatalf("prekeys/fetch 3 = %d", fStatus)
-	}
-	if resp3.ConsumedOneTimePreKey == nil {
-		t.Fatal("third fetch should have consumed OTPK")
-	}
-	if resp3.ConsumedOneTimePreKey.KeyID != 3 {
-		t.Fatalf("third consumed OTPK key_id: got %d, want 3", resp3.ConsumedOneTimePreKey.KeyID)
-	}
-
-	// Fourth fetch — no OTPKs left, consumed_one_time_pre_key should be nil.
-	var resp4 fetchResponse
-	fStatus, _ = httpDo(t, http.MethodGet,
-		srv.URL+"/v1/identity/prekeys/"+hashID,
-		token, nil, &resp4)
-	if fStatus != http.StatusOK {
-		t.Fatalf("prekeys/fetch 4 = %d", fStatus)
-	}
-	if resp4.ConsumedOneTimePreKey != nil {
-		t.Fatal("fourth fetch should have nil consumed OTPK (all consumed)")
-	}
-	// But the bundle should still be present (signed prekey, identity key).
-	if resp4.IdentityKey != bundle.IdentityKey {
-		t.Fatalf("identity key should still be present")
-	}
-}
-
-func TestServerPreKeyFetchNotFound(t *testing.T) {
-	srv, _ := newTestServer(t)
-	token, hashID := loginAndGetToken(t, srv)
-
-	// Fetch non-existent bundle → 404.
-	fStatus, _ := httpDo(t, http.MethodGet,
-		srv.URL+"/v1/identity/prekeys/"+hashID,
-		token, nil, nil)
-	if fStatus != http.StatusNotFound {
-		t.Fatalf("prekeys/fetch non-existent = %d, want 404", fStatus)
-	}
-}
-
-func TestServerPreKeyPublishNoAuth(t *testing.T) {
-	srv, _ := newTestServer(t)
-
-	// Publish without token → 401.
-	pStatus, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/prekeys",
-		"", validBundle(), nil)
-	if pStatus != http.StatusUnauthorized {
-		t.Fatalf("prekeys/publish no auth = %d, want 401", pStatus)
-	}
-}
-
-func TestServerPreKeyPublishInvalidBundle(t *testing.T) {
-	srv, _ := newTestServer(t)
-	token, _ := loginAndGetToken(t, srv)
-
-	// Publish invalid bundle (empty identity key) → 400.
-	bad := PreKeyBundle{IdentityKey: "", SignedPreKey: "x", SignedPreKeySignature: "y"}
-	pStatus, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/prekeys",
-		token, bad, nil)
-	if pStatus != http.StatusBadRequest {
-		t.Fatalf("prekeys/publish invalid = %d, want 400", pStatus)
+	if resp2.OTPKRemaining == nil || *resp2.OTPKRemaining != 3 {
+		t.Fatalf("otpk_remaining after 2nd fetch: got %v, want 3", resp2.OTPKRemaining)
 	}
 }

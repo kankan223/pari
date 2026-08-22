@@ -442,6 +442,10 @@ func (s *Server) handlePreKeyFetch(w http.ResponseWriter, r *http.Request) {
 			"public_key": consumed.PublicKey,
 		}
 	}
+	// Include remaining OTPK count so the client knows when to replenish.
+	if remaining, err := s.svc.CountOTPKs(r.Context(), peerHash); err == nil {
+		resp["otpk_remaining"] = remaining
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 

@@ -35,7 +35,7 @@ void main() {
       );
 
       // Responder generates keys and publishes bundle
-      final responderIdentity = await crypto.generateEd25519KeyPair();
+      final responderIdentity = await crypto.generateCurve25519KeyPair();
       final responderSignedPreKey = await crypto.generateCurve25519KeyPair();
       final responderOneTimePreKey = await crypto.generateCurve25519KeyPair();
 
@@ -49,7 +49,7 @@ void main() {
         oneTimePreKey: await _pubBytes(responderOneTimePreKey),
       );
 
-      final initiatorIdentity = await crypto.generateEd25519KeyPair();
+      final initiatorIdentity = await crypto.generateCurve25519KeyPair();
       final peerHash = 'a' * 64;
 
       // 1. Establish session via X3DH
@@ -94,7 +94,7 @@ void main() {
         store: store,
       );
 
-      final responderIdentity = await crypto.generateEd25519KeyPair();
+      final responderIdentity = await crypto.generateCurve25519KeyPair();
       final responderSignedPreKey = await crypto.generateCurve25519KeyPair();
       final bundle = PreKeyBundle(
         registrationId: '1',
@@ -104,7 +104,7 @@ void main() {
         signedPreKeySignature: Uint8List(64),
       );
 
-      final identity = await crypto.generateEd25519KeyPair();
+      final identity = await crypto.generateCurve25519KeyPair();
       await manager.establishInitiatorSession(
         peerBlindHash: 'b' * 64,
         bundle: bundle,
@@ -129,7 +129,7 @@ void main() {
         store: store,
       );
 
-      final responderIdentity = await crypto.generateEd25519KeyPair();
+      final responderIdentity = await crypto.generateCurve25519KeyPair();
       final responderSignedPreKey = await crypto.generateCurve25519KeyPair();
       final bundle = PreKeyBundle(
         registrationId: '1',
@@ -139,7 +139,7 @@ void main() {
         signedPreKeySignature: Uint8List(64),
       );
 
-      final identity = await crypto.generateEd25519KeyPair();
+      final identity = await crypto.generateCurve25519KeyPair();
       final peer = 'c' * 64;
       await manager.establishInitiatorSession(
         peerBlindHash: peer,

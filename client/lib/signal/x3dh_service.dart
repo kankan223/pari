@@ -165,21 +165,22 @@ class X3DHService {
   }
 
   /// Perform DH from raw private key bytes.
+  ///
+  /// Reconstructs the X25519 key pair from the provided [privateKeyBytes]
+  /// and computes the DH shared secret with [publicKeyBytes].
   Future<Uint8List> _performDHFromPrivateKey(
     Uint8List privateKeyBytes,
     Uint8List publicKeyBytes,
   ) async {
-    final keyPair = await _cryptoService.generateCurve25519KeyPair();
-    // We need to reconstruct the key pair from private key bytes.
-    // The cryptography package doesn't directly support this, so we
-    // use the key pair's shared secret method with a reconstructed pair.
-    // For X3DH responder, we need to reconstruct from stored private key.
-    // This is a simplified path — in production, the private key would be
-    // loaded from secure storage as a proper SimpleKeyPair.
-    final publicKey = SimplePublicKey(publicKeyBytes, type: KeyPairType.x25519);
+    final keyPair = SimpleKeyPairData(
+      privateKeyBytes,
+      publicKey: SimplePublicKey(publicKeyBytes, type: KeyPairType.x25519),
+      type: KeyPairType.x25519,
+    );
+    final remotePublicKey = SimplePublicKey(publicKeyBytes, type: KeyPairType.x25519);
     final sharedSecret = await _x25519.sharedSecretKey(
       keyPair: keyPair,
-      remotePublicKey: publicKey,
+      remotePublicKey: remotePublicKey,
     );
     return Uint8List.fromList(await sharedSecret.extractBytes());
   }

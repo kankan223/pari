@@ -47,7 +47,7 @@ void main() {
   group('SessionManager - X3DH establishment (Task 6.3)', () {
     test('establishInitiatorSession stores a session for the peer hash',
         () async {
-      final identity = await crypto.generateEd25519KeyPair();
+      final identity = await crypto.generateCurve25519KeyPair();
       final signedPreKey = await crypto.generateCurve25519KeyPair();
       final bundle = await buildPeerBundle(
         recipientIdentityKey: identity,
@@ -66,7 +66,7 @@ void main() {
 
     test('establishInitiatorSession with a one-time prekey also succeeds',
         () async {
-      final identity = await crypto.generateEd25519KeyPair();
+      final identity = await crypto.generateCurve25519KeyPair();
       final signedPreKey = await crypto.generateCurve25519KeyPair();
       final oneTimePreKey = await crypto.generateCurve25519KeyPair();
       final bundle = await buildPeerBundle(
@@ -86,7 +86,7 @@ void main() {
 
     test('establishResponderSession stores a session for the peer hash',
         () async {
-      final myIdentity = await crypto.generateEd25519KeyPair();
+      final myIdentity = await crypto.generateCurve25519KeyPair();
       final mySignedPreKey = await crypto.generateCurve25519KeyPair();
       final signedPreKey = SignedPreKey(
         keyId: 1,
@@ -112,7 +112,7 @@ void main() {
 
   group('SessionManager - encrypt/decrypt (Task 6.3)', () {
     test('a message round-trips through the established session', () async {
-      final identity = await crypto.generateEd25519KeyPair();
+      final identity = await crypto.generateCurve25519KeyPair();
       final signedPreKey = await crypto.generateCurve25519KeyPair();
       final bundle = await buildPeerBundle(
         recipientIdentityKey: identity,
@@ -140,7 +140,7 @@ void main() {
     });
 
     test('ciphertext for the same plaintext differs across messages', () async {
-      final identity = await crypto.generateEd25519KeyPair();
+      final identity = await crypto.generateCurve25519KeyPair();
       final signedPreKey = await crypto.generateCurve25519KeyPair();
       final bundle = await buildPeerBundle(
         recipientIdentityKey: identity,
@@ -188,7 +188,7 @@ void main() {
 
   group('SessionManager - lifecycle & isolation (Task 6.3)', () {
     test('sessions are isolated per peer blind hash', () async {
-      final identityA = await crypto.generateEd25519KeyPair();
+      final identityA = await crypto.generateCurve25519KeyPair();
       final signedPreKeyA = await crypto.generateCurve25519KeyPair();
       final bundleA = await buildPeerBundle(
         recipientIdentityKey: identityA,
@@ -213,7 +213,7 @@ void main() {
     });
 
     test('deleteSession removes the session (duress / deletion)', () async {
-      final identity = await crypto.generateEd25519KeyPair();
+      final identity = await crypto.generateCurve25519KeyPair();
       final signedPreKey = await crypto.generateCurve25519KeyPair();
       final bundle = await buildPeerBundle(
         recipientIdentityKey: identity,

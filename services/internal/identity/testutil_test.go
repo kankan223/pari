@@ -7,6 +7,8 @@ import (
 	"crypto/rsa"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -205,4 +207,26 @@ func newTestService(t *testing.T) *testService {
 		logBuf:   logBuf,
 		cfg:      cfg,
 	}
+}
+
+// loginAndGetToken performs the OTP request + verify flow against an
+// httptest.Server and returns the access token + blind hash ID.
+func loginAndGetToken(t *testing.T, srv *httptest.Server) (token, hashID string) {
+	t.Helper()
+	var req struct {
+		Requested   bool   `json:"requested"`
+		BlindHashID string `json:"blind_hash_id"`
+	}
+	status, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/request",
+		"", map[string]string{"phone": testPhone}, &req)
+	if status != http.StatusOK || !req.Requested {
+		t.Fatalf("loginAndGetToken: otp/request = %d", status)
+	}
+	var auth authResultJSON
+	status, _ = httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/verify",
+		"", map[string]string{"blind_hash_id": req.BlindHashID, "otp": "123456"}, &auth)
+	if status != http.StatusOK || auth.AccessToken == "" {
+		t.Fatalf("loginAndGetToken: otp/verify = %d", status)
+	}
+	return auth.AccessToken, req.BlindHashID
 }

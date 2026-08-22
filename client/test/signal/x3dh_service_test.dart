@@ -35,7 +35,7 @@ void main() {
 
     test('should perform X3DH initiation successfully', () async {
       // Arrange
-      final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final recipientIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final recipientSignedPreKey =
           await cryptoService.generateCurve25519KeyPair();
       final recipientOneTimePreKey =
@@ -51,7 +51,7 @@ void main() {
         oneTimePreKey: await _pubBytes(recipientOneTimePreKey),
       );
 
-      final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final initiatorIdentityKey = await cryptoService.generateCurve25519KeyPair();
 
       // Act
       final sharedSecret =
@@ -64,7 +64,7 @@ void main() {
 
     test('should perform X3DH initiation without one-time prekey', () async {
       // Arrange
-      final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final recipientIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final recipientSignedPreKey =
           await cryptoService.generateCurve25519KeyPair();
 
@@ -76,7 +76,7 @@ void main() {
         signedPreKeySignature: Uint8List(64),
       );
 
-      final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final initiatorIdentityKey = await cryptoService.generateCurve25519KeyPair();
 
       // Act
       final sharedSecret =
@@ -94,7 +94,7 @@ void main() {
         initiatorEphemeralPublicKey[i] = i;
       }
 
-      final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final recipientIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final recipientSignedPreKey = SignedPreKey(
         keyId: 1,
         publicKey: Uint8List(32),
@@ -129,7 +129,7 @@ void main() {
         initiatorEphemeralPublicKey[i] = i;
       }
 
-      final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final recipientIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final recipientSignedPreKey = SignedPreKey(
         keyId: 1,
         publicKey: Uint8List(32),
@@ -171,7 +171,7 @@ void main() {
     test('should produce different shared secrets for different sessions',
         () async {
       // Arrange
-      final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final recipientIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final recipientSignedPreKey =
           await cryptoService.generateCurve25519KeyPair();
 
@@ -184,9 +184,9 @@ void main() {
       );
 
       final initiatorIdentityKey1 =
-          await cryptoService.generateEd25519KeyPair();
+          await cryptoService.generateCurve25519KeyPair();
       final initiatorIdentityKey2 =
-          await cryptoService.generateEd25519KeyPair();
+          await cryptoService.generateCurve25519KeyPair();
 
       // Act
       final sharedSecret1 =
@@ -221,7 +221,7 @@ void main() {
 
     test('should not expose private keys in shared secret', () async {
       // Arrange
-      final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final recipientIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final recipientSignedPreKey =
           await cryptoService.generateCurve25519KeyPair();
 
@@ -233,7 +233,7 @@ void main() {
         signedPreKeySignature: Uint8List(64),
       );
 
-      final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final initiatorIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final initiatorPrivateKey = Uint8List.fromList(
           await initiatorIdentityKey.extractPrivateKeyBytes());
 
@@ -253,7 +253,7 @@ void main() {
       // All cryptographic operations are local
 
       // Arrange
-      final recipientIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final recipientIdentityKey = await cryptoService.generateCurve25519KeyPair();
       final recipientSignedPreKey =
           await cryptoService.generateCurve25519KeyPair();
 
@@ -265,7 +265,7 @@ void main() {
         signedPreKeySignature: Uint8List(64),
       );
 
-      final initiatorIdentityKey = await cryptoService.generateEd25519KeyPair();
+      final initiatorIdentityKey = await cryptoService.generateCurve25519KeyPair();
 
       // Act
       final sharedSecret =

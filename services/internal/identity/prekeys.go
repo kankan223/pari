@@ -54,6 +54,9 @@ type PreKeyStore interface {
 	// [blindHashID] (used by the initiator during X3DH). Returns nil if
 	// no one-time prekeys are available.
 	ConsumeOneTimePreKey(ctx context.Context, blindHashID string) (*OneTimePreKeyEntry, error)
+	// CountOneTimePreKeys returns the number of remaining one-time prekeys
+	// for [blindHashID]. Used by the client to decide when to replenish.
+	CountOneTimePreKeys(ctx context.Context, blindHashID string) (int, error)
 }
 
 // ---------------------------------------------------------------------------
@@ -162,4 +165,15 @@ func (s *InMemoryPreKeyStore) ConsumeOneTimePreKey(_ context.Context, blindHashI
 	entry := b.OneTimePreKeys[0]
 	b.OneTimePreKeys = b.OneTimePreKeys[1:]
 	return &entry, nil
+}
+
+// CountOneTimePreKeys implements PreKeyStore.
+func (s *InMemoryPreKeyStore) CountOneTimePreKeys(_ context.Context, blindHashID string) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	b, ok := s.bundles[blindHashID]
+	if !ok {
+		return 0, nil
+	}
+	return len(b.OneTimePreKeys), nil
 }
