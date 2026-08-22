@@ -204,9 +204,10 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	)
 
 	// --- HTTP server ---
+	handler := corsMiddleware(identity.NewServer(svc, logger).Handler())
 	server := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
-		Handler:           identity.NewServer(svc, logger).Handler(),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -230,6 +231,30 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		defer cancel()
 		return server.Shutdown(shutdownCtx)
 	}
+}
+
+// corsMiddleware adds CORS headers to allow the Flutter web frontend
+// hosted on Cloudflare Pages to call the identity service API.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		// Handle preflight OPTIONS requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // resolveSecrets loads the Argon2id salt and the RS256 private key. In
