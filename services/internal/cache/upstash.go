@@ -87,6 +87,14 @@ func (c *UpstashClient) do(ctx context.Context, method, path string, body any) (
 		return nil, fmt.Errorf("upstash: decode: %w (body: %s)", err, string(respBody))
 	}
 
+	// Upstash returns literal "null" for non-existent keys (GET).
+	// We must not wrap nil into []any{nil} — that causes resultStr to
+	// return a garbage string instead of "". Return empty slice so the
+	// caller sees idx >= len and maps it to redis.Nil / empty string.
+	if parsed == nil {
+		return []any{}, nil
+	}
+
 	switch v := parsed.(type) {
 	case []any:
 		return v, nil
@@ -369,29 +377,35 @@ type pipelineCmd struct {
 	ttl    time.Duration
 	xadd   *redis.XAddArgs
 	trimID string
+	// cmd holds the original Cmder returned by the builder method.
+	// Exec updates these with results instead of creating new ones,
+	// so the caller's reference (e.g. incr.Val()) reflects the result.
+	intCmd    *redis.IntCmd
+	boolCmd   *redis.BoolCmd
+	stringCmd *redis.StringCmd
 }
 
 func (p *UpstashPipeline) Incr(ctx context.Context, key string) *redis.IntCmd {
 	cmd := redis.NewIntCmd(ctx, "incr", key)
-	p.commands = append(p.commands, pipelineCmd{typ: cmdIncr, key: key})
+	p.commands = append(p.commands, pipelineCmd{typ: cmdIncr, key: key, intCmd: cmd})
 	return cmd
 }
 
 func (p *UpstashPipeline) Expire(ctx context.Context, key string, ttl time.Duration) *redis.BoolCmd {
 	cmd := redis.NewBoolCmd(ctx, "expire", key)
-	p.commands = append(p.commands, pipelineCmd{typ: cmdExpire, key: key, ttl: ttl})
+	p.commands = append(p.commands, pipelineCmd{typ: cmdExpire, key: key, ttl: ttl, boolCmd: cmd})
 	return cmd
 }
 
 func (p *UpstashPipeline) XAdd(ctx context.Context, a *redis.XAddArgs) *redis.StringCmd {
 	cmd := redis.NewStringCmd(ctx, "xadd", a.Stream)
-	p.commands = append(p.commands, pipelineCmd{typ: cmdXAdd, key: a.Stream, xadd: a})
+	p.commands = append(p.commands, pipelineCmd{typ: cmdXAdd, key: a.Stream, xadd: a, stringCmd: cmd})
 	return cmd
 }
 
 func (p *UpstashPipeline) XTrimMinID(ctx context.Context, stream, minID string) *redis.IntCmd {
 	cmd := redis.NewIntCmd(ctx, "xtrim", stream, "MINID", minID)
-	p.commands = append(p.commands, pipelineCmd{typ: cmdXTrimMinID, key: stream, trimID: minID})
+	p.commands = append(p.commands, pipelineCmd{typ: cmdXTrimMinID, key: stream, trimID: minID, intCmd: cmd})
 	return cmd
 }
 
@@ -433,24 +447,20 @@ func (p *UpstashPipeline) Exec(ctx context.Context) ([]redis.Cmder, error) {
 	for i, c := range p.commands {
 		switch c.typ {
 		case cmdIncr:
-			cmd := redis.NewIntCmd(ctx, "incr", c.key)
-			n, _ := p.client.resultInt(results, i)
-			cmd.SetVal(n)
-			cmders = append(cmders, cmd)
+		n, _ := p.client.resultInt(results, i)
+			c.intCmd.SetVal(n)
+			cmders = append(cmders, c.intCmd)
 		case cmdExpire:
-			cmd := redis.NewBoolCmd(ctx, "expire", c.key)
 			b, _ := p.client.resultBool(results, i)
-			cmd.SetVal(b)
-			cmders = append(cmders, cmd)
+			c.boolCmd.SetVal(b)
+			cmders = append(cmders, c.boolCmd)
 		case cmdXAdd:
-			cmd := redis.NewStringCmd(ctx, "xadd", c.key)
-			cmd.SetVal(p.client.resultStr(results, i))
-			cmders = append(cmders, cmd)
+			c.stringCmd.SetVal(p.client.resultStr(results, i))
+			cmders = append(cmders, c.stringCmd)
 		case cmdXTrimMinID:
-			cmd := redis.NewIntCmd(ctx, "xtrim", c.key)
 			n, _ := p.client.resultInt(results, i)
-			cmd.SetVal(n)
-			cmders = append(cmders, cmd)
+			c.intCmd.SetVal(n)
+			cmders = append(cmders, c.intCmd)
 		}
 	}
 	return cmders, nil
