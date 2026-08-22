@@ -155,10 +155,11 @@ func (c *UpstashClient) resultBool(results []any, idx int) (bool, error) {
 func (c *UpstashClient) Set(ctx context.Context, key string, value any, ttl time.Duration) *redis.StatusCmd {
 	cmd := redis.NewStatusCmd(ctx, "set", key)
 	body := map[string]any{"value": fmt.Sprintf("%v", value)}
+	path := "/set/" + key
 	if ttl > 0 {
-		body["ex"] = int(ttl.Seconds())
+		path += "?ex=" + strconv.Itoa(int(ttl.Seconds()))
 	}
-	results, err := c.do(ctx, http.MethodPost, "/set/"+key, body)
+	results, err := c.do(ctx, http.MethodPost, path, body)
 	if err != nil {
 		cmd.SetErr(err)
 		return cmd
@@ -215,11 +216,12 @@ func (c *UpstashClient) Exists(ctx context.Context, keys ...string) *redis.IntCm
 // SetNX implements RedisClient.
 func (c *UpstashClient) SetNX(ctx context.Context, key string, value any, ttl time.Duration) *redis.BoolCmd {
 	cmd := redis.NewBoolCmd(ctx, "setnx", key)
-	body := map[string]any{"value": fmt.Sprintf("%v", value), "nx": true}
+	body := map[string]any{"value": fmt.Sprintf("%v", value)}
+	path := "/set/" + key + "?nx=true"
 	if ttl > 0 {
-		body["ex"] = int(ttl.Seconds())
+		path += "&ex=" + strconv.Itoa(int(ttl.Seconds()))
 	}
-	results, err := c.do(ctx, http.MethodPost, "/set/"+key, body)
+	results, err := c.do(ctx, http.MethodPost, path, body)
 	if err != nil {
 		cmd.SetErr(err)
 		return cmd
