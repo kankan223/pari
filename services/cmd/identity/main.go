@@ -129,32 +129,46 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("sms provider configured", "provider", "noop (dev only)")
 	}
 
-	// --- PostgreSQL-backed stores (Task 4.5) ---
-	// The migration is idempotent and advisory-locked, so both services may
-	// run it at startup; it only does work on first boot. POSTGRES_DSN must
-	// be the civic_app role at runtime — a superuser would bypass RLS.
-	pgDB, err := database.Open(database.DriverPostgres, cfg.PostgresDSN)
-	if err != nil {
-		return err
+	// --- Data stores ---
+	// When RequirePostgres is true (production), use PostgreSQL-backed stores.
+	// When false (staging/dev), fall back to in-memory stores so the service
+	// can run without a database.
+	var users identity.UserStore
+	var usernames identity.UsernameStore
+	var devices identity.DeviceStore
+
+	if cfg.RequirePostgres {
+		pgDB, err := database.Open(database.DriverPostgres, cfg.PostgresDSN)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = pgDB.Close() }()
+		if _, err := database.Migrate(ctx, pgDB); err != nil {
+			return fmt.Errorf("postgres migrate: %w", err)
+		}
+		if cfg.PGEncKey == "" {
+			logger.Warn("PG_ENC_KEY is empty — device keys are stored pgcrypto-encrypted with an empty key; set PG_ENC_KEY outside development")
+		}
+		pg := pgstore.New(pgDB, cfg.PGEncKey)
+		logger.Info("postgres stores connected", "migrated", true)
+		users = pg.Users()
+		usernames = pg.Usernames()
+		devices = pg.Devices()
+	} else {
+		logger.Warn("postgres disabled — using in-memory stores (data lost on restart)")
+		users = identity.NewInMemoryUserStore()
+		usernames = identity.NewInMemoryUsernameStore()
+		devices = identity.NewInMemoryDeviceStore()
 	}
-	defer func() { _ = pgDB.Close() }()
-	if _, err := database.Migrate(ctx, pgDB); err != nil {
-		return fmt.Errorf("postgres migrate: %w", err)
-	}
-	if cfg.PGEncKey == "" {
-		logger.Warn("PG_ENC_KEY is empty — device keys are stored pgcrypto-encrypted with an empty key; set PG_ENC_KEY outside development")
-	}
-	pg := pgstore.New(pgDB, cfg.PGEncKey)
-	logger.Info("postgres stores connected", "migrated", true)
 
 	svc := identity.NewService(
 		saltProvider,
 		otpStore,
 		provider,
 		identity.RandomCodeGenerator{},
-		pg.Users(),
-		pg.Usernames(),
-		pg.Devices(),
+		users,
+		usernames,
+		devices,
 		signer,
 		verifier,
 		refreshManager,

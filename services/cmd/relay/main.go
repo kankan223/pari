@@ -155,23 +155,29 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		}
 	}
 
-	// --- Connection requests (PostgreSQL store, Task 4.5) ---
-	// The migration is idempotent and advisory-locked; it only does work on
-	// first boot. POSTGRES_DSN must be the civic_app role at runtime — a
-	// superuser would bypass RLS.
-	pgDB, err := database.Open(database.DriverPostgres, cfg.PostgresDSN)
-	if err != nil {
-		return err
+	// --- Connection requests ---
+	// When RequirePostgres is true (production), use PostgreSQL-backed store.
+	// When false (staging/dev), use in-memory store.
+	var reqStore relay.ConnectionRequestStore
+	if cfg.RequirePostgres {
+		pgDB, err := database.Open(database.DriverPostgres, cfg.PostgresDSN)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = pgDB.Close() }()
+		if _, err := database.Migrate(ctx, pgDB); err != nil {
+			return fmt.Errorf("postgres migrate: %w", err)
+		}
+		pg := pgstore.New(pgDB, cfg.PGEncKey)
+		logger.Info("postgres store connected", "migrated", true)
+		reqStore = pg.Requests()
+	} else {
+		logger.Warn("postgres disabled — using in-memory request store")
+		reqStore = relay.NewMemRequestStore()
 	}
-	defer func() { _ = pgDB.Close() }()
-	if _, err := database.Migrate(ctx, pgDB); err != nil {
-		return fmt.Errorf("postgres migrate: %w", err)
-	}
-	pg := pgstore.New(pgDB, cfg.PGEncKey)
-	logger.Info("postgres store connected", "migrated", true)
 
 	requests := relay.NewConnectionRequestManager(
-		pg.Requests(), publisher, cfg.ConnectionRequestExpiry,
+		reqStore, publisher, cfg.ConnectionRequestExpiry,
 	)
 
 	// --- HTTP/WS server ---
