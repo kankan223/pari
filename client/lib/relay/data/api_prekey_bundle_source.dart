@@ -63,6 +63,13 @@ class ApiPreKeyBundleSource implements PreKeyBundleSource {
       final signedPreKeySignature =
           _base64Decode(json['signed_pre_key_signature'] as String);
 
+      // Parse the Ed25519 identity key for signature verification.
+      Uint8List? ed25519Key;
+      final ed25519Raw = json['ed25519_identity_key'] as String?;
+      if (ed25519Raw != null && ed25519Raw.isNotEmpty) {
+        ed25519Key = _base64Decode(ed25519Raw);
+      }
+
       // The server atomically consumes one OTPK and returns it in
       // `consumed_one_time_pre_key`. The initiator MUST use this key
       // for the X3DH session.
@@ -77,6 +84,7 @@ class ApiPreKeyBundleSource implements PreKeyBundleSource {
       return PreKeyBundle(
         registrationId: '', // Not used by the initiator
         identityKey: identityKey,
+        ed25519IdentityKey: ed25519Key,
         signedPreKeyId: signedPreKeyId,
         signedPreKey: signedPreKey,
         signedPreKeySignature: signedPreKeySignature,

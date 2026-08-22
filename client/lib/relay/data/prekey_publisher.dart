@@ -48,7 +48,10 @@ class PreKeyPublisher {
       final identityPublicKey =
           Uint8List.fromList((await identityKeyPair.extractPublicKey()).bytes);
 
-      // Generate signed prekey if needed.
+      // Get the Ed25519 identity public key for signature verification.
+      final ed25519PublicKey = await _prekeyManager.getIdentityPublicKey();
+
+      // Generate signed prekey (signed with Ed25519 identity key).
       final signedPreKey = await _prekeyManager.generateSignedPreKey();
 
       // Generate a batch of one-time prekeys.
@@ -58,9 +61,10 @@ class PreKeyPublisher {
       final bundle = PreKeyBundle(
         registrationId: '',
         identityKey: identityPublicKey,
+        ed25519IdentityKey: ed25519PublicKey,
         signedPreKeyId: signedPreKey.keyId,
         signedPreKey: signedPreKey.publicKey,
-        signedPreKeySignature: Uint8List(64), // Placeholder — real signature
+        signedPreKeySignature: signedPreKey.signature ?? Uint8List(64),
         oneTimePreKeyId: oneTimePreKeys.isNotEmpty ? oneTimePreKeys[0].keyId : null,
         oneTimePreKey: oneTimePreKeys.isNotEmpty ? oneTimePreKeys[0].publicKey : null,
       );
@@ -95,6 +99,9 @@ class PreKeyPublisher {
       'signed_pre_key': _base64Encode(bundle.signedPreKey),
       'signed_pre_key_signature': _base64Encode(bundle.signedPreKeySignature),
     };
+    if (bundle.ed25519IdentityKey != null) {
+      json['ed25519_identity_key'] = _base64Encode(bundle.ed25519IdentityKey!);
+    }
     // Include ALL one-time prekeys — the server consumes them one at a time.
     if (oneTimePreKeys.isNotEmpty) {
       json['one_time_pre_keys'] = oneTimePreKeys.map((otpk) => {

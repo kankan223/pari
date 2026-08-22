@@ -22,11 +22,15 @@ const (
 type PreKeyBundle struct {
 	// IdentityKey is the user's long-term Curve25519 identity public key (base64url).
 	IdentityKey string `json:"identity_key"`
+	// Ed25519IdentityKey is the user's long-term Ed25519 identity public key
+	// (base64url). Used by initiators to verify the signed prekey signature.
+	// If empty, signature verification is skipped (dev/self-session mode).
+	Ed25519IdentityKey string `json:"ed25519_identity_key,omitempty"`
 	// SignedPreKeyID is the key ID of the signed prekey.
 	SignedPreKeyID int `json:"signed_pre_key_id"`
 	// SignedPreKey is the user's signed Curve25519 prekey public key (base64url).
 	SignedPreKey string `json:"signed_pre_key"`
-	// SignedPreKeySignature is the Ed25519 signature over SignedPreKey (base64url).
+	// SignedPreKeySignature is the Ed25519 signature over (key_id || signed_pre_key) (base64url).
 	SignedPreKeySignature string `json:"signed_pre_key_signature"`
 	// OneTimePreKeys is a list of one-time prekey public keys (base64url).
 	// Each entry is {"key_id": int, "public_key": string}.
@@ -77,6 +81,11 @@ func validBase64Key(encoded string, expectedLen int) bool {
 func ValidatePreKeyBundle(b PreKeyBundle) error {
 	if !validBase64Key(b.IdentityKey, curve25519PubKeyLen) {
 		return errors.New("invalid identity key: must be base64url-encoded 32-byte Curve25519 public key")
+	}
+	// Ed25519 identity key is optional (dev/self-session may omit it),
+	// but when present it must be a valid 32-byte key.
+	if b.Ed25519IdentityKey != "" && !validBase64Key(b.Ed25519IdentityKey, ed25519PubKeyLen) {
+		return errors.New("invalid ed25519 identity key: must be base64url-encoded 32-byte Ed25519 public key")
 	}
 	if !validBase64Key(b.SignedPreKey, curve25519PubKeyLen) {
 		return errors.New("invalid signed prekey: must be base64url-encoded 32-byte Curve25519 public key")

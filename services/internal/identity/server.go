@@ -433,6 +433,9 @@ func (s *Server) handlePreKeyFetch(w http.ResponseWriter, r *http.Request) {
 		"signed_pre_key":         bundle.SignedPreKey,
 		"signed_pre_key_signature": bundle.SignedPreKeySignature,
 	}
+	if bundle.Ed25519IdentityKey != "" {
+		resp["ed25519_identity_key"] = bundle.Ed25519IdentityKey
+	}
 	if consumed != nil {
 		resp["consumed_one_time_pre_key"] = map[string]any{
 			"key_id":     consumed.KeyID,
