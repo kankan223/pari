@@ -120,36 +120,48 @@ func (s *Service) SetClock(now func() time.Time) {
 	s.refresh.SetClock(now)
 }
 
+// RequestOtpResult carries the blind_hash_id and, in dev mode, the
+// plaintext OTP code so the caller can include it in the response.
+type RequestOtpResult struct {
+	BlindHashID string
+	// DevOTPCode is populated only in dev/noop mode. Empty in production.
+	DevOTPCode string
+}
+
 // RequestOtp validates [phone], derives its blind_hash_id, generates and
 // stores a 10-minute OTP, and dispatches it via the SMS provider.
 //
 // SECURITY: [phone] exists only inside this call (validated → hashed →
 // handed to the SMS provider → discarded). It is never persisted or logged.
 // On provider failure the stored code is removed so no dead code lingers.
-func (s *Service) RequestOtp(ctx context.Context, phone string) (string, error) {
+//
+// The returned RequestOtpResult.DevOTPCode is non-empty only when the
+// provider is noop (dev mode) — it allows the frontend to display the
+// code during testing without needing access to server logs.
+func (s *Service) RequestOtp(ctx context.Context, phone string) (RequestOtpResult, error) {
 	if !ValidE164(phone) {
-		return "", ErrInvalidPhone
+		return RequestOtpResult{}, ErrInvalidPhone
 	}
 
 	salt, err := s.salt.Salt(ctx)
 	if err != nil {
 		s.log.Error("otp_request_failed", "reason", "salt_unavailable", "err", err.Error())
-		return "", ErrInternal
+		return RequestOtpResult{}, ErrInternal
 	}
 
 	blindHashID := s.params.HashPhone(phone, salt)
 
 	code, err := s.codeGen.Generate()
 	if err != nil {
-		return "", ErrInternal
+		return RequestOtpResult{}, ErrInternal
 	}
 	codeHash, err := hashOtpCode(code)
 	if err != nil {
-		return "", ErrInternal
+		return RequestOtpResult{}, ErrInternal
 	}
 	if err := s.otpStore.Set(ctx, blindHashID, codeHash, s.cfg.OTPTTL); err != nil {
 		s.log.Error("otp_request_failed", "reason", "store_unavailable")
-		return "", ErrInternal
+		return RequestOtpResult{}, ErrInternal
 	}
 	// A fresh code resets the failed-attempt counter so the user always gets
 	// a full 5 attempts per code.
@@ -157,11 +169,11 @@ func (s *Service) RequestOtp(ctx context.Context, phone string) (string, error) 
 	if err := s.otpProvider.SendOTP(ctx, phone, code); err != nil {
 		_ = s.otpStore.Delete(ctx, blindHashID) // never leave a dead code behind
 		s.log.Error("otp_request_failed", "reason", "provider_unavailable")
-		return "", ErrOtpProviderUnavail
+		return RequestOtpResult{}, ErrOtpProviderUnavail
 	}
 
 	s.log.Info("otp_requested", "event", "otp_requested", "hash_id", blindHashID, "ttl_s", int(s.cfg.OTPTTL.Seconds()))
-	return blindHashID, nil
+	return RequestOtpResult{BlindHashID: blindHashID, DevOTPCode: code}, nil
 }
 
 // VerifyOtp redeems a code for [blindHashID] (the client-derived hash of the

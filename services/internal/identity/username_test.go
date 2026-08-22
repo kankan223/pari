@@ -123,12 +123,12 @@ func TestUsernameServiceFlow(t *testing.T) {
 func mustRequestAndVerifyPhone(t *testing.T, ts *testService, phone string) string {
 	t.Helper()
 	ctx := context.Background()
-	hashID, err := ts.svc.RequestOtp(ctx, phone)
+	hashResult, err := ts.svc.RequestOtp(ctx, phone)
 	if err != nil {
 		t.Fatalf("RequestOtp(%s) error = %v", phone, err)
 	}
-	if _, err := ts.svc.VerifyOtp(ctx, hashID, "123456"); err != nil {
+	if _, err := ts.svc.VerifyOtp(ctx, hashResult.BlindHashID, "123456"); err != nil {
 		t.Fatalf("VerifyOtp() error = %v", err)
 	}
-	return hashID
+	return hashResult.BlindHashID
 }

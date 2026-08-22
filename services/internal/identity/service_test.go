@@ -12,12 +12,12 @@ func TestRequestOtpStoresCodeAndDelivers(t *testing.T) {
 	ts := newTestService(t)
 	ctx := context.Background()
 
-	hashID, err := ts.svc.RequestOtp(ctx, testPhone)
+	otpResult, err := ts.svc.RequestOtp(ctx, testPhone)
 	if err != nil {
 		t.Fatalf("RequestOtp() error = %v", err)
 	}
-	if !ValidBlindHashID(hashID) {
-		t.Fatalf("RequestOtp() returned invalid blind_hash_id %q", hashID)
+	if !ValidBlindHashID(otpResult.BlindHashID) {
+		t.Fatalf("RequestOtp() returned invalid blind_hash_id %q", otpResult.BlindHashID)
 	}
 
 	// The provider was called with the phone (E.164) and the generated code.
@@ -27,7 +27,7 @@ func TestRequestOtpStoresCodeAndDelivers(t *testing.T) {
 	}
 
 	// The code must be stored (bcrypt hash) under the otp: key.
-	stored, err := NewRedisOtpStore(ts.rdb).Get(ctx, hashID)
+	stored, err := NewRedisOtpStore(ts.rdb).Get(ctx, otpResult.BlindHashID)
 	if err != nil {
 		t.Fatalf("stored OTP missing: %v", err)
 	}
@@ -71,41 +71,41 @@ func TestVerifyOtpSuccessCreatesUserAndIssuesTokens(t *testing.T) {
 	ts := newTestService(t)
 	ctx := context.Background()
 
-	hashID, _ := ts.svc.RequestOtp(ctx, testPhone)
-	result, err := ts.svc.VerifyOtp(ctx, hashID, "123456")
+	otpResult, _ := ts.svc.RequestOtp(ctx, testPhone)
+	authResult, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456")
 	if err != nil {
 		t.Fatalf("VerifyOtp() error = %v", err)
 	}
 
 	// Tokens issued.
-	if result.AccessToken == "" || result.RefreshToken == "" {
+	if authResult.AccessToken == "" || authResult.RefreshToken == "" {
 		t.Fatal("VerifyOtp() returned empty tokens")
 	}
-	if result.ExpiresIn != 15*60 {
-		t.Fatalf("ExpiresIn = %d, want 900", result.ExpiresIn)
+	if authResult.ExpiresIn != 15*60 {
+		t.Fatalf("ExpiresIn = %d, want 900", authResult.ExpiresIn)
 	}
-	if result.User.BlindHashID != hashID {
-		t.Fatalf("user hash = %q, want %q", result.User.BlindHashID, hashID)
+	if authResult.User.BlindHashID != otpResult.BlindHashID {
+		t.Fatalf("user hash = %q, want %q", authResult.User.BlindHashID, otpResult.BlindHashID)
 	}
 
 	// The access token verifies and carries the subject.
-	subject, err := ts.svc.VerifyAccessToken(ctx, result.AccessToken)
+	subject, err := ts.svc.VerifyAccessToken(ctx, authResult.AccessToken)
 	if err != nil {
 		t.Fatalf("VerifyAccessToken() error = %v", err)
 	}
-	if subject != hashID {
-		t.Fatalf("subject = %q, want %q", subject, hashID)
+	if subject != otpResult.BlindHashID {
+		t.Fatalf("subject = %q, want %q", subject, otpResult.BlindHashID)
 	}
 
 	// The refresh token is usable.
-	newRaw, subj, err := ts.svc.refresh.Refresh(ctx, result.RefreshToken)
-	if err != nil || subj != hashID {
+	newRaw, subj, err := ts.svc.refresh.Refresh(ctx, authResult.RefreshToken)
+	if err != nil || subj != otpResult.BlindHashID {
 		t.Fatalf("refresh = %v/%q", err, subj)
 	}
 	_ = newRaw
 
 	// The OTP was consumed.
-	if _, err := ts.svc.VerifyOtp(ctx, hashID, "123456"); !errors.Is(err, ErrOtpMissing) {
+	if _, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456"); !errors.Is(err, ErrOtpMissing) {
 		t.Fatalf("re-verify consumed code = %v, want ErrOtpMissing", err)
 	}
 }
@@ -116,9 +116,9 @@ func TestRequestOtpResetsAttemptCounter(t *testing.T) {
 	ts := newTestService(t)
 	ctx := context.Background()
 
-	hashID, _ := ts.svc.RequestOtp(ctx, testPhone)
+	otpResult, _ := ts.svc.RequestOtp(ctx, testPhone)
 	for i := 0; i < maxOtpAttempts-1; i++ {
-		if _, err := ts.svc.VerifyOtp(ctx, hashID, "000000"); !errors.Is(err, ErrOtpCodeMismatch) {
+		if _, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "000000"); !errors.Is(err, ErrOtpCodeMismatch) {
 			t.Fatalf("attempt %d = %v", i, err)
 		}
 	}
@@ -128,10 +128,10 @@ func TestRequestOtpResetsAttemptCounter(t *testing.T) {
 	if _, err := ts.svc.RequestOtp(ctx, testPhone); err != nil {
 		t.Fatalf("re-request error = %v", err)
 	}
-	if _, err := ts.svc.VerifyOtp(ctx, hashID, "000000"); !errors.Is(err, ErrOtpCodeMismatch) {
+	if _, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "000000"); !errors.Is(err, ErrOtpCodeMismatch) {
 		t.Fatalf("post-reset attempt = %v, want ErrOtpCodeMismatch", err)
 	}
-	if _, err := ts.svc.VerifyOtp(ctx, hashID, "123456"); err != nil {
+	if _, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456"); err != nil {
 		t.Fatalf("correct code after reset = %v, want success", err)
 	}
 }
@@ -146,16 +146,16 @@ func TestVerifyOtpConcurrentFirstLoginRace(t *testing.T) {
 	race := &raceUserStore{InMemoryUserStore: inner}
 	svc.svc.users = race
 
-	hashID, err := svc.svc.RequestOtp(ctx, testPhone)
+	otpResult, err := svc.svc.RequestOtp(ctx, testPhone)
 	if err != nil {
 		t.Fatalf("RequestOtp() error = %v", err)
 	}
-	result, err := svc.svc.VerifyOtp(ctx, hashID, "123456")
+	authResult, err := svc.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456")
 	if err != nil {
 		t.Fatalf("VerifyOtp() race path = %v, want success", err)
 	}
-	if result.User.BlindHashID != hashID {
-		t.Fatalf("user = %q, want %q", result.User.BlindHashID, hashID)
+	if authResult.User.BlindHashID != otpResult.BlindHashID {
+		t.Fatalf("user = %q, want %q", authResult.User.BlindHashID, otpResult.BlindHashID)
 	}
 }
 
@@ -177,15 +177,15 @@ func TestVerifyOtpWrongCodeAndAttemptCap(t *testing.T) {
 	ts := newTestService(t)
 	ctx := context.Background()
 
-	hashID, _ := ts.svc.RequestOtp(ctx, testPhone)
+	otpResult, _ := ts.svc.RequestOtp(ctx, testPhone)
 
 	for i := 0; i < maxOtpAttempts; i++ {
-		if _, err := ts.svc.VerifyOtp(ctx, hashID, "000000"); !errors.Is(err, ErrOtpCodeMismatch) {
+		if _, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "000000"); !errors.Is(err, ErrOtpCodeMismatch) {
 			t.Fatalf("attempt %d = %v, want ErrOtpCodeMismatch", i, err)
 		}
 	}
 	// After max attempts, the code is gone and attempts cap kicks in.
-	if _, err := ts.svc.VerifyOtp(ctx, hashID, "123456"); !errors.Is(err, ErrOtpAttempts) {
+	if _, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456"); !errors.Is(err, ErrOtpAttempts) {
 		t.Fatalf("post-cap verify = %v, want ErrOtpAttempts", err)
 	}
 }
@@ -207,33 +207,33 @@ func TestFullLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Register via OTP.
-	hashID, _ := ts.svc.RequestOtp(ctx, testPhone)
-	result, err := ts.svc.VerifyOtp(ctx, hashID, "123456")
+	otpResult, _ := ts.svc.RequestOtp(ctx, testPhone)
+	authResult, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456")
 	if err != nil {
 		t.Fatalf("VerifyOtp() error = %v", err)
 	}
 
 	// 2. Claim username.
-	if err := ts.svc.ClaimUsername(ctx, hashID, "alice"); err != nil {
+	if err := ts.svc.ClaimUsername(ctx, otpResult.BlindHashID, "alice"); err != nil {
 		t.Fatalf("ClaimUsername() error = %v", err)
 	}
 
 	// 3. Register a device.
-	if err := ts.svc.RegisterDevice(ctx, hashID, "dev-1", testPubKey(0x42)); err != nil {
+	if err := ts.svc.RegisterDevice(ctx, otpResult.BlindHashID, "dev-1", testPubKey(0x42)); err != nil {
 		t.Fatalf("RegisterDevice() error = %v", err)
 	}
 
 	// 4. Refresh the session (rotation).
-	rotated, err := ts.svc.Refresh(ctx, result.RefreshToken)
+	rotated, err := ts.svc.Refresh(ctx, authResult.RefreshToken)
 	if err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
-	if rotated.AccessToken == result.AccessToken {
+	if rotated.AccessToken == authResult.AccessToken {
 		t.Fatal("Refresh() issued the same access token")
 	}
 
 	// 5. The refreshed session still sees the user + devices.
-	user, devices, err := ts.svc.GetUser(ctx, hashID)
+	user, devices, err := ts.svc.GetUser(ctx, otpResult.BlindHashID)
 	if err != nil {
 		t.Fatalf("GetUser() error = %v", err)
 	}
@@ -259,18 +259,18 @@ func TestAuthFlowWithClock(t *testing.T) {
 	start := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
 	ts.svc.SetClock(func() time.Time { return start })
 
-	hashID, _ := ts.svc.RequestOtp(ctx, testPhone)
-	result, err := ts.svc.VerifyOtp(ctx, hashID, "123456")
+	otpResult, _ := ts.svc.RequestOtp(ctx, testPhone)
+	authResult, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456")
 	if err != nil {
 		t.Fatalf("VerifyOtp() error = %v", err)
 	}
 	// 15-minute access token: valid at +14m, expired at +16m.
 	ts.svc.SetClock(func() time.Time { return start.Add(14 * time.Minute) })
-	if _, err := ts.svc.VerifyAccessToken(ctx, result.AccessToken); err != nil {
+	if _, err := ts.svc.VerifyAccessToken(ctx, authResult.AccessToken); err != nil {
 		t.Fatalf("access token at +14m rejected: %v", err)
 	}
 	ts.svc.SetClock(func() time.Time { return start.Add(16 * time.Minute) })
-	if _, err := ts.svc.VerifyAccessToken(ctx, result.AccessToken); !errors.Is(err, ErrTokenUnauthorized) {
+	if _, err := ts.svc.VerifyAccessToken(ctx, authResult.AccessToken); !errors.Is(err, ErrTokenUnauthorized) {
 		t.Fatalf("access token at +16m = %v, want ErrTokenUnauthorized", err)
 	}
 }
@@ -284,17 +284,17 @@ func TestSecurityCheckpointNoPhonePersistedOrLogged(t *testing.T) {
 
 	phones := []string{"+14155552671", "+919876543210", "+442079460958"}
 	for _, phone := range phones {
-		hashID, err := ts.svc.RequestOtp(ctx, phone)
+		otpResult, err := ts.svc.RequestOtp(ctx, phone)
 		if err != nil {
 			t.Fatalf("RequestOtp(%s) error = %v", phone, err)
 		}
-		if _, err := ts.svc.VerifyOtp(ctx, hashID, "123456"); err != nil {
+		if _, err := ts.svc.VerifyOtp(ctx, otpResult.BlindHashID, "123456"); err != nil {
 			t.Fatalf("VerifyOtp(%s) error = %v", phone, err)
 		}
-		if err := ts.svc.ClaimUsername(ctx, hashID, "user_"+strings.TrimPrefix(phone, "+")[:6]); err != nil {
+		if err := ts.svc.ClaimUsername(ctx, otpResult.BlindHashID, "user_"+strings.TrimPrefix(phone, "+")[:6]); err != nil {
 			t.Fatalf("ClaimUsername() error = %v", err)
 		}
-		if err := ts.svc.RegisterDevice(ctx, hashID, "dev-"+strings.TrimPrefix(phone, "+")[:4], testPubKey(0x01)); err != nil {
+		if err := ts.svc.RegisterDevice(ctx, otpResult.BlindHashID, "dev-"+strings.TrimPrefix(phone, "+")[:4], testPubKey(0x01)); err != nil {
 			t.Fatalf("RegisterDevice() error = %v", err)
 		}
 	}

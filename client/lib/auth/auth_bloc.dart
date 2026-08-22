@@ -53,6 +53,7 @@ class AuthBloc {
       final result = await _api.requestOtp(phone);
       _emit(AuthState.otpSent(
         blindHashId: result.blindHashId,
+        devOtpCode: result.devOtpCode,
       ));
     } on IdentityApiException catch (e) {
       _emit(_current.copyWith(
@@ -197,12 +198,15 @@ class AuthState {
   final String? blindHashId;
   final String? username;
   final String? error;
+  /// Dev-only: plaintext OTP code returned by the identity service in staging.
+  final String? devOtpCode;
 
   const AuthState({
     required this.phase,
     this.blindHashId,
     this.username,
     this.error,
+    this.devOtpCode,
   });
 
   const AuthState.initial() : this(phase: AuthPhase.initial);
@@ -210,8 +214,14 @@ class AuthState {
   const AuthState.phoneEntry()
       : this(phase: AuthPhase.phoneEntry);
 
-  const AuthState.otpSent({required String blindHashId})
-      : this(phase: AuthPhase.otpSent, blindHashId: blindHashId);
+  const AuthState.otpSent({
+    required String blindHashId,
+    String? devOtpCode,
+  }) : this(
+          phase: AuthPhase.otpSent,
+          blindHashId: blindHashId,
+          devOtpCode: devOtpCode,
+        );
 
   const AuthState.otpVerified({required String blindHashId})
       : this(phase: AuthPhase.otpVerified, blindHashId: blindHashId);
@@ -230,12 +240,14 @@ class AuthState {
     String? blindHashId,
     String? username,
     String? error,
+    String? devOtpCode,
   }) {
     return AuthState(
       phase: phase ?? this.phase,
       blindHashId: blindHashId ?? this.blindHashId,
       username: username ?? this.username,
       error: error,
+      devOtpCode: devOtpCode ?? this.devOtpCode,
     );
   }
 

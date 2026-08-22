@@ -363,30 +363,74 @@ class _LoginScreenState extends State<LoginScreen> {
           onSubmitted: (_) => _submitOtp(),
         ),
         const SizedBox(height: 12),
-        // Hint about where to find the code
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8F5E9),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.info_outline, size: 16, color: Color(0xFF2E7D32)),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Check your phone for the 6-digit code. '
-                  'It may take a minute to arrive.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF2E7D32),
+        // Dev OTP code display (only shown in staging mode)
+        if ((state.devOtpCode ?? '').isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3E5F5),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF7B1FA2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.developer_mode, size: 20, color: Color(0xFF7B1FA2)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'DEV MODE - Your OTP code:',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF7B1FA2),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        state.devOtpCode!,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF7B1FA2),
+                          letterSpacing: 8,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: 12),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Color(0xFF2E7D32)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Check your phone for the 6-digit code. '
+                    'It may take a minute to arrive.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         FilledButton(
           onPressed: state.isOtpVerifying ? null : _submitOtp,

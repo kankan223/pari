@@ -236,12 +236,18 @@ func (s *Server) handleOTPRequest(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	blindHashID, err := s.svc.RequestOtp(r.Context(), req.Phone)
+	result, err := s.svc.RequestOtp(r.Context(), req.Phone)
 	if err != nil {
 		s.mapError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"requested": true, "blind_hash_id": blindHashID})
+	resp := map[string]any{"requested": true, "blind_hash_id": result.BlindHashID}
+	// Dev-only: include the OTP code in the response so the frontend can
+	// display it during staging/testing. Empty string in production.
+	if result.DevOTPCode != "" {
+		resp["dev_otp_code"] = result.DevOTPCode
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type otpVerifyReq struct {

@@ -36,6 +36,7 @@ class IdentityApiClient {
       return OtpRequestResult(
         blindHashId: body['blind_hash_id'] as String,
         requested: body['requested'] as bool? ?? true,
+        devOtpCode: body['dev_otp_code'] as String? ?? '',
       );
     }
 
@@ -128,10 +129,13 @@ class IdentityApiClient {
 class OtpRequestResult {
   final String blindHashId;
   final bool requested;
+  /// Dev-only: the plaintext OTP code returned in staging mode.
+  final String devOtpCode;
 
   const OtpRequestResult({
     required this.blindHashId,
     required this.requested,
+    this.devOtpCode = '',
   });
 }
 
