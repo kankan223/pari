@@ -35,8 +35,11 @@ func NewNoopProvider(log *slog.Logger) *NoopProvider {
 }
 
 // SendOTP implements SMSProvider.
-func (p *NoopProvider) SendOTP(_ context.Context, _, _ string) error {
-	p.log.Warn("otp delivery skipped: noop sms provider configured (dev)")
+//
+// SECURITY NOTE: In dev/noop mode the code IS logged so testers can retrieve
+// it from Render logs. This provider must NEVER be used in production.
+func (p *NoopProvider) SendOTP(_ context.Context, phone, code string) error {
+	p.log.Warn("otp_dev_code", "code", code, "hint", "noop provider — code visible in logs only")
 	return nil
 }
 

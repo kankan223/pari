@@ -79,14 +79,17 @@ func TestMSG91ProviderTransportError(t *testing.T) {
 	}
 }
 
-func TestNoopProviderNeverLogsPhoneOrCode(t *testing.T) {
+func TestNoopProviderNeverLogsPhone(t *testing.T) {
 	var buf bytes.Buffer
 	p := NewNoopProvider(logging.NewRedactingLogger(&buf, slog.LevelInfo))
 	if err := p.SendOTP(context.Background(), "+14155552671", "987654"); err != nil {
 		t.Fatalf("SendOTP() error = %v", err)
 	}
 	out := buf.String()
-	if strings.Contains(out, "+14155552671") || strings.Contains(out, "987654") {
-		t.Fatalf("noop provider leaked PII: %s", out)
+	// Phone must NEVER appear in logs (zero-PII contract).
+	if strings.Contains(out, "+14155552671") {
+		t.Fatalf("noop provider leaked phone: %s", out)
 	}
+	// OTP code IS logged in dev/noop mode for testing — this is intentional
+	// so testers can retrieve it from Render logs during staging.
 }
