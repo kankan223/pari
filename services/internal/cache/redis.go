@@ -3,6 +3,8 @@ package cache
 
 import (
 	"context"
+	"crypto/tls"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -114,9 +116,30 @@ func NewClient(opts Options) *redis.Client {
 			ConnMaxIdleTime: opts.ConnMaxIdleTime,
 		})
 	}
+	// Parse redis:// or rediss:// URLs (Upstash, Redis Cloud, etc.)
+	addr := opts.Addr
+	password := opts.Password
+	if strings.HasPrefix(addr, "redis://") || strings.HasPrefix(addr, "rediss://") {
+		parsed, err := redis.ParseURL(addr)
+		if err == nil {
+			addr = parsed.Addr
+			password = parsed.Password
+			if opts.DB == 0 {
+				opts.DB = parsed.DB
+			}
+		}
+	}
+
+	// TLS: enable automatically when address uses rediss:// scheme
+	var tlsCfg *tls.Config
+	if strings.HasPrefix(opts.Addr, "rediss://") {
+		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+
 	return redis.NewClient(&redis.Options{
-		Addr:            opts.Addr,
-		Password:        opts.Password,
+		Addr:            addr,
+		Password:        password,
+		TLSConfig:       tlsCfg,
 		DB:              opts.DB,
 		MaxRetries:      opts.MaxRetries,
 		MinRetryBackoff: opts.MinRetryBackoff,
