@@ -31,7 +31,9 @@ func ParseUpstashURL(addr string) (baseURL, token string, ok bool) {
 			if u.Scheme == "redis" {
 				scheme = "http"
 			}
-			baseURL = scheme + "://" + u.Host
+			// Strip port — Upstash REST API runs on port 443 (standard HTTPS),
+			// not 6389 (the RESP protocol port).
+			baseURL = scheme + "://" + u.Hostname()
 			if u.User != nil {
 				token, _ = u.User.Password()
 			}
