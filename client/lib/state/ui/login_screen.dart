@@ -535,11 +535,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        TextButton(
-          onPressed: () => widget.authBloc.skipUsername(),
-          child: const Text(
-            'Skip for now (use anonymous handle)',
-            style: TextStyle(color: Color(0xFF6E6A5E)),
+        const Text(
+          'Username is required to message other users.',
+          style: TextStyle(
+            fontSize: 12,
+            color: Color(0xFF6E6A5E),
           ),
         ),
       ],

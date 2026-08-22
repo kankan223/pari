@@ -25,14 +25,21 @@ void main() {
     expect(harness, isNotNull);
 
     // Create a mock auth bloc that starts authenticated.
+    // Pre-populate secure storage so init() sees a username and emits
+    // authenticated state (username claim is now mandatory).
+    final storage = AuthStorage();
+    await storage.saveAuthTokens(
+      accessToken: 'test-token',
+      refreshToken: 'test-refresh',
+      blindHashId: 'test-hash',
+    );
+    await storage.saveUsername('testuser');
     final authBloc = AuthBloc(
       api: IdentityApiClient(
-        baseUrl: 'http://localhost:9999', // unreachable — won't be called
-      ),
-      storage: AuthStorage(),
+        baseUrl: 'http://localhost:9999'),
+      storage: storage,
     );
-    // Force authenticated state for the smoke test.
-    authBloc.skipUsername();
+    await authBloc.init();
 
     await tester.pumpWidget(CivicCommonsHarness(
       harness: harness!,

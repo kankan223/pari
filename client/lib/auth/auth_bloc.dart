@@ -28,15 +28,25 @@ class AuthBloc {
   AuthState get current => _current;
 
   /// Initialize — check if already authenticated.
+  ///
+  /// If the user has a token but no username, they are shown the username
+  /// entry screen (username claim is mandatory before accessing the app).
   Future<void> init() async {
     final isAuthenticated = await _storage.isAuthenticated();
     if (isAuthenticated) {
       final username = await _storage.getUsername();
       final blindHashId = await _storage.getBlindHashId();
-      _emit(AuthState.authenticated(
-        username: username ?? 'anonymous',
-        blindHashId: blindHashId ?? '',
-      ));
+      if (username != null && username.isNotEmpty) {
+        _emit(AuthState.authenticated(
+          username: username,
+          blindHashId: blindHashId ?? '',
+        ));
+      } else {
+        // Token exists but no username claimed yet — must claim one.
+        _emit(AuthState.otpVerified(
+          blindHashId: blindHashId ?? '',
+        ));
+      }
     } else {
       _emit(const AuthState.initial());
     }
@@ -158,14 +168,6 @@ class AuthBloc {
   /// Go back to the phone entry phase (e.g. "use a different number").
   void goToPhoneEntry() {
     _emit(const AuthState.initial());
-  }
-
-  /// Skip username creation (use anonymous handle).
-  void skipUsername() {
-    _emit(AuthState.authenticated(
-      username: 'anonymous',
-      blindHashId: _current.blindHashId ?? '',
-    ));
   }
 
   /// Logout — clear all auth state.
