@@ -42,6 +42,7 @@ class VaultConversationListScreen extends StatefulWidget {
     this.contextMeta,
     this.onNewConversation,
     this.onConversationTap,
+    this.onSettings,
     this.pendingRequests = const [],
     this.onAcceptRequest,
     this.secureFlagService,
@@ -66,6 +67,9 @@ class VaultConversationListScreen extends StatefulWidget {
 
   /// Opens a conversation detail screen for [conversationId].
   final ValueChanged<String>? onConversationTap;
+
+  /// Settings action (navigates to profile/general settings).
+  final VoidCallback? onSettings;
 
   /// Fallback static inbox (Task 6.1 presentation tests); superseded by
   /// [requestsBloc] when provided.
@@ -123,12 +127,15 @@ class _VaultConversationListScreenState
     final bloc = widget.bloc;
     final contextMeta = widget.contextMeta;
     final onNewConversation = widget.onNewConversation;
+    final onSettings = widget.onSettings;
     return _secure(
       Scaffold(
         body: Column(
           children: [
             VaultMasthead(
-                contextMeta: contextMeta, onAction: onNewConversation),
+                contextMeta: contextMeta,
+                onAction: onNewConversation,
+                onSettings: onSettings),
             Expanded(
               child: StreamBuilder<ConversationState>(
                 stream: bloc.state,

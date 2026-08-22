@@ -19,6 +19,7 @@ class VaultMasthead extends StatelessWidget {
     super.key,
     this.contextMeta,
     this.onAction,
+    this.onSettings,
   });
 
   /// Optional trailing identity line, e.g. the local user's display handle
@@ -28,6 +29,9 @@ class VaultMasthead extends StatelessWidget {
   /// Optional trailing action (the "new conversation" CTA). When null, the
   /// action button is not rendered.
   final VoidCallback? onAction;
+
+  /// Optional settings action. When null, the settings button is not rendered.
+  final VoidCallback? onSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +67,16 @@ class VaultMasthead extends StatelessWidget {
                     fontFamily: VaultTheme.monoFont,
                     letterSpacing: 0.4,
                   ),
+                ),
+              ],
+              if (onSettings != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onSettings,
+                  icon: const Icon(Icons.settings_outlined,
+                      color: Colors.white70, size: 20),
+                  tooltip: 'Settings',
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
               if (onAction != null) ...[

@@ -104,6 +104,8 @@ import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
 import 'state/ui/quick_exit_safe_screen.dart';
 import 'state/ui/vault_conversation_list_screen.dart';
+import 'state/ui/profile_settings_screen.dart';
+import 'state/ui/general_settings_screen.dart';
 import 'state/ui/verified_intel_report_sheet.dart';
 import 'state/ui/war_case_detail_screen.dart';
 import 'state/ui/war_room_case_list_screen.dart';
@@ -1605,6 +1607,12 @@ class _VaultTabState extends State<_VaultTab> {
           usernameDirectory: widget.h.usernameDirectory,
           contextMeta: widget.username,
           onNewConversation: _showNewConversationSheet,
+          onSettings: () => _navPush(
+            _nav,
+            GeneralSettingsScreen(
+              notificationBloc: widget.h.notificationBloc,
+            ),
+          ),
           onConversationTap: (id) async {
             // Look up the actual participant hash for this conversation.
             final conv = await widget.h.conversationStore.getById(id);
