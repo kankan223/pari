@@ -24,6 +24,9 @@ abstract class ConsentBloc {
   /// Grants consent for all required types.
   Future<void> grantAll();
 
+  /// Grants consent for a single [type].
+  Future<void> grantConsent(ConsentType type);
+
   /// Withdraws consent for all types and triggers data deletion.
   Future<void> withdrawAll();
 

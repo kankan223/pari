@@ -134,7 +134,7 @@ class _DpdpConsentScreenState extends State<DpdpConsentScreen> {
               required: type != ConsentType.analytics,
               onChanged: (granted) {
                 if (granted) {
-                  widget.bloc.grantAll();
+                  widget.bloc.grantConsent(type);
                 } else {
                   widget.bloc.withdrawConsent(type);
                 }

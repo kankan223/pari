@@ -425,6 +425,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
         conversationRepo: h.conversationBloc.repository,
         messageRepo: h.messageBloc.repository,
         conversationStore: h.conversationStore,
+        messageDb: h.messageDb,
         cipher: _cipher,
         myBlindHash: h.peerHash,
         deviceId: 'civic-web-${DateTime.now().millisecondsSinceEpoch}',
@@ -613,7 +614,7 @@ class HarnessDependencies {
   final EntityStore<Conversation> conversationStore;
   final LocalDataStream<Conversation> conversationDb;
   final EntityStore<Message> messageStore;
-  final LocalDataStream<Message> messageDb;
+  final LocalDataStreamController<Message> messageDb;
 
   // Ledger.
   final LocalLedgerFeedBloc ledgerFeedBloc;
@@ -1537,25 +1538,54 @@ class _VaultTabState extends State<_VaultTab> {
   }
 
   void _startNewConversation(String peerHash) async {
-    // Create a new conversation in the local store.
-    final conv = Conversation(
-      id: 'conv-${DateTime.now().millisecondsSinceEpoch}',
-      participantHash: peerHash,
-      encryptedSessionState: Uint8List(0),
-    );
-    await widget.h.conversationBloc.repository.create(conv);
-    await widget.h.conversationBloc.refresh();
+    // Check if a conversation with this peer already exists.
+    Conversation? existingConv;
+    final allConvs = await widget.h.conversationBloc.repository.getAll();
+    for (final c in allConvs) {
+      if (c.participantHash == peerHash) {
+        existingConv = c;
+        break;
+      }
+    }
 
-    // Remember the peer in the directory.
+    String convId;
+    if (existingConv != null) {
+      // Reuse existing conversation.
+      convId = existingConv.id;
+    } else {
+      // Create a new conversation in the shared store.
+      convId = 'conv-${DateTime.now().millisecondsSinceEpoch}';
+      final conv = Conversation(
+        id: convId,
+        participantHash: peerHash,
+        encryptedSessionState: Uint8List(0),
+      );
+      await widget.h.conversationBloc.repository.create(conv);
+      await widget.h.conversationBloc.refresh();
+    }
+
+    // Remember the peer in the directory (username will be resolved later).
     await widget.h.usernameDirectory.remember(username: '', blindHashId: peerHash);
 
-    // Navigate to the new conversation.
+    // Create a per-conversation message bloc using the shared message store.
     if (mounted) {
+      final messageBloc = LocalMessageBloc(
+        repository: LocalMessageRepository(
+          store: widget.h.messageStore,
+          syncQueue: widget.h.syncQueue,
+          sink: _NoopSyncSink(),
+        ),
+        database: widget.h.messageDb,
+        conversationId: convId,
+        participantHash: peerHash,
+      );
+      await messageBloc.start();
       _navPush(
         _nav,
         _VaultConversationDetailWrapper(
-          messageBloc: widget.h.messageBloc,
+          messageBloc: messageBloc,
           conversationBloc: widget.h.conversationBloc,
+          conversationId: convId,
           peerHash: peerHash,
           relayBloc: widget.relayBloc,
           usernameDirectory: widget.h.usernameDirectory,
@@ -1575,13 +1605,30 @@ class _VaultTabState extends State<_VaultTab> {
           usernameDirectory: widget.h.usernameDirectory,
           contextMeta: widget.username,
           onNewConversation: _showNewConversationSheet,
-          onConversationTap: (id) {
+          onConversationTap: (id) async {
+            // Look up the actual participant hash for this conversation.
+            final conv = await widget.h.conversationStore.getById(id);
+            final participantHash = conv?.participantHash ?? widget.h.peerHash;
+            // Create a per-conversation message bloc using the shared store
+            // so messages from the relay flow into the same data stream.
+            final messageBloc = LocalMessageBloc(
+              repository: LocalMessageRepository(
+                store: widget.h.messageStore,
+                syncQueue: widget.h.syncQueue,
+                sink: _NoopSyncSink(),
+              ),
+              database: widget.h.messageDb,
+              conversationId: id,
+              participantHash: participantHash,
+            );
+            await messageBloc.start();
             _navPush(
               _nav,
               _VaultConversationDetailWrapper(
-                messageBloc: widget.h.messageBloc,
+                messageBloc: messageBloc,
                 conversationBloc: widget.h.conversationBloc,
-                peerHash: widget.h.peerHash,
+                conversationId: id,
+                peerHash: participantHash,
                 relayBloc: widget.relayBloc,
                 usernameDirectory: widget.h.usernameDirectory,
               ),
@@ -1598,6 +1645,7 @@ class _VaultTabState extends State<_VaultTab> {
 class _VaultConversationDetailWrapper extends StatefulWidget {
   final MessageBloc messageBloc;
   final ConversationBloc conversationBloc;
+  final String conversationId;
   final String peerHash;
   final RelayMessagingBloc? relayBloc;
   final UsernameDirectory? usernameDirectory;
@@ -1605,6 +1653,7 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
   const _VaultConversationDetailWrapper({
     required this.messageBloc,
     required this.conversationBloc,
+    required this.conversationId,
     required this.peerHash,
     this.relayBloc,
     this.usernameDirectory,
@@ -1633,17 +1682,16 @@ class _VaultConversationDetailWrapperState
     _controller.clear();
 
     try {
-      // Send through the relay (real-time delivery).
+      // 1. Persist locally first (offline-first — UI sees message immediately).
+      await widget.messageBloc.send(text);
+      // 2. Send through the relay for real-time delivery to the peer.
       final relay = widget.relayBloc;
       if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
         await relay.sendMessage(
           recipientHash: widget.peerHash,
           text: text,
-          conversationId: 'conv-0001',
+          conversationId: widget.conversationId,
         );
-      } else {
-        // Fallback: persist locally only (offline).
-        await widget.messageBloc.send(text);
       }
     } catch (_) {
       // Silently handle — message stays in local store.
@@ -1679,14 +1727,23 @@ class _VaultConversationDetailWrapperState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            formatPeerHandle(participantHash),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: Colors.white,
-                              fontFamily: VaultTheme.monoFont,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                          FutureBuilder<String?>(
+                            future: widget.usernameDirectory?.usernameForHash(participantHash),
+                            builder: (context, snapshot) {
+                              final username = snapshot.data;
+                              final displayName = username != null
+                                  ? '@$username'
+                                  : formatPeerHandle(participantHash);
+                              return Text(
+                                displayName,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontFamily: VaultTheme.monoFont,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           ),
                           StreamBuilder<RelayMessagingStatus>(
                             stream: widget.relayBloc?.status,

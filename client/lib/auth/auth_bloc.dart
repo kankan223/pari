@@ -155,6 +155,11 @@ class AuthBloc {
     }
   }
 
+  /// Go back to the phone entry phase (e.g. "use a different number").
+  void goToPhoneEntry() {
+    _emit(const AuthState.initial());
+  }
+
   /// Skip username creation (use anonymous handle).
   void skipUsername() {
     _emit(AuthState.authenticated(

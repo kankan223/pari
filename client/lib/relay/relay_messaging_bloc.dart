@@ -7,6 +7,7 @@ import '../repository/domain/conversation_repository.dart';
 import '../repository/domain/entity_store.dart';
 import '../repository/domain/message.dart';
 import '../repository/domain/message_repository.dart';
+import '../state/data/local_data_stream_controller.dart';
 import '../state/domain/message_cipher.dart';
 import 'domain/relay_client.dart';
 import 'domain/relay_socket.dart';
@@ -39,6 +40,7 @@ class RelayMessagingBloc {
   final ConversationRepository _conversationRepo;
   final MessageRepository _messageRepo;
   final EntityStore<Conversation> _conversationStore;
+  final LocalDataStreamController<Message>? _messageDb;
   final MessageCipher? _cipher;
   final String _myBlindHash;
   final String _deviceId;
@@ -57,12 +59,14 @@ class RelayMessagingBloc {
     required ConversationRepository conversationRepo,
     required MessageRepository messageRepo,
     required EntityStore<Conversation> conversationStore,
+    LocalDataStreamController<Message>? messageDb,
     MessageCipher? cipher,
     required String myBlindHash,
     required String deviceId,
   })  : _conversationRepo = conversationRepo,
         _messageRepo = messageRepo,
         _conversationStore = conversationStore,
+        _messageDb = messageDb,
         _cipher = cipher,
         _myBlindHash = myBlindHash,
         _deviceId = deviceId;
@@ -161,6 +165,8 @@ class RelayMessagingBloc {
       delivered: false,
     );
     await _messageRepo.create(msg);
+    // Notify the UI stream so per-conversation blocs pick up the message.
+    _notifyStream();
 
     // 2. Send through the relay (if connected).
     final client = _client;
@@ -219,6 +225,18 @@ class RelayMessagingBloc {
       delivered: true,
     );
     await _messageRepo.create(msg);
+    // Notify the UI stream so per-conversation blocs pick up the message.
+    _notifyStream();
+  }
+
+  /// Emit all messages from the shared store so stream subscribers see
+  /// messages created by the relay or other code paths.
+  void _notifyStream() {
+    final db = _messageDb;
+    if (db != null) {
+      // Fetch all messages and emit — subscribers filter by conversationId.
+      _messageRepo.getAll().then((all) => db.emit(all));
+    }
   }
 
   /// Generate a UUID v4 (simple implementation).

@@ -91,6 +91,31 @@ class LocalConsentBloc implements ConsentBloc {
   }
 
   @override
+  Future<void> grantConsent(ConsentType type) async {
+    final seq = ++_seq;
+
+    try {
+      final version = _repository.currentConsentVersion;
+      final textHash = 'consent_v${version}_hash';
+
+      await _repository.grantConsent(
+        type: type,
+        consentVersion: version,
+        textHash: textHash,
+      );
+
+      if (seq != _seq) return;
+      await refresh();
+    } catch (_) {
+      if (seq != _seq) return;
+      _emit(const ConsentState(
+        phase: ConsentPhase.error,
+        errorMessage: 'Unable to grant consent',
+      ));
+    }
+  }
+
+  @override
   Future<void> withdrawAll() async {
     final seq = ++_seq;
     _emit(const ConsentState(phase: ConsentPhase.loading));

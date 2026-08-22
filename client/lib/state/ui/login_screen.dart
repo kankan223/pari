@@ -454,8 +454,9 @@ class _LoginScreenState extends State<LoginScreen> {
         TextButton(
           onPressed: () {
             _otpController.clear();
-            // Go back to phone entry
-            widget.authBloc.submitPhone('');
+            // Go back to phone entry — just reset the phase, don't call the API
+            // with an empty phone number.
+            widget.authBloc.goToPhoneEntry();
           },
           child: const Text(
             'Use a different number',
