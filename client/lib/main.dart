@@ -100,7 +100,6 @@ import 'state/ui/transparency_log_screen.dart';
 import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
 import 'state/ui/quick_exit_safe_screen.dart';
-import 'state/ui/vault_conversation_detail_screen.dart';
 import 'state/ui/vault_conversation_list_screen.dart';
 import 'state/ui/verified_intel_report_sheet.dart';
 import 'state/ui/war_case_detail_screen.dart';
@@ -116,7 +115,18 @@ import 'war_room/data/in_memory_war_case_repository.dart';
 import 'auth/identity_api_client.dart';
 import 'auth/auth_storage.dart';
 import 'auth/auth_bloc.dart';
+import 'relay/data/web_socket_relay_socket.dart';
+import 'relay/relay_messaging_bloc.dart';
+
+import 'repository/domain/username_directory.dart';
+import 'security/ui/secure_screen_wrapper.dart';
+import 'state/domain/conversation_bloc.dart';
+import 'state/domain/local_data_stream.dart';
+import 'state/domain/message_bloc.dart';
+import 'state/domain/message_state.dart';
 import 'state/ui/login_screen.dart';
+import 'state/domain/peer_handle.dart';
+import 'state/ui/vault_theme.dart';
 
 /// Civic Commons — MANUAL TESTING HARNESS (entry point).
 ///
@@ -277,7 +287,7 @@ class _ErrorApp extends StatelessWidget {
 // App shell: checks auth state → shows LoginScreen or main harness.
 // ---------------------------------------------------------------------------
 
-class CivicCommonsApp extends StatelessWidget {
+class CivicCommonsApp extends StatefulWidget {
   final HarnessDependencies harness;
   final AuthBloc authBloc;
 
@@ -286,6 +296,55 @@ class CivicCommonsApp extends StatelessWidget {
     required this.harness,
     required this.authBloc,
   });
+
+  @override
+  State<CivicCommonsApp> createState() => _CivicCommonsAppState();
+}
+
+class _CivicCommonsAppState extends State<CivicCommonsApp> {
+  RelayMessagingBloc? _relayBloc;
+  AuthState? _lastAuthState;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastAuthState = widget.authBloc.current;
+    // Relay is created lazily on first auth — see _connectRelay.
+    // Connect relay if already authenticated.
+    if (_lastAuthState?.isAuthenticated == true) {
+      _connectRelay(_lastAuthState!);
+    }
+  }
+
+  void _connectRelay(AuthState authState) async {
+    final storage = AuthStorage();
+    final token = await storage.getAccessToken();
+    if (token == null || token.isEmpty) return;
+
+    // Create the relay messaging bloc if not already created.
+    if (_relayBloc == null) {
+      final h = widget.harness;
+      _relayBloc = RelayMessagingBloc(
+        conversationRepo: h.conversationBloc.repository,
+        messageRepo: h.messageBloc.repository,
+        conversationStore: h.conversationStore,
+        myBlindHash: h.peerHash,
+        deviceId: 'civic-web-${DateTime.now().millisecondsSinceEpoch}',
+      );
+    }
+
+    _relayBloc?.connect(
+      accessToken: token,
+      relayUrl: 'wss://civic-commons-relay.onrender.com/v1/relay/ws',
+      connector: const WebSocketRelaySocketConnector(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _relayBloc?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -298,18 +357,27 @@ class CivicCommonsApp extends StatelessWidget {
         scaffoldBackgroundColor: WarRoomTheme.manilaPaper,
       ),
       home: StreamBuilder<AuthState>(
-        stream: authBloc.state,
-        initialData: authBloc.current,
+        stream: widget.authBloc.state,
+        initialData: widget.authBloc.current,
         builder: (context, snapshot) {
           final authState = snapshot.data ?? const AuthState.initial();
+          // Connect relay on fresh login.
+          if (authState.isAuthenticated &&
+              _lastAuthState?.isAuthenticated != true) {
+            _connectRelay(authState);
+          }
+          _lastAuthState = authState;
           if (authState.isAuthenticated) {
             return CivicCommonsHarness(
-              harness: harness,
-              authBloc: authBloc,
+              harness: widget.harness,
+              authBloc: widget.authBloc,
               username: authState.username ?? 'anonymous',
+              relayBloc: _relayBloc,
             );
           }
-          return LoginScreen(authBloc: authBloc);
+          // Disconnect relay on logout.
+          _relayBloc?.disconnect();
+          return LoginScreen(authBloc: widget.authBloc);
         },
       ),
     );
@@ -412,6 +480,10 @@ class HarnessDependencies {
   final LocalConversationBloc conversationBloc;
   final LocalMessageBloc messageBloc;
   final LocalConnectionRequestsBloc connectionRequestsBloc;
+  final EntityStore<Conversation> conversationStore;
+  final LocalDataStream<Conversation> conversationDb;
+  final EntityStore<Message> messageStore;
+  final LocalDataStream<Message> messageDb;
 
   // Ledger.
   final LocalLedgerFeedBloc ledgerFeedBloc;
@@ -481,6 +553,10 @@ class HarnessDependencies {
     required this.conversationBloc,
     required this.messageBloc,
     required this.connectionRequestsBloc,
+    required this.conversationStore,
+    required this.conversationDb,
+    required this.messageStore,
+    required this.messageDb,
     required this.ledgerFeedBloc,
     required this.ledgerGeoBloc,
     required this.ledgerComposeBloc,
@@ -977,6 +1053,10 @@ class HarnessDependencies {
       conversationBloc: conversationBloc,
       messageBloc: messageBloc,
       connectionRequestsBloc: connectionRequestsBloc,
+      conversationStore: conversationStore,
+      conversationDb: conversationDatabase,
+      messageStore: messageStore,
+      messageDb: messageDatabase,
       ledgerFeedBloc: ledgerFeedBloc,
       ledgerGeoBloc: ledgerGeoBloc,
       ledgerComposeBloc: ledgerComposeBloc,
@@ -1020,12 +1100,14 @@ class CivicCommonsHarness extends StatefulWidget {
   final HarnessDependencies harness;
   final AuthBloc authBloc;
   final String username;
+  final RelayMessagingBloc? relayBloc;
 
   const CivicCommonsHarness({
     super.key,
     required this.harness,
     required this.authBloc,
     this.username = 'anonymous',
+    this.relayBloc,
   });
 
   @override
@@ -1057,7 +1139,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     super.initState();
     final h = widget.harness;
     _warRoomTab = _WarRoomTab(h: h);
-    _vaultTab = _VaultTab(h: h, username: widget.username);
+    _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc);
     _ledgerTab = _LedgerTab(h: h);
     _academyTab = _AcademyTab(h: h);
     _identityTab = _IdentityTab(h: h);
@@ -1296,7 +1378,8 @@ class _WarCaseDetail extends StatelessWidget {
 class _VaultTab extends StatefulWidget {
   final HarnessDependencies h;
   final String username;
-  const _VaultTab({required this.h, this.username = 'anonymous'});
+  final RelayMessagingBloc? relayBloc;
+  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc});
   @override
   State<_VaultTab> createState() => _VaultTabState();
 }
@@ -1317,12 +1400,264 @@ class _VaultTabState extends State<_VaultTab> {
           onConversationTap: (id) {
             _navPush(
               _nav,
-              VaultConversationDetailScreen(
-                bloc: widget.h.messageBloc,
-                participantHash: widget.h.peerHash,
+              _VaultConversationDetailWrapper(
+                messageBloc: widget.h.messageBloc,
+                conversationBloc: widget.h.conversationBloc,
+                peerHash: widget.h.peerHash,
+                relayBloc: widget.relayBloc,
+                usernameDirectory: widget.h.usernameDirectory,
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Wrapper that wires the relay messaging to the conversation detail screen.
+/// Shows a connection status indicator and sends messages through the relay.
+class _VaultConversationDetailWrapper extends StatefulWidget {
+  final MessageBloc messageBloc;
+  final ConversationBloc conversationBloc;
+  final String peerHash;
+  final RelayMessagingBloc? relayBloc;
+  final UsernameDirectory? usernameDirectory;
+
+  const _VaultConversationDetailWrapper({
+    required this.messageBloc,
+    required this.conversationBloc,
+    required this.peerHash,
+    this.relayBloc,
+    this.usernameDirectory,
+  });
+
+  @override
+  State<_VaultConversationDetailWrapper> createState() =>
+      _VaultConversationDetailWrapperState();
+}
+
+class _VaultConversationDetailWrapperState
+    extends State<_VaultConversationDetailWrapper> {
+  final TextEditingController _controller = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    _controller.clear();
+
+    try {
+      // Send through the relay (real-time delivery).
+      final relay = widget.relayBloc;
+      if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+        await relay.sendMessage(
+          recipientHash: widget.peerHash,
+          text: text,
+          conversationId: 'conv-0001',
+        );
+      } else {
+        // Fallback: persist locally only (offline).
+        await widget.messageBloc.send(text);
+      }
+    } catch (_) {
+      // Silently handle — message stays in local store.
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final participantHash = widget.peerHash;
+    return SecureScreenWrapper(
+      child: Scaffold(
+        body: Column(
+          children: [
+            // Header with connection status.
+            SafeArea(
+              bottom: false,
+              child: Container(
+                color: VaultTheme.vaultBlue,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_rounded,
+                          color: Colors.white),
+                      tooltip: 'Back',
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            formatPeerHandle(participantHash),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontFamily: VaultTheme.monoFont,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          StreamBuilder<RelayMessagingStatus>(
+                            stream: widget.relayBloc?.status,
+                            initialData: widget.relayBloc?.currentStatus,
+                            builder: (context, snapshot) {
+                              final status = snapshot.data;
+                              final label = switch (status) {
+                                RelayMessagingStatus.connected => '🟢 Live',
+                                RelayMessagingStatus.connecting => '🟡 Connecting...',
+                                RelayMessagingStatus.reconnecting => '🟠 Reconnecting...',
+                                RelayMessagingStatus.authFailed => '🔴 Auth failed',
+                                RelayMessagingStatus.disconnected => '⚪ Offline',
+                                null => '⚪ Offline',
+                              };
+                              return Text(
+                                label,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Tooltip(
+                      message: 'End-to-end encrypted',
+                      child: Icon(Icons.lock_rounded,
+                          color: Colors.white70, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                ),
+              ),
+            ),
+            // Message thread.
+            Expanded(
+              child: StreamBuilder<MessageState>(
+                stream: widget.messageBloc.state,
+                builder: (context, snapshot) {
+                  final state = snapshot.data;
+                  if (state == null || !state.hasLoaded) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final messages = state.messages;
+                  if (messages.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No messages yet — say hello!',
+                        style: TextStyle(color: Colors.black45),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final summary = messages[index];
+                      final isSent =
+                          summary.direction == MessageDirection.sent;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Align(
+                          alignment: isSent
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth:
+                                  MediaQuery.of(context).size.width * 0.75,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSent
+                                  ? VaultTheme.vaultBlue
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              summary.content ?? '[end-to-end encrypted]',
+                              style: TextStyle(
+                                color: isSent ? Colors.white : Colors.black87,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            // Composer.
+            SafeArea(
+              top: false,
+              child: Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: Colors.black12)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: const InputDecoration(
+                          hintText: 'Type a message…',
+                          isDense: true,
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _sending ? null : _send,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_rounded),
+                      color: VaultTheme.vaultBlue,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

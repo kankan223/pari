@@ -24,6 +24,11 @@ class LocalConversationBloc implements ConversationBloc {
   })  : _repository = repository,
         _database = database;
 
+  /// Exposes the underlying repository for relay integration.
+  ConversationRepository get repository => _repository;
+  /// Exposes the underlying data stream for relay integration.
+  LocalDataStream<Conversation> get database => _database;
+
   @override
   Stream<ConversationState> get state => _controller.stream;
 

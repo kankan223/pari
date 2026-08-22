@@ -48,6 +48,11 @@ class LocalMessageBloc implements MessageBloc {
         _cipher = cipher,
         _idGen = idempotencyKeys ?? IdempotencyKeyGenerator();
 
+  /// Exposes the underlying repository for relay integration.
+  MessageRepository get repository => _repository;
+  /// Exposes the underlying data stream for relay integration.
+  LocalDataStream<Message> get database => _database;
+
   @override
   Stream<MessageState> get state => _controller.stream;
 
