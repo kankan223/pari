@@ -71,6 +71,7 @@ func NewServer(opts ServerOptions) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/relay/ws", s.serveWS)
+	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /v1/relay/healthz", s.handleHealth)
 	// The mutation endpoints are wrapped in the idempotency middleware INSIDE
 	// auth: an unauthenticated request never consumes a dedup key, and the
