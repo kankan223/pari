@@ -287,3 +287,88 @@ func TestServerPreKeyOTPKRemainingCount(t *testing.T) {
 		t.Fatalf("otpk_remaining after 2nd fetch: got %v, want 3", resp2.OTPKRemaining)
 	}
 }
+
+func TestServerUsersEndpoint(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	// Register two users with different phones and usernames.
+	phones := []string{"+12025551001", "+12025551002"}
+	names := []string{"alice", "bob"}
+	var userToken string
+	for i, phone := range phones {
+		var req struct {
+			Requested   bool   `json:"requested"`
+			BlindHashID string `json:"blind_hash_id"`
+		}
+		status, _ := httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/request",
+			"", map[string]string{"phone": phone}, &req)
+		if status != http.StatusOK {
+			t.Fatalf("otp/request %d = %d", i, status)
+		}
+		var auth authResultJSON
+		status, _ = httpDo(t, http.MethodPost, srv.URL+"/v1/identity/otp/verify",
+			"", map[string]string{"blind_hash_id": req.BlindHashID, "otp": "123456"}, &auth)
+		if status != http.StatusOK {
+			t.Fatalf("otp/verify %d = %d", i, status)
+		}
+		// Claim username.
+		status, _ = httpDo(t, http.MethodPost, srv.URL+"/v1/identity/username/claim",
+			auth.AccessToken, map[string]string{"username": names[i]}, nil)
+		if status != http.StatusOK {
+			t.Fatalf("username/claim %d = %d", i, status)
+		}
+		if i == 0 {
+			userToken = auth.AccessToken
+		}
+	}
+
+	var resp struct {
+		Users []UsernameLookup `json:"users"`
+	}
+	status, _ := httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users",
+		userToken, nil, &resp)
+	if status != http.StatusOK {
+		t.Fatalf("users = %d", status)
+	}
+	if len(resp.Users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(resp.Users))
+	}
+	// Verify usernames are present (sorted alphabetically).
+	if resp.Users[0].Username != "alice" {
+		t.Fatalf("expected first user alice, got %s", resp.Users[0].Username)
+	}
+	if resp.Users[1].Username != "bob" {
+		t.Fatalf("expected second user bob, got %s", resp.Users[1].Username)
+	}
+	// Verify blind_hash_ids are valid.
+	for _, u := range resp.Users {
+		if !ValidBlindHashID(u.BlindHashID) {
+			t.Fatalf("invalid blind_hash_id: %s", u.BlindHashID)
+		}
+	}
+}
+
+func TestServerUsersEndpointRequiresAuth(t *testing.T) {
+	srv, _ := newTestServer(t)
+	status, _ := httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users",
+		"", nil, nil)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", status)
+	}
+}
+
+func TestServerUsersEndpointEmpty(t *testing.T) {
+	srv, _ := newTestServer(t)
+	token, _ := loginAndGetToken(t, srv)
+	var resp struct {
+		Users []UsernameLookup `json:"users"`
+	}
+	status, _ := httpDo(t, http.MethodGet, srv.URL+"/v1/identity/users",
+		token, nil, &resp)
+	if status != http.StatusOK {
+		t.Fatalf("users = %d", status)
+	}
+	if len(resp.Users) != 0 {
+		t.Fatalf("expected 0 users, got %d", len(resp.Users))
+	}
+}

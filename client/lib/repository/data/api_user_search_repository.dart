@@ -29,4 +29,11 @@ class ApiUserSearchRepository implements UserSearchRepository {
       username: username,
     );
   }
+
+  @override
+  Future<List<UsernameLookupResult>> listUsers() async {
+    final token = _tokenProvider();
+    if (token.isEmpty) return [];
+    return _api.listUsers(accessToken: token);
+  }
 }

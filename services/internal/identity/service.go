@@ -502,3 +502,14 @@ func (s *Service) CountOTPKs(ctx context.Context, blindHashID string) (int, erro
 	}
 	return count, nil
 }
+
+// ListUsers returns all users who have claimed a username. The result
+// contains only the username and blind_hash_id — no phone numbers, no
+// device keys, no PII.
+func (s *Service) ListUsers(ctx context.Context) ([]UsernameLookup, error) {
+	lookups, err := s.usernames.ListAll(ctx)
+	if err != nil {
+		return nil, ErrInternal
+	}
+	return lookups, nil
+}

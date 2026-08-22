@@ -1,3 +1,4 @@
+import '../../repository/domain/username_lookup_result.dart';
 import 'user_search_state.dart';
 
 /// BLoC for the username search flow (Task 6.2).
@@ -13,8 +14,14 @@ abstract class UserSearchBloc {
   /// Stream of search states (idle → searching → found | notFound | error).
   Stream<UserSearchState> get state;
 
+  /// The cached list of all users on the platform.
+  List<UsernameLookupResult> get users;
+
   /// Searches for [username]. Emits searching, then found/notFound/error.
   Future<void> search(String username);
+
+  /// Loads the full user list from the server.
+  Future<void> loadUsers();
 
   /// Returns to the idle state (clears the previous result).
   Future<void> clear();

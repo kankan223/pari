@@ -12,4 +12,7 @@ abstract class UserSearchRepository {
   /// Resolves [username] to its owner's blind hash, or null when the
   /// username does not resolve (unknown, released, or reserved).
   Future<UsernameLookupResult?> searchByUsername(String username);
+
+  /// Lists all users who have claimed a username.
+  Future<List<UsernameLookupResult>> listUsers();
 }

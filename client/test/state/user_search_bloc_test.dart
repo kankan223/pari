@@ -121,6 +121,11 @@ class _ThrowingSearchRepository implements UserSearchRepository {
   Future<UsernameLookupResult?> searchByUsername(String username) async {
     throw StateError('search unavailable');
   }
+
+  @override
+  Future<List<UsernameLookupResult>> listUsers() async {
+    throw StateError('search unavailable');
+  }
 }
 
 /// Flushes pending microtasks so broadcast-stream deliveries land.

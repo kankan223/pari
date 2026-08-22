@@ -32,4 +32,13 @@ class MemoryUserSearchRepository implements UserSearchRepository {
     }
     return UsernameLookupResult(username: username, blindHashId: hash);
   }
+
+  @override
+  Future<List<UsernameLookupResult>> listUsers() async {
+    final entries = _directory.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return entries
+        .map((e) => UsernameLookupResult(username: e.key, blindHashId: e.value))
+        .toList();
+  }
 }

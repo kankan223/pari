@@ -73,3 +73,30 @@ func (p *UserStore) SetUsername(ctx context.Context, blindHashID, username strin
 		return nil
 	})
 }
+
+// List implements identity.UserStore. Returns all users sorted by created_at.
+func (p *UserStore) List(ctx context.Context) ([]identity.User, error) {
+	var users []identity.User
+	err := p.s.withTx(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx,
+			`SELECT blind_hash_id, username, created_at FROM users ORDER BY created_at ASC`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var u identity.User
+			var username sql.NullString
+			if err := rows.Scan(&u.BlindHashID, &username, &u.CreatedAt); err != nil {
+				return err
+			}
+			u.Username = username.String
+			users = append(users, u)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}

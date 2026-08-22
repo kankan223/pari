@@ -25,6 +25,7 @@ const (
 	// #nosec G101 -- route path, not a credential.
 	routeTokenRevoke = "POST /v1/identity/token/revoke"
 	routeMe          = "GET /v1/identity/me"
+	routeUsers       = "GET /v1/identity/users"
 	routePreKeyPublish = "POST /v1/identity/prekeys"
 	routePreKeyFetch   = "GET /v1/identity/prekeys/{blind_hash_id}"
 	routeHealth = "GET /health"
@@ -55,6 +56,7 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 	s.mux.HandleFunc(routeTokenRefresh, s.handleTokenRefresh)
 	s.mux.HandleFunc(routeTokenRevoke, s.handleTokenRevoke)
 	s.mux.HandleFunc(routeMe, s.requireAuth(s.handleMe))
+	s.mux.HandleFunc(routeUsers, s.requireAuth(s.handleUsers))
 	s.mux.HandleFunc(routePreKeyPublish, s.requireAuth(s.handlePreKeyPublish))
 	s.mux.HandleFunc(routePreKeyFetch, s.requireAuth(s.handlePreKeyFetch))
 	s.mux.HandleFunc(routeHealth, s.handleHealth)
@@ -392,6 +394,17 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		"user":    user,
 		"devices": devices,
 	})
+}
+
+// handleUsers returns all users who have claimed a username.
+// Response: { "users": [{"username": "...", "blind_hash_id": "..."}, ...] }
+func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := s.svc.ListUsers(r.Context())
+	if err != nil {
+		s.mapError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": users})
 }
 
 // ---------------------------------------------------------------------------

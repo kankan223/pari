@@ -31,6 +31,8 @@ type UserStore interface {
 	Create(ctx context.Context, u User) error
 	Get(ctx context.Context, blindHashID string) (User, error)
 	SetUsername(ctx context.Context, blindHashID, username string) error
+	// List returns all users. Used by the user-list endpoint.
+	List(ctx context.Context) ([]User, error)
 }
 
 // InMemoryUserStore is a mutex-guarded in-memory UserStore.
@@ -77,4 +79,23 @@ func (s *InMemoryUserStore) SetUsername(_ context.Context, blindHashID, username
 	u.Username = username
 	s.users[blindHashID] = u
 	return nil
+}
+
+// List implements UserStore. Returns all users sorted by created_at.
+func (s *InMemoryUserStore) List(_ context.Context) ([]User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]User, 0, len(s.users))
+	for _, u := range s.users {
+		result = append(result, u)
+	}
+	// Sort by created_at for deterministic output.
+	for i := 0; i < len(result); i++ {
+		for j := i + 1; j < len(result); j++ {
+			if result[i].CreatedAt.After(result[j].CreatedAt) {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
+	}
+	return result, nil
 }

@@ -48,6 +48,31 @@ class UserSearchApiClient {
     return null;
   }
 
+  /// Lists all users who have claimed a username.
+  ///
+  /// Returns a list of [UsernameLookupResult] — public usernames + blind hashes.
+  Future<List<UsernameLookupResult>> listUsers({
+    required String accessToken,
+  }) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/v1/identity/users'),
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final users = body['users'] as List<dynamic>? ?? [];
+      return users.map((u) {
+        final map = u as Map<String, dynamic>;
+        return UsernameLookupResult(
+          username: map['username'] as String,
+          blindHashId: map['blind_hash_id'] as String,
+        );
+      }).toList();
+    }
+    return [];
+  }
+
   void dispose() {
     _client.close();
   }

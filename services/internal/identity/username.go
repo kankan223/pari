@@ -66,6 +66,9 @@ type UsernameStore interface {
 	Release(ctx context.Context, username, ownerHash string, now time.Time) error
 	// Get returns the current record.
 	Get(ctx context.Context, username string) (UsernameRecord, error)
+	// ListAll returns all actively claimed usernames (OwnerHash != "")
+	// with their owner hashes. Used by the user-list endpoint.
+	ListAll(ctx context.Context) ([]UsernameLookup, error)
 }
 
 // InMemoryUsernameStore is a mutex-guarded in-memory UsernameStore.
@@ -126,4 +129,30 @@ func (s *InMemoryUsernameStore) Get(_ context.Context, username string) (Usernam
 		return UsernameRecord{}, fmt.Errorf("%w: %s", ErrUsernameNotOwned, username)
 	}
 	return rec, nil
+}
+
+// ListAll implements UsernameStore. Returns all actively claimed usernames
+// (where OwnerHash is non-empty) sorted alphabetically.
+func (s *InMemoryUsernameStore) ListAll(_ context.Context) ([]UsernameLookup, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []UsernameLookup
+	for username, rec := range s.usernames {
+		if rec.OwnerHash == "" {
+			continue // released / cooldown — not listed
+		}
+		result = append(result, UsernameLookup{
+			Username:    username,
+			BlindHashID: rec.OwnerHash,
+		})
+	}
+	// Sort alphabetically for deterministic output.
+	for i := 0; i < len(result); i++ {
+		for j := i + 1; j < len(result); j++ {
+			if result[i].Username > result[j].Username {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
+	}
+	return result, nil
 }

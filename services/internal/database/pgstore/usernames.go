@@ -107,3 +107,29 @@ func (p *UsernameStore) Get(ctx context.Context, username string) (identity.User
 	}
 	return rec, nil
 }
+
+// ListAll implements identity.UsernameStore. Returns all actively claimed
+// usernames (owner_hash is non-empty) sorted alphabetically.
+func (p *UsernameStore) ListAll(ctx context.Context) ([]identity.UsernameLookup, error) {
+	var result []identity.UsernameLookup
+	err := p.s.withTx(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx,
+			`SELECT username, owner_hash FROM usernames WHERE owner_hash != '' ORDER BY username ASC`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var l identity.UsernameLookup
+			if err := rows.Scan(&l.Username, &l.BlindHashID); err != nil {
+				return err
+			}
+			result = append(result, l)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}

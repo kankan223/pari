@@ -41,6 +41,8 @@ class _NewConversationSheetState extends State<NewConversationSheet> {
     _sub = widget.searchBloc.state.listen((state) {
       if (mounted) setState(() => _searchState = state);
     });
+    // Load user list on open.
+    widget.searchBloc.loadUsers();
     // Auto-focus the search field.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
@@ -147,6 +149,53 @@ class _NewConversationSheetState extends State<NewConversationSheet> {
     final state = _searchState;
 
     if (state == null || state.isIdle) {
+      final users = widget.searchBloc.users;
+      if (users.isNotEmpty) {
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 240),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: users.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final user = users[index];
+              return ListTile(
+                dense: true,
+                leading: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: VaultTheme.vaultBlue,
+                  child: Text(
+                    user.username[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  '@${user.username}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: VaultTheme.vaultBlue,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  formatPeerHandle(user.blindHashId),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                    fontFamily: VaultTheme.monoFont,
+                  ),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => _startConversation(user.blindHashId),
+              );
+            },
+          ),
+        );
+      }
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(
