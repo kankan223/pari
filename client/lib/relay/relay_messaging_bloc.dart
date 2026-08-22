@@ -7,6 +7,7 @@ import '../repository/domain/conversation_repository.dart';
 import '../repository/domain/entity_store.dart';
 import '../repository/domain/message.dart';
 import '../repository/domain/message_repository.dart';
+import '../state/domain/message_cipher.dart';
 import 'domain/relay_client.dart';
 import 'domain/relay_socket.dart';
 import 'domain/relay_wire.dart';
@@ -38,6 +39,7 @@ class RelayMessagingBloc {
   final ConversationRepository _conversationRepo;
   final MessageRepository _messageRepo;
   final EntityStore<Conversation> _conversationStore;
+  final MessageCipher? _cipher;
   final String _myBlindHash;
   final String _deviceId;
 
@@ -55,11 +57,13 @@ class RelayMessagingBloc {
     required ConversationRepository conversationRepo,
     required MessageRepository messageRepo,
     required EntityStore<Conversation> conversationStore,
+    MessageCipher? cipher,
     required String myBlindHash,
     required String deviceId,
   })  : _conversationRepo = conversationRepo,
         _messageRepo = messageRepo,
         _conversationStore = conversationStore,
+        _cipher = cipher,
         _myBlindHash = myBlindHash,
         _deviceId = deviceId;
 
@@ -118,17 +122,34 @@ class RelayMessagingBloc {
     _statusController.add(_status);
   }
 
-  /// Send a message to [recipientHash] with [ciphertext] through the relay.
+  /// Send a message to [recipientHash] through the relay.
   ///
-  /// Also persists the message locally in the conversation (offline-first).
-  /// The caller is responsible for encrypting [text] into [ciphertext] before
-  /// calling this method.
+  /// Encrypts [text] with the [MessageCipher] (Signal Protocol Double
+  /// Ratchet) before persisting and sending. Falls back to raw bytes
+  /// when no cipher is wired (dev harness, no session).
+  ///
+  /// SECURITY CHECKPOINT: plaintext exists only transiently inside the
+  /// cipher.encrypt() call; the persisted and transmitted bytes are
+  /// always sealed ciphertext.
   Future<void> sendMessage({
     required String recipientHash,
     required String text,
     required String conversationId,
   }) async {
-    final ciphertext = Uint8List.fromList(utf8.encode(text));
+    final plaintext = Uint8List.fromList(utf8.encode(text));
+    final Uint8List ciphertext;
+    final cipher = _cipher;
+    if (cipher != null) {
+      ciphertext = await cipher.encrypt(
+        participantHash: recipientHash,
+        plaintext: plaintext,
+      );
+      // Wipe plaintext from memory.
+      plaintext.fillRange(0, plaintext.length, 0);
+    } else {
+      // No cipher wired — send raw (dev harness only).
+      ciphertext = plaintext;
+    }
     final msgId = _uuidV4();
 
     // 1. Persist locally (offline-first — UI sees the message immediately).

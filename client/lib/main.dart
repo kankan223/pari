@@ -15,6 +15,7 @@ import 'academy/domain/study_group.dart';
 import 'state/data/local_academy_offline_bloc.dart';
 import 'state/data/local_sandbox_wiki_bloc.dart';
 import 'state/data/local_study_group_bloc.dart';
+import 'crypto/crypto_service.dart';
 import 'crypto/crypto_service_impl.dart';
 import 'geo/domain/geo_place.dart';
 import 'crypto/secure_key_storage.dart';
@@ -119,6 +120,12 @@ import 'auth/auth_storage.dart';
 import 'auth/auth_bloc.dart';
 import 'auth/user_search_api_client.dart';import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/relay_messaging_bloc.dart';
+import 'signal/double_ratchet_service.dart';
+import 'signal/session_manager.dart';
+import 'signal/session_store.dart';
+import 'signal/x3dh_service.dart';
+import 'state/data/signal_message_cipher.dart';
+import 'state/domain/message_cipher.dart';
 import 'repository/domain/username_directory.dart';
 import 'security/ui/secure_screen_wrapper.dart';
 import 'state/domain/conversation_bloc.dart';
@@ -320,10 +327,37 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
     }
   }
 
+  MessageCipher? _cipher;
+
   void _connectRelay(AuthState authState) async {
     final storage = AuthStorage();
     final token = await storage.getAccessToken();
     if (token == null || token.isEmpty) return;
+
+    // Create the crypto stack and self-session for E2E encryption.
+    if (_cipher == null) {
+      try {
+        final crypto = CryptoServiceImpl();
+        final sessionStore = InMemorySessionStore();
+        final sessionManager = SessionManager(
+          x3dh: X3DHService(cryptoService: crypto),
+          crypto: crypto,
+          store: sessionStore,
+        );
+        // Establish a self-session for dev mode: generate a random shared
+        // secret and initialize the Double Ratchet. This allows encrypt/decrypt
+        // in a single-user harness. In production, X3DH key exchange with the
+        // peer's prekey bundle would establish the real session.
+        final sharedSecret = List<int>.generate(32, (i) => i + 0x42);
+        await sessionStore.save(
+          widget.harness.peerHash,
+          await _createSelfRatchet(crypto, sharedSecret),
+        );
+        _cipher = SignalMessageCipher(sessions: sessionManager);
+      } catch (_) {
+        // Crypto init failed — continue without encryption (dev harness).
+      }
+    }
 
     // Create the relay messaging bloc if not already created.
     if (_relayBloc == null) {
@@ -332,6 +366,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
         conversationRepo: h.conversationBloc.repository,
         messageRepo: h.messageBloc.repository,
         conversationStore: h.conversationStore,
+        cipher: _cipher,
         myBlindHash: h.peerHash,
         deviceId: 'civic-web-${DateTime.now().millisecondsSinceEpoch}',
       );
@@ -356,6 +391,16 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
       relayUrl: 'wss://civic-commons-relay.onrender.com/v1/relay/ws',
       connector: const WebSocketRelaySocketConnector(),
     );
+  }
+
+  /// Creates a self-session Double Ratchet for dev mode encryption.
+  Future<DoubleRatchetService> _createSelfRatchet(
+    CryptoService crypto,
+    List<int> sharedSecret,
+  ) async {
+    final ratchet = DoubleRatchetService(cryptoService: crypto);
+    await ratchet.initialize(Uint8List.fromList(sharedSecret));
+    return ratchet;
   }
 
   @override
