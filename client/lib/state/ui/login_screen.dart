@@ -5,10 +5,64 @@ import '../../auth/auth_bloc.dart';
 import '../../identity/phone_validator.dart';
 import '../../security/ui/secure_screen_wrapper.dart';
 
+/// Country code data for the dropdown.
+class _CountryCode {
+  final String code;
+  final String name;
+  final String dialCode;
+  final String flag;
+
+  const _CountryCode(this.code, this.name, this.dialCode, this.flag);
+}
+
+/// List of common country codes.
+const _countryCodes = [
+  _CountryCode('IN', 'India', '+91', '🇮🇳'),
+  _CountryCode('US', 'United States', '+1', '🇺🇸'),
+  _CountryCode('GB', 'United Kingdom', '+44', '🇬🇧'),
+  _CountryCode('CA', 'Canada', '+1', '🇨🇦'),
+  _CountryCode('AU', 'Australia', '+61', '🇦🇺'),
+  _CountryCode('DE', 'Germany', '+49', '🇩🇪'),
+  _CountryCode('FR', 'France', '+33', '🇫🇷'),
+  _CountryCode('JP', 'Japan', '+81', '🇯🇵'),
+  _CountryCode('BR', 'Brazil', '+55', '🇧🇷'),
+  _CountryCode('NG', 'Nigeria', '+234', '🇳🇬'),
+  _CountryCode('ZA', 'South Africa', '+27', '🇿🇦'),
+  _CountryCode('KE', 'Kenya', '+254', '🇰🇪'),
+  _CountryCode('PH', 'Philippines', '+63', '🇵🇭'),
+  _CountryCode('ID', 'Indonesia', '+62', '🇮🇩'),
+  _CountryCode('PK', 'Pakistan', '+92', '🇵🇰'),
+  _CountryCode('BD', 'Bangladesh', '+880', '🇧🇩'),
+  _CountryCode('LK', 'Sri Lanka', '+94', '🇱🇰'),
+  _CountryCode('NP', 'Nepal', '+977', '🇳🇵'),
+  _CountryCode('AE', 'UAE', '+971', '🇦🇪'),
+  _CountryCode('SA', 'Saudi Arabia', '+966', '🇸🇦'),
+  _CountryCode('SG', 'Singapore', '+65', '🇸🇬'),
+  _CountryCode('MY', 'Malaysia', '+60', '🇲🇾'),
+  _CountryCode('TH', 'Thailand', '+66', '🇹🇭'),
+  _CountryCode('VN', 'Vietnam', '+84', '🇻🇳'),
+  _CountryCode('MX', 'Mexico', '+52', '🇲🇽'),
+  _CountryCode('AR', 'Argentina', '+54', '🇦🇷'),
+  _CountryCode('CO', 'Colombia', '+57', '🇨🇴'),
+  _CountryCode('CL', 'Chile', '+56', '🇨🇱'),
+  _CountryCode('EG', 'Egypt', '+20', '🇪🇬'),
+  _CountryCode('GH', 'Ghana', '+233', '🇬🇭'),
+  _CountryCode('TZ', 'Tanzania', '+255', '🇹🇿'),
+  _CountryCode('ET', 'Ethiopia', '+251', '🇪🇹'),
+  _CountryCode('MM', 'Myanmar', '+95', '🇲🇲'),
+  _CountryCode('KR', 'South Korea', '+82', '🇰🇷'),
+  _CountryCode('TR', 'Turkey', '+90', '🇹🇷'),
+  _CountryCode('PL', 'Poland', '+48', '🇵🇱'),
+  _CountryCode('IT', 'Italy', '+39', '🇮🇹'),
+  _CountryCode('ES', 'Spain', '+34', '🇪🇸'),
+  _CountryCode('NL', 'Netherlands', '+31', '🇳🇱'),
+  _CountryCode('SE', 'Sweden', '+46', '🇸🇪'),
+];
+
 /// Login/registration screen for Civic Commons.
 ///
 /// Shows a multi-step flow:
-/// 1. Enter phone number (E.164)
+/// 1. Select country code + enter phone number
 /// 2. Enter OTP code
 /// 3. Set username (optional)
 ///
@@ -32,6 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _otpFocusNode = FocusNode();
   final _usernameFocusNode = FocusNode();
 
+  _CountryCode _selectedCountry = _countryCodes[0]; // Default: India
   AuthState? _last;
 
   @override
@@ -167,36 +222,74 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: _phoneController,
-          focusNode: _phoneFocusNode,
-          keyboardType: TextInputType.phone,
-          decoration: InputDecoration(
-            hintText: '+91 98765 43210',
-            hintStyle: const TextStyle(color: Colors.black38),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFD4CFC0)),
+        // Country code dropdown + phone number field
+        Row(
+          children: [
+            // Country code dropdown
+            Container(
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFD4CFC0)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<_CountryCode>(
+                  value: _selectedCountry,
+                  isDense: true,
+                  items: _countryCodes.map((c) {
+                    return DropdownMenuItem(
+                      value: c,
+                      child: Text(
+                        '${c.flag} ${c.dialCode}',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _selectedCountry = v);
+                  },
+                ),
+              ),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(
-                  color: Color(0xFF1F4D3A), width: 2),
+            const SizedBox(width: 8),
+            // Phone number field
+            Expanded(
+              child: TextField(
+                controller: _phoneController,
+                focusNode: _phoneFocusNode,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  hintText: '98765 43210',
+                  hintStyle: const TextStyle(color: Colors.black38),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFFD4CFC0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                        color: Color(0xFF1F4D3A), width: 2),
+                  ),
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(15),
+                ],
+                onSubmitted: (_) => _submitPhone(),
+              ),
             ),
-            prefixIcon: const Icon(Icons.phone,
-                color: Color(0xFF1F4D3A)),
-          ),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[\d+\-\s]')),
           ],
-          onSubmitted: (_) => _submitPhone(),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Your number is converted to a code immediately and never stored.',
           style: TextStyle(
             fontSize: 11,
-            color: Color(0xFF6E6A5E),
+            color: const Color(0xFF6E6A5E),
             fontStyle: FontStyle.italic,
           ),
         ),
@@ -227,12 +320,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        const Text(
           'CODE SENT',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w800,
-            color: const Color(0xFF1F2430),
+            color: Color(0xFF1F2430),
             letterSpacing: 1.2,
           ),
         ),
@@ -268,6 +361,31 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           textAlign: TextAlign.center,
           onSubmitted: (_) => _submitOtp(),
+        ),
+        const SizedBox(height: 12),
+        // Hint about where to find the code
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Color(0xFF2E7D32)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Check your phone for the 6-digit code. '
+                  'It may take a minute to arrive.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF2E7D32),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
         FilledButton(
@@ -384,16 +502,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _submitPhone() {
-    final raw = _phoneController.text.trim();
-    // Normalize: strip spaces and dashes, ensure + prefix
-    final cleaned = raw.replaceAll(RegExp(r'[\s\-()]'), '');
-    final phone = cleaned.startsWith('+') ? cleaned : '+$cleaned';
-
-    if (!PhoneValidator.isValidE164(phone)) {
-      // Show inline error instead of API call
+    final phoneDigits = _phoneController.text.trim();
+    if (phoneDigits.isEmpty) {
       setState(() {
         _last = _last?.copyWith(
-          error: 'Please enter a valid phone number (e.g. +919876543210)',
+          error: 'Please enter your phone number',
+        );
+      });
+      return;
+    }
+
+    // Build full E.164 number from dropdown + digits
+    final phone = '${_selectedCountry.dialCode}$phoneDigits';
+
+    if (!PhoneValidator.isValidE164(phone)) {
+      setState(() {
+        _last = _last?.copyWith(
+          error: 'Please enter a valid phone number',
         );
       });
       return;
