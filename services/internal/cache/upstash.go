@@ -28,10 +28,6 @@ type UpstashClient struct {
 
 // NewUpstashClient creates an Upstash HTTP client from a rediss:// URL
 // and token. The URL must be the base URL (no trailing slash).
-//
-// Example:
-//
-// NewUpstashClient("https://clear-raccoon-144102.upstash.io", "AXxx...")
 func NewUpstashClient(baseURL, token string) *UpstashClient {
 	return &UpstashClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
@@ -46,20 +42,29 @@ func NewUpstashClient(baseURL, token string) *UpstashClient {
 
 func (c *UpstashClient) do(ctx context.Context, method, path string, body any) ([]any, error) {
 	var reqBody io.Reader
+	var contentType string
 	if body != nil {
-		raw, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("upstash: marshal: %w", err)
+		switch v := body.(type) {
+		case string:
+			// Upstash SET/GET expects plain text body, not JSON.
+			reqBody = strings.NewReader(v)
+			contentType = "text/plain"
+		default:
+			raw, err := json.Marshal(body)
+			if err != nil {
+				return nil, fmt.Errorf("upstash: marshal: %w", err)
+			}
+			reqBody = bytes.NewReader(raw)
+			contentType = "application/json"
 		}
-		reqBody = bytes.NewReader(raw)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("upstash: new request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -77,8 +82,6 @@ func (c *UpstashClient) do(ctx context.Context, method, path string, body any) (
 		return nil, fmt.Errorf("upstash: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	// Pipeline responses are arrays; single responses are objects.
-	// Both must be parsed.
 	var parsed any
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
 		return nil, fmt.Errorf("upstash: decode: %w (body: %s)", err, string(respBody))
@@ -154,12 +157,12 @@ func (c *UpstashClient) resultBool(results []any, idx int) (bool, error) {
 // Set implements RedisClient.
 func (c *UpstashClient) Set(ctx context.Context, key string, value any, ttl time.Duration) *redis.StatusCmd {
 	cmd := redis.NewStatusCmd(ctx, "set", key)
-	body := map[string]any{"value": fmt.Sprintf("%v", value)}
 	path := "/set/" + key
 	if ttl > 0 {
 		path += "?ex=" + strconv.Itoa(int(ttl.Seconds()))
 	}
-	results, err := c.do(ctx, http.MethodPost, path, body)
+	// Upstash REST SET expects the value as a plain string body, not JSON.
+	results, err := c.do(ctx, http.MethodPost, path, fmt.Sprintf("%v", value))
 	if err != nil {
 		cmd.SetErr(err)
 		return cmd
@@ -216,12 +219,12 @@ func (c *UpstashClient) Exists(ctx context.Context, keys ...string) *redis.IntCm
 // SetNX implements RedisClient.
 func (c *UpstashClient) SetNX(ctx context.Context, key string, value any, ttl time.Duration) *redis.BoolCmd {
 	cmd := redis.NewBoolCmd(ctx, "setnx", key)
-	body := map[string]any{"value": fmt.Sprintf("%v", value)}
 	path := "/set/" + key + "?nx=true"
 	if ttl > 0 {
 		path += "&ex=" + strconv.Itoa(int(ttl.Seconds()))
 	}
-	results, err := c.do(ctx, http.MethodPost, path, body)
+	// Upstash REST SET expects the value as a plain string body, not JSON.
+	results, err := c.do(ctx, http.MethodPost, path, fmt.Sprintf("%v", value))
 	if err != nil {
 		cmd.SetErr(err)
 		return cmd
@@ -245,9 +248,7 @@ func (c *UpstashClient) Expire(ctx context.Context, key string, ttl time.Duratio
 	return cmd
 }
 
-// Pipeline implements RedisClient. Returns an UpstashPipeline that
-// accumulates commands and sends them in a single HTTP request to
-// Upstash's /pipeline endpoint on Exec().
+// Pipeline implements RedisClient.
 func (c *UpstashClient) Pipeline() Pipeliner {
 	return &UpstashPipeline{client: c}
 }
@@ -255,9 +256,6 @@ func (c *UpstashClient) Pipeline() Pipeliner {
 // XAdd implements RedisClient.
 func (c *UpstashClient) XAdd(ctx context.Context, a *redis.XAddArgs) *redis.StringCmd {
 	cmd := redis.NewStringCmd(ctx, "xadd", a.Stream)
-
-	// Upstash XADD: POST /xadd/{stream} with body = field values.
-	// XAddArgs.Values is interface{} — typically map[string]interface{}.
 	body := map[string]any{}
 	if m, ok := a.Values.(map[string]any); ok {
 		for k, v := range m {
@@ -280,12 +278,9 @@ func (c *UpstashClient) XAdd(ctx context.Context, a *redis.XAddArgs) *redis.Stri
 // XRead implements RedisClient.
 func (c *UpstashClient) XRead(ctx context.Context, a *redis.XReadArgs) *redis.XStreamSliceCmd {
 	cmd := redis.NewXStreamSliceCmd(ctx, "xread", a.Streams)
-
-	// Upstash XREAD: POST /xread with body
 	streamsMap := map[string]string{}
 	for i, s := range a.Streams {
 		if i < len(a.Streams) {
-			// Streams are alternating key/id pairs or just keys with "0"
 			if i%2 == 0 {
 				streamsMap[s] = a.Streams[i+1]
 			}
@@ -302,8 +297,6 @@ func (c *UpstashClient) XRead(ctx context.Context, a *redis.XReadArgs) *redis.XS
 		return cmd
 	}
 
-	// Parse the Upstash XREAD response into XStreamSliceCmd
-	// Upstash returns: {"result": [{"stream":"name","messages":[{"id":"...","message":{...}}]}]}
 	streams, err := parseXReadResult(results)
 	if err != nil {
 		cmd.SetErr(err)
@@ -356,8 +349,6 @@ func (c *UpstashClient) XTrimMinID(ctx context.Context, stream, minID string) *r
 
 // --- Pipeline ---
 
-// UpstashPipeline accumulates commands and sends them via Upstash's
-// /pipeline HTTP endpoint on Exec().
 type UpstashPipeline struct {
 	client   *UpstashClient
 	commands []pipelineCmd
@@ -404,14 +395,11 @@ func (p *UpstashPipeline) XTrimMinID(ctx context.Context, stream, minID string) 
 	return cmd
 }
 
-// Exec sends all accumulated commands to Upstash in a single HTTP POST
-// to /pipeline and distributes the results back to the command objects.
 func (p *UpstashPipeline) Exec(ctx context.Context) ([]redis.Cmder, error) {
 	if len(p.commands) == 0 {
 		return nil, nil
 	}
 
-	// Build the pipeline request body — array of [command, ...args]
 	cmds := make([][]any, 0, len(p.commands))
 	for _, c := range p.commands {
 		switch c.typ {
@@ -441,7 +429,6 @@ func (p *UpstashPipeline) Exec(ctx context.Context) ([]redis.Cmder, error) {
 		return nil, fmt.Errorf("upstash pipeline: %w", err)
 	}
 
-	// Distribute results back to command objects
 	cmders := make([]redis.Cmder, 0, len(p.commands))
 	for i, c := range p.commands {
 		switch c.typ {
@@ -471,20 +458,14 @@ func (p *UpstashPipeline) Exec(ctx context.Context) ([]redis.Cmder, error) {
 
 // --- Response parsers ---
 
-// parseXReadResult parses the Upstash XREAD response into go-redis
-// XStream slice format. Upstash returns:
-//
-//	{"result": [{"stream":"name","messages":[{"id":"...","message":{...}}]}]}
 func parseXReadResult(results []any) ([]redis.XStream, error) {
 	if len(results) == 0 {
 		return []redis.XStream{}, nil
 	}
 
-	// The result may be a single object (one stream) or an array
 	top := results[0]
 	arr, ok := top.([]any)
 	if !ok {
-		// Single object — wrap in array
 		arr = []any{top}
 	}
 
@@ -495,10 +476,10 @@ func parseXReadResult(results []any) ([]redis.XStream, error) {
 			continue
 		}
 
-	streamName := ""
-	if s, ok := obj["stream"].(string); ok {
-		streamName = s
-	}
+		streamName := ""
+		if s, ok := obj["stream"].(string); ok {
+			streamName = s
+		}
 
 		messages := []redis.XMessage{}
 		if msgs, ok := obj["messages"].([]any); ok {
@@ -520,10 +501,10 @@ func parseXReadResult(results []any) ([]redis.XStream, error) {
 			}
 		}
 
-	streams = append(streams, redis.XStream{
-		Stream:   streamName,
-		Messages: messages,
-	})
+		streams = append(streams, redis.XStream{
+			Stream:   streamName,
+			Messages: messages,
+		})
 	}
 
 	return streams, nil
