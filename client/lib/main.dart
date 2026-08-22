@@ -124,7 +124,7 @@ import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/relay_messaging_bloc.dart';
 import 'signal/double_ratchet_service.dart';
 import 'signal/session_manager.dart';
-import 'signal/session_store.dart';
+import 'signal/secure_session_store.dart';
 import 'signal/prekey_manager.dart';
 import 'signal/x3dh_service.dart';
 import 'state/data/signal_message_cipher.dart';
@@ -341,7 +341,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
     if (_cipher == null) {
       try {
         final crypto = CryptoServiceImpl();
-        final sessionStore = InMemorySessionStore();
+        final sessionStore = SecureSessionStore(cryptoService: crypto);
         final sessionManager = SessionManager(
           x3dh: X3DHService(cryptoService: crypto),
           crypto: crypto,

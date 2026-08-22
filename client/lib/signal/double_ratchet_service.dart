@@ -245,11 +245,7 @@ class DoubleRatchetService {
     return true;
   }
 
-  /// Get current session state (for storage)
-  ///
-  /// Returns: Session state as a map
-  ///
-  /// Security: Does not include private keys in the state
+  /// Get current session counters (no private key material).
   Map<String, dynamic> getSessionState() {
     return {
       'sendMessageNumber': _sendMessageNumber,
@@ -258,14 +254,105 @@ class DoubleRatchetService {
     };
   }
 
-  /// Restore session state from storage
-  ///
-  /// Parameters:
-  /// - state: The session state to restore
+  /// Restore session counters from a previous [getSessionState] call.
   void restoreSessionState(Map<String, dynamic> state) {
     _sendMessageNumber = state['sendMessageNumber'] as int;
     _receiveMessageNumber = state['receiveMessageNumber'] as int;
     _previousChainLength = state['previousChainLength'] as int;
+  }
+
+  /// Serialize the full session state to bytes for secure storage.
+  ///
+  /// Layout (all little-endian):
+  ///   rootKey(32) + sendingChainKey(32) + receivingChainKey(32)
+  ///   + sendMessageNumber(4) + receiveMessageNumber(4) + previousChainLength(4)
+  ///   + dhPrivateKey(32) + dhPublicKey(32)
+  ///   + remoteDhPublicKeyLen(4) + remoteDhPublicKey(N)
+  ///
+  /// Total: 172 + N bytes (N=0 when no remote key, N=32 when set).
+  ///
+  /// SECURITY: The serialized bytes contain PRIVATE key material (dhPrivateKey).
+  /// The caller MUST store them in hardware-backed secure storage (e.g.
+  /// FlutterSecureStorage) and NEVER write to plaintext files or logs.
+  Future<Uint8List> toBytes() async {
+    if (_rootKey == null || _dhKeyPair == null) {
+      throw StateError('Double Ratchet not initialized');
+    }
+    final buf = BytesBuilder();
+    buf.add(_rootKey!);
+    buf.add(_sendingChainKey!);
+    buf.add(_receivingChainKey!);
+    _addInt32(buf, _sendMessageNumber);
+    _addInt32(buf, _receiveMessageNumber);
+    _addInt32(buf, _previousChainLength);
+    // DH key pair — extract private key bytes asynchronously.
+    buf.add(Uint8List.fromList(await _dhKeyPair!.extractPrivateKeyBytes()));
+    buf.add(Uint8List.fromList((await _dhKeyPair!.extractPublicKey()).bytes));
+    // Remote DH public key (nullable)
+    if (_remoteDhPublicKey != null) {
+      _addInt32(buf, _remoteDhPublicKey!.length);
+      buf.add(_remoteDhPublicKey!);
+    } else {
+      _addInt32(buf, 0);
+    }
+    return buf.toBytes();
+  }
+
+  /// Restore a session from serialized bytes.
+  static Future<DoubleRatchetService> fromBytes(
+    Uint8List bytes,
+    CryptoService cryptoService,
+  ) async {
+    int offset = 0;
+    Uint8List readBytes(int len) {
+      final slice = bytes.sublist(offset, offset + len);
+      offset += len;
+      return slice;
+    }
+    int readInt32() {
+      final v = (bytes[offset] << 24) |
+          (bytes[offset + 1] << 16) |
+          (bytes[offset + 2] << 8) |
+          bytes[offset + 3];
+      offset += 4;
+      return v;
+    }
+
+    final rootKey = readBytes(32);
+    final sendingChainKey = readBytes(32);
+    final receivingChainKey = readBytes(32);
+    final sendMessageNumber = readInt32();
+    final receiveMessageNumber = readInt32();
+    final previousChainLength = readInt32();
+    final dhPrivateKey = readBytes(32);
+    final dhPublicKeyBytes = readBytes(32);
+    final remoteLen = readInt32();
+    final remoteDhPublicKey = remoteLen > 0 ? readBytes(remoteLen) : null;
+
+    // Reconstruct the DH key pair from raw private key bytes.
+    final dhKeyPair = SimpleKeyPairData(
+      dhPrivateKey,
+      publicKey: SimplePublicKey(dhPublicKeyBytes, type: KeyPairType.x25519),
+      type: KeyPairType.x25519,
+    );
+
+    final svc = DoubleRatchetService(cryptoService: cryptoService);
+    svc._rootKey = rootKey;
+    svc._sendingChainKey = sendingChainKey;
+    svc._receivingChainKey = receivingChainKey;
+    svc._sendMessageNumber = sendMessageNumber;
+    svc._receiveMessageNumber = receiveMessageNumber;
+    svc._previousChainLength = previousChainLength;
+    svc._dhKeyPair = dhKeyPair;
+    svc._remoteDhPublicKey = remoteDhPublicKey;
+    return svc;
+  }
+
+  static void _addInt32(BytesBuilder buf, int v) {
+    buf.addByte((v >> 24) & 0xff);
+    buf.addByte((v >> 16) & 0xff);
+    buf.addByte((v >> 8) & 0xff);
+    buf.addByte(v & 0xff);
   }
 }
 
