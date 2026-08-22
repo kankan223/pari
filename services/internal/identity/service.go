@@ -470,3 +470,25 @@ func (s *Service) FetchPreKeys(ctx context.Context, peerHashID string) (*PreKeyB
 func (s *Service) ConsumeOneTimePreKey(ctx context.Context, blindHashID string) (*OneTimePreKeyEntry, error) {
 	return s.prekeys.ConsumeOneTimePreKey(ctx, blindHashID)
 }
+
+// FetchBundle retrieves the prekey bundle for [peerHashID] and atomically
+// consumes one one-time prekey (if available). The returned bundle contains
+// at most one OTPK in ConsumedOneTimePreKey — this is the key the initiator
+// MUST use for this X3DH session.
+//
+// SECURITY: the response contains only public key material — no identity
+// hashes beyond the requested peer's blind hash. Each OTPK is consumed
+// exactly once, preventing replay attacks.
+func (s *Service) FetchBundle(ctx context.Context, peerHashID string) (*PreKeyBundle, *OneTimePreKeyEntry, error) {
+	bundle, err := s.prekeys.Get(ctx, peerHashID)
+	if err != nil {
+		return nil, nil, ErrPreKeyUnavailable
+	}
+	if bundle == nil {
+		return nil, nil, nil
+	}
+	// Atomically consume one OTPK. This may return nil if no OTPKs are
+	// available — the initiator can still proceed with DH1-DH3 only.
+	consumed, _ := s.prekeys.ConsumeOneTimePreKey(ctx, peerHashID)
+	return bundle, consumed, nil
+}

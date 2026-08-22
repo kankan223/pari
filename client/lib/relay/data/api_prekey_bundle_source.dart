@@ -63,13 +63,15 @@ class ApiPreKeyBundleSource implements PreKeyBundleSource {
       final signedPreKeySignature =
           _base64Decode(json['signed_pre_key_signature'] as String);
 
+      // The server atomically consumes one OTPK and returns it in
+      // `consumed_one_time_pre_key`. The initiator MUST use this key
+      // for the X3DH session.
       Uint8List? oneTimePreKey;
       int? oneTimePreKeyId;
-      final otpkList = json['one_time_pre_keys'] as List<dynamic>?;
-      if (otpkList != null && otpkList.isNotEmpty) {
-        final otpk = otpkList[0] as Map<String, dynamic>;
-        oneTimePreKey = _base64Decode(otpk['public_key'] as String);
-        oneTimePreKeyId = otpk['key_id'] as int;
+      final consumed = json['consumed_one_time_pre_key'] as Map<String, dynamic>?;
+      if (consumed != null) {
+        oneTimePreKey = _base64Decode(consumed['public_key'] as String);
+        oneTimePreKeyId = consumed['key_id'] as int;
       }
 
       return PreKeyBundle(

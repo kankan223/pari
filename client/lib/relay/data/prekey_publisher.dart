@@ -4,8 +4,12 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../../crypto/crypto_service.dart';
-import '../../signal/models.dart';
+import '../../signal/models.dart' as models;
 import '../../signal/prekey_manager.dart';
+
+// Re-export models we use directly.
+typedef OneTimePreKey = models.OneTimePreKey;
+typedef PreKeyBundle = models.PreKeyBundle;
 
 /// Generates and publishes the user's X3DH prekey bundle to the identity
 /// service on app startup.
@@ -50,7 +54,7 @@ class PreKeyPublisher {
       // Generate a batch of one-time prekeys.
       final oneTimePreKeys = await _prekeyManager.generateOneTimePreKeyBatch();
 
-      // Build the bundle.
+      // Build the bundle with all one-time prekeys.
       final bundle = PreKeyBundle(
         registrationId: '',
         identityKey: identityPublicKey,
@@ -61,7 +65,8 @@ class PreKeyPublisher {
         oneTimePreKey: oneTimePreKeys.isNotEmpty ? oneTimePreKeys[0].publicKey : null,
       );
 
-      // Publish to identity service.
+      // Publish to identity service with ALL one-time prekeys.
+      // The server will consume them one-at-a-time for each X3DH session.
       final url = Uri.parse('$baseUrl/v1/identity/prekeys');
       final response = await http.post(
         url,
@@ -69,7 +74,7 @@ class PreKeyPublisher {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode(_bundleToJson(bundle)),
+        body: jsonEncode(_bundleToJson(bundle, oneTimePreKeys)),
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -80,20 +85,22 @@ class PreKeyPublisher {
     }
   }
 
-  Map<String, dynamic> _bundleToJson(PreKeyBundle bundle) {
+  Map<String, dynamic> _bundleToJson(
+    PreKeyBundle bundle,
+    List<OneTimePreKey> oneTimePreKeys,
+  ) {
     final json = <String, dynamic>{
       'identity_key': _base64Encode(bundle.identityKey),
       'signed_pre_key_id': bundle.signedPreKeyId,
       'signed_pre_key': _base64Encode(bundle.signedPreKey),
       'signed_pre_key_signature': _base64Encode(bundle.signedPreKeySignature),
     };
-    if (bundle.oneTimePreKey != null) {
-      json['one_time_pre_keys'] = [
-        {
-          'key_id': bundle.oneTimePreKeyId,
-          'public_key': _base64Encode(bundle.oneTimePreKey!),
-        }
-      ];
+    // Include ALL one-time prekeys — the server consumes them one at a time.
+    if (oneTimePreKeys.isNotEmpty) {
+      json['one_time_pre_keys'] = oneTimePreKeys.map((otpk) => {
+        'key_id': otpk.keyId,
+        'public_key': _base64Encode(otpk.publicKey),
+      }).toList();
     }
     return json;
   }

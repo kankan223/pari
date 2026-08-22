@@ -416,7 +416,7 @@ func (s *Server) handlePreKeyFetch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid blind hash id")
 		return
 	}
-	bundle, err := s.svc.FetchPreKeys(r.Context(), peerHash)
+	bundle, consumed, err := s.svc.FetchBundle(r.Context(), peerHash)
 	if err != nil {
 		s.mapError(w, err)
 		return
@@ -425,7 +425,21 @@ func (s *Server) handlePreKeyFetch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no prekey bundle published")
 		return
 	}
-	writeJSON(w, http.StatusOK, bundle)
+	// Build the response: the bundle plus the consumed one-time prekey
+	// (if any). The initiator MUST use the consumed OTPK for this session.
+	resp := map[string]any{
+		"identity_key":           bundle.IdentityKey,
+		"signed_pre_key_id":      bundle.SignedPreKeyID,
+		"signed_pre_key":         bundle.SignedPreKey,
+		"signed_pre_key_signature": bundle.SignedPreKeySignature,
+	}
+	if consumed != nil {
+		resp["consumed_one_time_pre_key"] = map[string]any{
+			"key_id":     consumed.KeyID,
+			"public_key": consumed.PublicKey,
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // mustSubject returns the authenticated subject; handlers under requireAuth
