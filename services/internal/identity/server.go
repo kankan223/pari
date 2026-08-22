@@ -25,6 +25,7 @@ const (
 	// #nosec G101 -- route path, not a credential.
 	routeTokenRevoke = "POST /v1/identity/token/revoke"
 	routeMe          = "GET /v1/identity/me"
+	routeHealth = "GET /health"
 )
 
 // maxBodyBytes bounds request bodies (1 MiB).
@@ -52,6 +53,7 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 	s.mux.HandleFunc(routeTokenRefresh, s.handleTokenRefresh)
 	s.mux.HandleFunc(routeTokenRevoke, s.handleTokenRevoke)
 	s.mux.HandleFunc(routeMe, s.requireAuth(s.handleMe))
+	s.mux.HandleFunc(routeHealth, s.handleHealth)
 
 	return s
 }
@@ -211,6 +213,15 @@ func (s *Server) mapError(w http.ResponseWriter, err error) {
 		s.log.Error("internal_error", "err", err.Error())
 		writeError(w, http.StatusInternalServerError, "internal_error", "internal error")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Health handler
+
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // ---------------------------------------------------------------------------
