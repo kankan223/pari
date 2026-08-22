@@ -98,17 +98,19 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	probeCtx, cancelProbe := context.WithTimeout(ctx, 5*time.Second)
 	probeErr := cache.Ping(probeCtx, rdb)
 	cancelProbe()
+
+	var otpStore identity.OtpStore
+	var refreshStore identity.RefreshStore
+
 	if probeErr != nil {
-		logger.Error("redis health probe failed at startup", "error", probeErr.Error(), "mode", redisMode(cfg))
-		if cfg.Environment == "production" {
-			return fmt.Errorf("redis unreachable at startup: %w", probeErr)
-		}
+		logger.Warn("redis unavailable — using in-memory stores (data lost on restart)", "error", probeErr.Error())
+		otpStore = identity.NewInMemoryOtpStore()
+		refreshStore = identity.NewInMemoryRefreshStore()
 	} else {
 		logger.Info("redis connected", "mode", redisMode(cfg))
+		otpStore = identity.NewRedisOtpStore(rdb)
+		refreshStore = identity.NewRedisRefreshStore(rdb)
 	}
-
-	otpStore := identity.NewRedisOtpStore(rdb)
-	refreshStore := identity.NewRedisRefreshStore(rdb)
 	refreshManager := identity.NewRefreshManager(refreshStore, cfg.RefreshTokenTTL)
 
 	// --- SMS provider ---

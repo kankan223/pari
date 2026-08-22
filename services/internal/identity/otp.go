@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -168,4 +169,64 @@ func hashOtpCode(code string) (string, error) {
 		return "", fmt.Errorf("otp: hash code: %w", err)
 	}
 	return string(h), nil
+}
+
+// InMemoryOtpStore is a development/test OtpStore with no persistence.
+// Codes are lost on restart — suitable for staging/dev only.
+type InMemoryOtpStore struct {
+	mu       sync.Mutex
+	codes    map[string]string // blindHashID → codeHash
+	attempts map[string]int    // blindHashID → attempt count
+}
+
+// NewInMemoryOtpStore builds an empty in-memory OTP store.
+func NewInMemoryOtpStore() *InMemoryOtpStore {
+	return &InMemoryOtpStore{
+		codes:    make(map[string]string),
+		attempts: make(map[string]int),
+	}
+}
+
+func (s *InMemoryOtpStore) Set(_ context.Context, blindHashID, codeHash string, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.codes[blindHashID] = codeHash
+	return nil
+}
+
+func (s *InMemoryOtpStore) Get(_ context.Context, blindHashID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.codes[blindHashID]
+	if !ok {
+		return "", ErrOtpNotFound
+	}
+	return v, nil
+}
+
+func (s *InMemoryOtpStore) Delete(_ context.Context, blindHashID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.codes, blindHashID)
+	return nil
+}
+
+func (s *InMemoryOtpStore) Attempts(_ context.Context, blindHashID string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.attempts[blindHashID], nil
+}
+
+func (s *InMemoryOtpStore) RecordAttempt(_ context.Context, blindHashID string, _ time.Duration) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.attempts[blindHashID]++
+	return s.attempts[blindHashID], nil
+}
+
+func (s *InMemoryOtpStore) ClearAttempts(_ context.Context, blindHashID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.attempts, blindHashID)
+	return nil
 }

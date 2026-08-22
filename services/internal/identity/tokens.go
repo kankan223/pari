@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -536,4 +537,57 @@ func (m *RefreshManager) Revoke(ctx context.Context, raw string) error {
 		return err
 	}
 	return m.store.RevokeFamily(ctx, entry.FamilyID, m.ttl)
+}
+
+// InMemoryRefreshStore is a development RefreshStore with no persistence.
+type InMemoryRefreshStore struct {
+	mu       sync.Mutex
+	tokens   map[string]string // tokenHash → entryJSON
+	revoked  map[string]string // tokenHash → familyID
+	families map[string]bool   // familyID → revoked
+}
+
+// NewInMemoryRefreshStore builds an empty in-memory refresh store.
+func NewInMemoryRefreshStore() *InMemoryRefreshStore {
+	return &InMemoryRefreshStore{
+		tokens:   make(map[string]string),
+		revoked:  make(map[string]string),
+		families: make(map[string]bool),
+	}
+}
+
+func (s *InMemoryRefreshStore) StoreRefresh(_ context.Context, tokenHash, entryJSON string, _ time.Duration) error {
+	s.mu.Lock(); defer s.mu.Unlock()
+	s.tokens[tokenHash] = entryJSON
+	return nil
+}
+func (s *InMemoryRefreshStore) LoadRefresh(_ context.Context, tokenHash string) (string, error) {
+	s.mu.Lock(); defer s.mu.Unlock()
+	v, ok := s.tokens[tokenHash]
+	if !ok { return "", redis.Nil }
+	return v, nil
+}
+func (s *InMemoryRefreshStore) DeleteRefresh(_ context.Context, tokenHash string) error {
+	s.mu.Lock(); defer s.mu.Unlock()
+	delete(s.tokens, tokenHash)
+	return nil
+}
+func (s *InMemoryRefreshStore) RevokedFamilyOf(_ context.Context, tokenHash string) (string, bool, error) {
+	s.mu.Lock(); defer s.mu.Unlock()
+	fid, ok := s.revoked[tokenHash]
+	return fid, ok, nil
+}
+func (s *InMemoryRefreshStore) MarkRevoked(_ context.Context, tokenHash, familyID string, _ time.Duration) error {
+	s.mu.Lock(); defer s.mu.Unlock()
+	s.revoked[tokenHash] = familyID
+	return nil
+}
+func (s *InMemoryRefreshStore) IsFamilyRevoked(_ context.Context, familyID string) (bool, error) {
+	s.mu.Lock(); defer s.mu.Unlock()
+	return s.families[familyID], nil
+}
+func (s *InMemoryRefreshStore) RevokeFamily(_ context.Context, familyID string, _ time.Duration) error {
+	s.mu.Lock(); defer s.mu.Unlock()
+	s.families[familyID] = true
+	return nil
 }
