@@ -7,7 +7,7 @@ WORKDIR /src
 COPY services/go.mod services/go.sum ./
 RUN go mod download
 
-ARG CACHE_BUST=1
+ARG CACHE_BUST=5
 COPY services/ .
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
