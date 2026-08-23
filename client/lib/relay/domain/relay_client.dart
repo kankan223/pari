@@ -71,6 +71,7 @@ class RelayClient {
   final _phases = StreamController<RelayConnectionPhase>.broadcast();
   final _typingIndicators = StreamController<RelayTypingFrame>.broadcast();
   final _readReceipts = StreamController<RelayReadReceiptFrame>.broadcast();
+  final _fileAttachments = StreamController<RelayFileAttachmentFrame>.broadcast();
 
   RelaySocket? _socket;
   StreamSubscription<String>? _framesSub;
@@ -121,6 +122,9 @@ class RelayClient {
   /// Incoming read receipts from other users.
   Stream<RelayReadReceiptFrame> get readReceipts => _readReceipts.stream;
 
+  /// Incoming file attachment metadata from other users.
+  Stream<RelayFileAttachmentFrame> get fileAttachments => _fileAttachments.stream;
+
   /// Current lifecycle phase.
   RelayConnectionPhase get phase => _phase;
   RelayConnectionPhase _phase = RelayConnectionPhase.disconnected;
@@ -161,6 +165,15 @@ class RelayClient {
       recipientHash: recipientHash,
       isTyping: isTyping,
     ).encode());
+  }
+
+  /// Sends file attachment metadata to [recipientHash].
+  Future<void> sendFileAttachment(RelayFileAttachmentFrame frame) {
+    final socket = _socket;
+    if (socket == null || !_authOk) {
+      throw StateError('relay client is not connected');
+    }
+    return socket.send(frame.encode());
   }
 
   /// Sends a read receipt to [senderHash] indicating we've seen up to [lastMsgId].
@@ -321,6 +334,14 @@ class RelayClient {
           senderHash: senderHash,
           lastMsgId: lastMsgId,
         ));
+      case RelayFileAttachmentFrame(:final recipientHash, :final msgId, :final fileName, :final encryptedSize, :final mimeType):
+        _fileAttachments.add(RelayFileAttachmentFrame(
+          recipientHash: recipientHash,
+          msgId: msgId,
+          fileName: fileName,
+          encryptedSize: encryptedSize,
+          mimeType: mimeType,
+        ));
       case RelayAckFrame():
       case RelayErrorFrame():
       case RelayAuthFrame():
@@ -392,5 +413,6 @@ class RelayClient {
     await _phases.close();
     await _typingIndicators.close();
     await _readReceipts.close();
+    await _fileAttachments.close();
   }
 }

@@ -388,6 +388,21 @@ final class AppMigrations {
         // acceptable data loss on downgrade for this non-critical column.
       ],
     ),
+    const Migration(
+      version: 21,
+      description: 'Add file_attachments for encrypted file/image sharing',
+      upStatements: [
+        'CREATE TABLE file_attachments (id TEXT PRIMARY KEY NOT NULL, '
+            'conversation_id TEXT NOT NULL, message_id TEXT NOT NULL, '
+            'display_name TEXT NOT NULL, mime_type TEXT NOT NULL, '
+            'original_size INTEGER NOT NULL, '
+            'encrypted_bytes BLOB NOT NULL, '
+            'thumbnail_bytes BLOB, created_at INTEGER NOT NULL)',
+      ],
+      downStatements: [
+        'DROP TABLE file_attachments',
+      ],
+    ),
   ];
 }
 

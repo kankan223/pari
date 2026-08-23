@@ -50,6 +50,7 @@ class RelayMessagingBloc {
   StreamSubscription<RelayConnectionPhase>? _phaseSub;
   StreamSubscription<RelayTypingFrame>? _typingSub;
   StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
+  StreamSubscription<RelayFileAttachmentFrame>? _fileAttachmentSub;
 
   final _statusController =
       StreamController<RelayMessagingStatus>.broadcast();
@@ -58,6 +59,8 @@ class RelayMessagingBloc {
       StreamController<RelayTypingFrame>.broadcast();
   final _readReceiptController =
       StreamController<RelayReadReceiptFrame>.broadcast();
+  final _fileAttachmentController =
+      StreamController<RelayFileAttachmentFrame>.broadcast();
 
   RelayMessagingStatus _status = RelayMessagingStatus.disconnected;
 
@@ -89,6 +92,9 @@ class RelayMessagingBloc {
 
   /// Incoming read receipts from other users.
   Stream<RelayReadReceiptFrame> get readReceipts => _readReceiptController.stream;
+
+  /// Incoming file attachment metadata from other users.
+  Stream<RelayFileAttachmentFrame> get fileAttachments => _fileAttachmentController.stream;
 
   /// Connect to the relay WebSocket. Call after successful login.
   void connect({
@@ -128,6 +134,9 @@ class RelayMessagingBloc {
     _readReceiptSub = _client!.readReceipts.listen((receipt) {
       _readReceiptController.add(receipt);
     });
+    _fileAttachmentSub = _client!.fileAttachments.listen((fa) {
+      _fileAttachmentController.add(fa);
+    });
 
     _client!.start();
   }
@@ -142,6 +151,8 @@ class RelayMessagingBloc {
     _typingSub = null;
     await _readReceiptSub?.cancel();
     _readReceiptSub = null;
+    await _fileAttachmentSub?.cancel();
+    _fileAttachmentSub = null;
     await _client?.stop();
     _client = null;
     _status = RelayMessagingStatus.disconnected;
@@ -156,6 +167,30 @@ class RelayMessagingBloc {
         await client.sendTyping(recipientHash, isTyping);
       } catch (_) {
         // Best-effort — typing indicators are ephemeral.
+      }
+    }
+  }
+
+  /// Send file attachment metadata to [recipientHash].
+  Future<void> sendFileAttachment({
+    required String recipientHash,
+    required String msgId,
+    required String fileName,
+    required int encryptedSize,
+    required String mimeType,
+  }) async {
+    final client = _client;
+    if (client != null && _status == RelayMessagingStatus.connected) {
+      try {
+        await client.sendFileAttachment(RelayFileAttachmentFrame(
+          recipientHash: recipientHash,
+          msgId: msgId,
+          fileName: fileName,
+          encryptedSize: encryptedSize,
+          mimeType: mimeType,
+        ));
+      } catch (_) {
+        // Best-effort — file attachment metadata is informational.
       }
     }
   }
@@ -308,5 +343,6 @@ class RelayMessagingBloc {
     await _incomingController.close();
     await _typingController.close();
     await _readReceiptController.close();
+    await _fileAttachmentController.close();
   }
 }

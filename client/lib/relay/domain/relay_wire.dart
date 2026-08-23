@@ -133,7 +133,10 @@ enum RelayFrameType {
   typing('typing'),
 
   /// Bidirectional: read receipt.
-  readReceipt('read_receipt');
+  readReceipt('read_receipt'),
+
+  /// Bidirectional: file/image attachment metadata.
+  fileAttachment('file_attachment');
 
   const RelayFrameType(this.wireName);
 
@@ -205,6 +208,8 @@ sealed class RelayFrame {
         return RelayTypingFrame.fromJson(body);
       case RelayFrameType.readReceipt:
         return RelayReadReceiptFrame.fromJson(body);
+      case RelayFrameType.fileAttachment:
+        return RelayFileAttachmentFrame.fromJson(body);
     }
   }
 }
@@ -376,5 +381,64 @@ class RelayReadReceiptFrame extends RelayFrame {
       return null;
     }
     return RelayReadReceiptFrame(senderHash: senderHash, lastMsgId: lastMsgId);
+  }
+}
+
+/// `file_attachment` — file/image metadata accompanying an envelope.
+///
+/// The actual encrypted bytes travel in a separate [RelayEnvelope] with the
+/// same [msgId]. This frame carries only the metadata (name, size, type)
+/// so the recipient can display a preview before/without decrypting.
+///
+/// SECURITY: [fileName] is a user-chosen display label — it is NOT a
+/// filesystem path and is NEVER persisted to disk. [encryptedSize] is the
+/// byte count of the ciphertext envelope.
+class RelayFileAttachmentFrame extends RelayFrame {
+  final String recipientHash;
+  final String msgId;
+  final String fileName;
+  final int encryptedSize;
+  final String mimeType;
+
+  const RelayFileAttachmentFrame({
+    required this.recipientHash,
+    required this.msgId,
+    required this.fileName,
+    required this.encryptedSize,
+    required this.mimeType,
+  });
+
+  @override
+  RelayFrameType get type => RelayFrameType.fileAttachment;
+
+  @override
+  Map<String, Object?> payload() => {
+        'recipient_hash': recipientHash,
+        'msg_id': msgId,
+        'file_name': fileName,
+        'encrypted_size': encryptedSize,
+        'mime_type': mimeType,
+      };
+
+  static RelayFileAttachmentFrame? fromJson(Map<String, Object?> json) {
+    final recipientHash = json['recipient_hash'];
+    final msgId = json['msg_id'];
+    final fileName = json['file_name'];
+    final encryptedSize = json['encrypted_size'];
+    final mimeType = json['mime_type'];
+    if (recipientHash is! String ||
+        msgId is! String ||
+        fileName is! String ||
+        encryptedSize is! int ||
+        mimeType is! String) {
+      return null;
+    }
+    return RelayFileAttachmentFrame(
+      recipientHash: recipientHash,
+      msgId: msgId,
+      fileName: fileName,
+      encryptedSize: encryptedSize,
+      mimeType: mimeType,
+    );
   }
 }

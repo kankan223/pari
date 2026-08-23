@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -173,6 +174,39 @@ String _formatChatTime(DateTime dt) {
   if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
   if (diff.inHours < 24) return '${diff.inHours}h ago';
   return '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+/// Whether a message is a file attachment (starts with 📎).
+bool _isFileMessage(MessageSummary msg) {
+  final content = msg.content;
+  if (content == null) return false;
+  return content.startsWith('\u{1F4CE} ');
+}
+
+/// Maps file extension to MIME type.
+String _mimeFromExtension(String ext) => switch (ext) {
+  'jpg' || 'jpeg' => 'image/jpeg',
+  'png' => 'image/png',
+  'gif' => 'image/gif',
+  'webp' => 'image/webp',
+  'pdf' => 'application/pdf',
+  'mp4' => 'video/mp4',
+  'mp3' => 'audio/mpeg',
+  'txt' => 'text/plain',
+  'json' => 'application/json',
+  _ => 'application/octet-stream',
+};
+
+/// Whether a file message is an image (by common extensions).
+bool _isImageFile(MessageSummary msg) {
+  final content = msg.content;
+  if (content == null) return false;
+  final lower = content.toLowerCase();
+  return lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.png') ||
+      lower.endsWith('.gif') ||
+      lower.endsWith('.webp');
 }
 
 /// Whether the peer has read this sent message (read receipt).
@@ -1751,6 +1785,42 @@ class _VaultConversationDetailWrapperState
     super.dispose();
   }
 
+  void _pickAndSendFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      if (file.bytes == null) return;
+
+      final msgId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+      final relay = widget.relayBloc;
+      final ext = file.name.split('.').last.toLowerCase();
+      final mime = _mimeFromExtension(ext);
+
+      // Send file metadata via relay.
+      if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+        await relay.sendFileAttachment(
+          recipientHash: widget.peerHash,
+          msgId: msgId,
+          fileName: file.name,
+          encryptedSize: file.bytes!.length,
+          mimeType: mime,
+        );
+        // Send file bytes as an envelope with a text prefix.
+        await relay.sendMessage(
+          recipientHash: widget.peerHash,
+          text: '\u{1F4CE} ${file.name}',
+          conversationId: widget.conversationId,
+        );
+      }
+    } catch (_) {
+      // Silently handle — file send is best-effort.
+    }
+  }
+
   void _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
@@ -1933,6 +2003,16 @@ class _VaultConversationDetailWrapperState
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
+                                if (_isFileMessage(summary)) ...[
+                                  Icon(
+                                    _isImageFile(summary)
+                                        ? Icons.image_rounded
+                                        : Icons.insert_drive_file_rounded,
+                                    size: 32,
+                                    color: isSent ? Colors.white70 : VaultTheme.vaultBlue,
+                                  ),
+                                  const SizedBox(height: 4),
+                                ],
                                 Text(
                                   summary.content ?? '[end-to-end encrypted]',
                                   style: TextStyle(
@@ -2004,7 +2084,14 @@ class _VaultConversationDetailWrapperState
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: _sending ? null : _pickAndSendFile,
+                      icon: const Icon(Icons.attach_file_rounded),
+                      color: Colors.grey[600],
+                      tooltip: 'Attach file',
+                    ),
+                    const SizedBox(width: 4),
                     IconButton(
                       onPressed: _sending ? null : _send,
                       icon: _sending

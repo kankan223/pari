@@ -443,6 +443,23 @@ class AppSchema {
     DbColumn('occurrence_count', 'INTEGER', notNull: true),
   ]);
 
+  /// File/image attachments (encrypted at rest, Task: file sharing).
+  ///
+  /// display_name is the user-chosen label, NOT a filesystem path.
+  /// encrypted_bytes is AES-256-GCM sealed. thumbnail_bytes is optional
+  /// low-res preview. Zero identity columns.
+  static const DbTable fileAttachments = DbTable('file_attachments', [
+    DbColumn('id', 'TEXT', primaryKey: true, notNull: true),
+    DbColumn('conversation_id', 'TEXT', notNull: true),
+    DbColumn('message_id', 'TEXT', notNull: true),
+    DbColumn('display_name', 'TEXT', notNull: true),
+    DbColumn('mime_type', 'TEXT', notNull: true),
+    DbColumn('original_size', 'INTEGER', notNull: true),
+    DbColumn('encrypted_bytes', 'BLOB', notNull: true, sensitive: true),
+    DbColumn('thumbnail_bytes', 'BLOB', sensitive: true),
+    DbColumn('created_at', 'INTEGER', notNull: true),
+  ]);
+
   /// All tables, in creation order (foreign-key-safe).
   static const List<DbTable> tables = [
     users,
@@ -471,6 +488,7 @@ class AppSchema {
     auditEvents,
     rateLimitBuckets,
     abuseEvents,
+    fileAttachments,
   ];
 
   /// Current schema version — MUST be bumped when tables are added/changed.
@@ -516,7 +534,7 @@ class AppSchema {
   /// v19 (Task 11.3): `rate_limit_buckets` / `abuse_events` — rate
   /// limiting and abuse prevention tracking (per-policy request counts
   /// + sliding windows + abuse detection events; zero identity columns).
-  static const int currentVersion = 20; // v20: messages.sent_at
+  static const int currentVersion = 21; // v21: file_attachments
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {
