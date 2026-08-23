@@ -43,7 +43,7 @@ void main() {
           home: MessageSearchScreen(
             searchBloc: bloc,
             conversationId: 'conv-a',
-            onResultTap: (convId, msgId, query) {
+            onResultTap: (convId, msgId, query, results, index) {
               receivedConvId = convId;
               receivedMsgId = msgId;
               receivedQuery = query;
@@ -87,7 +87,7 @@ void main() {
       final screen = MessageSearchScreen(
         searchBloc: bloc,
         conversationId: 'conv-a',
-        onResultTap: (convId, msgId, query) {
+        onResultTap: (convId, msgId, query, _, __) {
           results.addAll([convId, msgId, query]);
         },
       );

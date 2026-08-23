@@ -18,7 +18,7 @@ import 'vault_theme.dart';
 class MessageSearchScreen extends StatefulWidget {
   final MessageSearchBloc searchBloc;
   final String? conversationId;
-  final void Function(String conversationId, String messageId, String searchQuery)? onResultTap;
+  final void Function(String conversationId, String messageId, String searchQuery, List<MessageSearchResult> results, int tappedIndex)? onResultTap;
 
   const MessageSearchScreen({
     super.key,
@@ -204,7 +204,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
                   ),
                 );
               }
-              return _buildResultTile(results[index]);
+              return _buildResultTile(results[index], results, index);
             },
           ),
         ),
@@ -212,7 +212,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
     );
   }
 
-  Widget _buildResultTile(MessageSearchResult result) {
+  Widget _buildResultTile(MessageSearchResult result, List<MessageSearchResult> allResults, int resultIndex) {
     final isSent = result.direction == MessageDirection.sent;
 
     return ListTile(
@@ -238,7 +238,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
       ),
       onTap: () {
         final query = widget.searchBloc.currentState.query;
-        widget.onResultTap?.call(result.conversationId, result.messageId, query);
+        widget.onResultTap?.call(result.conversationId, result.messageId, query, allResults, resultIndex);
         Navigator.of(context).pop();
       },
     );

@@ -128,6 +128,7 @@ import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/domain/relay_wire.dart';
 import 'relay/relay_messaging_bloc.dart';
 import 'repository/data/in_memory_message_search_repository.dart';
+import 'repository/domain/message_search_result.dart';
 import 'state/domain/message_search_bloc.dart';
 import 'state/ui/message_search_screen.dart';
 import 'repository/data/in_memory_voice_player.dart';
@@ -1724,7 +1725,7 @@ class _VaultTabState extends State<_VaultTab> {
     super.dispose();
   }
 
-  void _openConversationFromSearch(String convId, {String? messageId, String? highlightText}) async {
+  void _openConversationFromSearch(String convId, {String? messageId, String? highlightText, List<MessageSearchResult>? searchResults, int searchIndex = 0}) async {
     final conv = await widget.h.conversationStore.getById(convId);
     final participantHash = conv?.participantHash ?? widget.h.peerHash;
     final messageBloc = LocalMessageBloc(
@@ -1751,6 +1752,8 @@ class _VaultTabState extends State<_VaultTab> {
         blockingService: widget.blockingService,
         highlightedMessageId: messageId,
         highlightedText: highlightText,
+        searchResults: searchResults,
+        initialSearchIndex: searchIndex,
       ),
     );
   }
@@ -1885,9 +1888,9 @@ class _VaultTabState extends State<_VaultTab> {
               _nav,
               MessageSearchScreen(
                 searchBloc: _searchBloc,
-                onResultTap: (convId, msgId, query) {
+                onResultTap: (convId, msgId, query, results, tappedIndex) {
                   // Navigate to the conversation containing the result.
-                  _openConversationFromSearch(convId, messageId: msgId, highlightText: query);
+                  _openConversationFromSearch(convId, messageId: msgId, highlightText: query, searchResults: results.cast<MessageSearchResult>(), searchIndex: tappedIndex);
                 },
               ),
             );
@@ -1915,6 +1918,12 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
   /// The search text to highlight within the message bubble.
   final String? highlightedText;
 
+  /// Full list of search results for prev/next navigation.
+  final List<MessageSearchResult>? searchResults;
+
+  /// Index of the initial result to highlight.
+  final int initialSearchIndex;
+
   const _VaultConversationDetailWrapper({
     required this.messageBloc,
     required this.conversationBloc,
@@ -1926,6 +1935,8 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
     required this.blockingService,
     this.highlightedMessageId,
     this.highlightedText,
+    this.searchResults,
+    this.initialSearchIndex = 0,
   });
 
   @override
@@ -1953,6 +1964,8 @@ class _VaultConversationDetailWrapperState
   // Highlight state for search result navigation.
   String? _highlightedMessageId;
   String? _highlightedText;
+  List<MessageSearchResult> _searchResults = [];
+  int _searchResultsIndex = 0;
 
   StreamSubscription<RelayTypingFrame>? _typingSub;
   StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
@@ -1975,6 +1988,8 @@ class _VaultConversationDetailWrapperState
     if (widget.highlightedMessageId != null) {
       _highlightedMessageId = widget.highlightedMessageId;
       _highlightedText = widget.highlightedText;
+      _searchResults = widget.searchResults ?? [];
+      _searchResultsIndex = widget.initialSearchIndex;
       // Auto-clear highlight after 3 seconds.
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) setState(() { _highlightedMessageId = null; _highlightedText = null; });
@@ -2284,6 +2299,34 @@ class _VaultConversationDetailWrapperState
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// Navigate to the next search result.
+  void _goToNextResult() {
+    if (_searchResults.isEmpty) return;
+    _searchResultsIndex = (_searchResultsIndex + 1) % _searchResults.length;
+    final result = _searchResults[_searchResultsIndex];
+    final msgId = result.messageId;
+    final query = result.matchedText;
+    setState(() {
+      _highlightedMessageId = msgId;
+      _highlightedText = query;
+    });
+    _scrollToMessage(msgId);
+  }
+
+  /// Navigate to the previous search result.
+  void _goToPrevResult() {
+    if (_searchResults.isEmpty) return;
+    _searchResultsIndex = (_searchResultsIndex - 1 + _searchResults.length) % _searchResults.length;
+    final result = _searchResults[_searchResultsIndex];
+    final msgId = result.messageId;
+    final query = result.matchedText;
+    setState(() {
+      _highlightedMessageId = msgId;
+      _highlightedText = query;
+    });
+    _scrollToMessage(msgId);
   }
 
   /// Build a RichText widget that highlights the matched search term.
@@ -2654,18 +2697,16 @@ class _VaultConversationDetailWrapperState
                                   ),
                                 ),
                                 conversationId: widget.conversationId,
-                                onResultTap: (convId, msgId, query) {
+                                onResultTap: (convId, msgId, query, results, tappedIndex) {
                                   // Scroll to the message and highlight it.
                                   if (convId == widget.conversationId) {
                                     setState(() {
                                       _highlightedMessageId = msgId;
                                       _highlightedText = query;
+                                      _searchResults = results;
+                                      _searchResultsIndex = tappedIndex;
                                     });
                                     _scrollToMessage(msgId);
-                                    // Auto-clear after 3 seconds.
-                                    Future.delayed(const Duration(seconds: 3), () {
-                                      if (mounted) setState(() { _highlightedMessageId = null; _highlightedText = null; });
-                                    });
                                   }
                                 },
                               ),
@@ -2979,8 +3020,68 @@ class _VaultConversationDetailWrapperState
                   );
                 },
               ),
-                  // Scroll-to-bottom FAB.
-                  if (_showScrollDown)
+                  // Search result prev/next navigation.
+                  if (_searchResults.isNotEmpty && _highlightedMessageId != null)
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: VaultTheme.vaultBlue,
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: _goToPrevResult,
+                              icon: const Icon(Icons.keyboard_arrow_up_rounded,
+                                  color: Colors.white),
+                              tooltip: 'Previous match',
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                '${_searchResultsIndex + 1}/${_searchResults.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _goToNextResult,
+                              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.white),
+                              tooltip: 'Next match',
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _highlightedMessageId = null;
+                                  _highlightedText = null;
+                                  _searchResults = [];
+                                  _searchResultsIndex = 0;
+                                });
+                              },
+                              icon: const Icon(Icons.close_rounded,
+                                  color: Colors.white70, size: 18),
+                              tooltip: 'Clear search',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Scroll-to-bottom FAB (when no search results).
+                  if (_showScrollDown && _searchResults.isEmpty)
                     Positioned(
                       right: 16,
                       bottom: 16,
