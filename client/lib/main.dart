@@ -1665,7 +1665,9 @@ class _VaultTabState extends State<_VaultTab> {
   final _nav = GlobalKey<NavigatorState>();
   late final MessageSearchBloc _searchBloc;
   Set<String> _onlineUsers = {};
+  Set<String> _typingUsers = {};
   StreamSubscription<PresenceSnapshot>? _presenceSub;
+  StreamSubscription<RelayTypingFrame>? _typingSub;
 
   @override
   void initState() {
@@ -1677,6 +1679,28 @@ class _VaultTabState extends State<_VaultTab> {
       _presenceSub = tracker.snapshots.listen((snapshot) {
         if (mounted) {
           setState(() => _onlineUsers = snapshot.onlineUsers);
+        }
+      });
+    }
+    // Subscribe to typing indicators from the relay.
+    final relay = widget.relayBloc;
+    if (relay != null) {
+      _typingSub = relay.typingIndicators.listen((typing) {
+        if (!mounted) return;
+        setState(() {
+          if (typing.isTyping) {
+            _typingUsers.add(typing.senderHash);
+          } else {
+            _typingUsers.remove(typing.senderHash);
+          }
+        });
+        // Auto-clear typing after 5 seconds of silence.
+        if (typing.isTyping) {
+          Future.delayed(const Duration(seconds: 5), () {
+            if (mounted) {
+              setState(() => _typingUsers.remove(typing.senderHash));
+            }
+          });
         }
       });
     }
@@ -1696,6 +1720,7 @@ class _VaultTabState extends State<_VaultTab> {
   @override
   void dispose() {
     _presenceSub?.cancel();
+    _typingSub?.cancel();
     super.dispose();
   }
 
@@ -1812,6 +1837,7 @@ class _VaultTabState extends State<_VaultTab> {
           usernameDirectory: widget.h.usernameDirectory,
           contextMeta: widget.username,
           onlineUsers: _onlineUsers,
+          typingUsers: _typingUsers,
           onNewConversation: _showNewConversationSheet,
           onSettings: () => _navPush(
             _nav,

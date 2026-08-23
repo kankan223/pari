@@ -49,6 +49,7 @@ class VaultConversationListScreen extends StatefulWidget {
     this.secureFlagService,
     this.rootDetectionService,
     this.onlineUsers = const {},
+    this.typingUsers = const {},
   });
 
   final ConversationBloc bloc;
@@ -87,6 +88,9 @@ class VaultConversationListScreen extends StatefulWidget {
 
   /// Set of blind_hash_ids currently online (from PresenceTracker).
   final Set<String> onlineUsers;
+
+  /// Set of blind_hash_ids currently typing (from relay typing indicators).
+  final Set<String> typingUsers;
 
   @override
   State<VaultConversationListScreen> createState() =>
@@ -237,6 +241,7 @@ class _VaultConversationListScreenState
               participantHash: conversation.participantHash,
               directory: widget.usernameDirectory,
               isOnline: widget.onlineUsers.contains(conversation.participantHash),
+              isTyping: widget.typingUsers.contains(conversation.participantHash),
               onTap: onConversationTap == null
                   ? null
                   : () => onConversationTap(conversation.id),
@@ -258,12 +263,14 @@ class _ConversationTile extends StatelessWidget {
     this.directory,
     this.onTap,
     this.isOnline = false,
+    this.isTyping = false,
   });
 
   final String participantHash;
   final UsernameDirectory? directory;
   final VoidCallback? onTap;
   final bool isOnline;
+  final bool isTyping;
 
   @override
   Widget build(BuildContext context) {
@@ -322,13 +329,35 @@ class _ConversationTile extends StatelessWidget {
             ),
         ],
       ),
-      subtitle: const Text(
-        'Preview: [end-to-end encrypted]',
-        style: TextStyle(
-          fontStyle: FontStyle.italic,
-          color: Colors.black54,
-        ),
-      ),
+      subtitle: isTyping
+          ? Row(
+              children: [
+                Text(
+                  'typing',
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: VaultTheme.vaultBlue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 20,
+                  height: 12,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(3, (i) => _TypingDot(delay: i * 200)),
+                  ),
+                ),
+              ],
+            )
+          : const Text(
+              'Preview: [end-to-end encrypted]',
+              style: TextStyle(
+                fontStyle: FontStyle.italic,
+                color: Colors.black54,
+              ),
+            ),
       // Chevron only when the row is actually navigable.      trailing: onTap == null ? null : const Icon(Icons.chevron_right_rounded),
       onTap: onTap,
     );
@@ -341,4 +370,60 @@ class _ConversationTile extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       );
+}
+
+/// Animated typing dot — a small circle that pulses with a staggered delay.
+class _TypingDot extends StatefulWidget {
+  final int delay;
+  const _TypingDot({this.delay = 0});
+  @override
+  State<_TypingDot> createState() => _TypingDotState();
+}
+
+class _TypingDotState extends State<_TypingDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    // Start with a delay for staggered effect.
+    Future.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) _controller.repeat(reverse: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _animation.value,
+          child: Container(
+            width: 4,
+            height: 4,
+            decoration: const BoxDecoration(
+              color: VaultTheme.vaultBlue,
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

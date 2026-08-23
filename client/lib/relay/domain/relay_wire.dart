@@ -336,8 +336,13 @@ class RelayErrorFrame extends RelayFrame {
 class RelayTypingFrame extends RelayFrame {
   final String recipientHash;
   final bool isTyping;
+  final String senderHash;
 
-  const RelayTypingFrame({required this.recipientHash, required this.isTyping});
+  const RelayTypingFrame({
+    required this.recipientHash,
+    required this.isTyping,
+    this.senderHash = '',
+  });
 
   @override
   RelayFrameType get type => RelayFrameType.typing;
@@ -345,16 +350,22 @@ class RelayTypingFrame extends RelayFrame {
   @override
   Map<String, Object?> payload() => {
         'recipient_hash': recipientHash,
+        'sender_hash': senderHash,
         'is_typing': isTyping,
       };
 
   static RelayTypingFrame? fromJson(Map<String, Object?> json) {
     final recipientHash = json['recipient_hash'];
     final isTyping = json['is_typing'];
+    final senderHash = json['sender_hash'] as String? ?? '';
     if (recipientHash is! String || isTyping is! bool) {
       return null;
     }
-    return RelayTypingFrame(recipientHash: recipientHash, isTyping: isTyping);
+    return RelayTypingFrame(
+      recipientHash: recipientHash,
+      isTyping: isTyping,
+      senderHash: senderHash,
+    );
   }
 }
 

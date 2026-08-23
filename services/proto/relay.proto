@@ -74,6 +74,7 @@ message ErrorMessage {
 message TypingIndicator {
   string recipient_hash = 1;  // target blind_hash_id
   bool is_typing = 2;         // true = started, false = stopped
+  string sender_hash = 3;     // who is typing (populated by server)
 }
 
 // Read receipt — the recipient has seen messages up to [last_msg_id].

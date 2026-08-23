@@ -604,6 +604,7 @@ type TypingIndicator struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RecipientHash string                 `protobuf:"bytes,1,opt,name=recipient_hash,json=recipientHash,proto3" json:"recipient_hash,omitempty"` // target blind_hash_id
 	IsTyping      bool                   `protobuf:"varint,2,opt,name=is_typing,json=isTyping,proto3" json:"is_typing,omitempty"`               // true = started, false = stopped
+	SenderHash    string                 `protobuf:"bytes,3,opt,name=sender_hash,json=senderHash,proto3" json:"sender_hash,omitempty"`          // who is typing (populated by server)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -650,6 +651,13 @@ func (x *TypingIndicator) GetIsTyping() bool {
 		return x.IsTyping
 	}
 	return false
+}
+
+func (x *TypingIndicator) GetSenderHash() string {
+	if x != nil {
+		return x.SenderHash
+	}
+	return ""
 }
 
 // Read receipt — the recipient has seen messages up to [last_msg_id].
@@ -747,10 +755,12 @@ const file_proto_relay_proto_rawDesc = "" +
 	"\x06msg_id\x18\x01 \x01(\tR\x05msgId\"<\n" +
 	"\fErrorMessage\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"U\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"v\n" +
 	"\x0fTypingIndicator\x12%\n" +
 	"\x0erecipient_hash\x18\x01 \x01(\tR\rrecipientHash\x12\x1b\n" +
-	"\tis_typing\x18\x02 \x01(\bR\bisTyping\"N\n" +
+	"\tis_typing\x18\x02 \x01(\bR\bisTyping\x12\x1f\n" +
+	"\vsender_hash\x18\x03 \x01(\tR\n" +
+	"senderHash\"N\n" +
 	"\vReadReceipt\x12\x1f\n" +
 	"\vsender_hash\x18\x01 \x01(\tR\n" +
 	"senderHash\x12\x1e\n" +

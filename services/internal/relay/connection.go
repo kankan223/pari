@@ -259,6 +259,8 @@ func (s *Server) handleClientFrame(ctx context.Context, frame *proto.ClientFrame
 		if typing.RecipientHash == "" {
 			return true // malformed — drop, connection stays
 		}
+		// Set the sender hash from the authenticated connection identity.
+		typing.SenderHash = blindHashID
 		s.hub.ForwardTyping(ctx, typing.RecipientHash, typing)
 		return true
 
