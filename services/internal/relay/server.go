@@ -73,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/relay/ws", s.serveWS)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /v1/relay/healthz", s.handleHealth)
+	mux.HandleFunc("GET /v1/relay/presence", s.auth(s.handlePresence))
 	// The mutation endpoints are wrapped in the idempotency middleware INSIDE
 	// auth: an unauthenticated request never consumes a dedup key, and the
 	// middleware only caches the authenticated actor's own responses.
@@ -215,6 +216,15 @@ func (s *Server) handleRespond(w http.ResponseWriter, r *http.Request, fn func(i
 	default:
 		writeJSON(w, http.StatusOK, req)
 	}
+}
+
+// handlePresence returns the list of online user blind hashes.
+func (s *Server) handlePresence(w http.ResponseWriter, r *http.Request) {
+	online := s.hub.OnlineUsers()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"online": online,
+		"count":  len(online),
+	})
 }
 
 // writeJSON writes a JSON response with a content-type guard.

@@ -138,6 +138,21 @@ func (h *Hub) DeviceCount(blindHashID string) int {
 	return len(h.devices[blindHashID])
 }
 
+// OnlineUsers returns the set of blind_hash_ids that have at least one
+// live device connection. The result is a snapshot — the set may change
+// immediately after the call returns.
+func (h *Hub) OnlineUsers() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	online := make([]string, 0, len(h.devices))
+	for hash, devs := range h.devices {
+		if len(devs) > 0 {
+		online = append(online, hash)
+		}
+	}
+	return online
+}
+
 // Deliver routes one envelope: fan-out to the recipient's live devices and,
 // when the recipient is fully offline, persist it to the offline queue.
 // env.SenderHash must already be the authenticated identity (never client

@@ -131,6 +131,7 @@ import 'repository/data/in_memory_message_search_repository.dart';
 import 'state/domain/message_search_bloc.dart';
 import 'state/ui/message_search_screen.dart';
 import 'repository/data/in_memory_voice_player.dart';
+import 'relay/domain/presence_tracker.dart';
 import 'repository/data/platform_voice_recorder.dart';
 import 'state/domain/voice_message_bloc.dart';
 import 'state/ui/voice_record_button.dart';
@@ -402,6 +403,8 @@ class CivicCommonsApp extends StatefulWidget {
 
 class _CivicCommonsAppState extends State<CivicCommonsApp> {
   RelayMessagingBloc? _relayBloc;
+  PresenceTracker? _presenceTracker;
+  Set<String> _onlineUsers = {};
   late final LocalUserSearchBloc _userSearchBloc;
   AuthState? _lastAuthState;
   String _authToken = '';
@@ -544,6 +547,19 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
       relayUrl: 'wss://civic-commons-relay.onrender.com/v1/relay/ws',
       connector: const WebSocketRelaySocketConnector(),
     );
+
+    // Start presence tracking to show online/offline indicators.
+    _presenceTracker?.stop();
+    _presenceTracker = PresenceTracker(
+      relayUrl: 'https://civic-commons-relay.onrender.com',
+      tokenProvider: () => _authToken ?? '',
+    );
+    _presenceTracker!.snapshots.listen((snapshot) {
+      if (mounted) {
+        setState(() => _onlineUsers = snapshot.onlineUsers);
+      }
+    });
+    _presenceTracker!.start();
   }
 
   /// Creates a self-session Double Ratchet for dev mode encryption.
@@ -565,6 +581,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
 
   @override
   void dispose() {
+    _presenceTracker?.stop();
     _relayBloc?.dispose();
     super.dispose();
   }
@@ -597,6 +614,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
               username: authState.username ?? 'anonymous',
               relayBloc: _relayBloc,
               userSearchBloc: _userSearchBloc,
+              presenceTracker: _presenceTracker,
             );
           }
           // Disconnect relay on logout.
@@ -1326,6 +1344,7 @@ class CivicCommonsHarness extends StatefulWidget {
   final String username;
   final RelayMessagingBloc? relayBloc;
   final LocalUserSearchBloc userSearchBloc;
+  final PresenceTracker? presenceTracker;
 
   const CivicCommonsHarness({
     super.key,
@@ -1334,6 +1353,7 @@ class CivicCommonsHarness extends StatefulWidget {
     this.username = 'anonymous',
     this.relayBloc,
     required this.userSearchBloc,
+    this.presenceTracker,
   });
 
   @override
@@ -1365,7 +1385,7 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
     super.initState();
     final h = widget.harness;
     _warRoomTab = _WarRoomTab(h: h);
-    _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc, userSearchBloc: widget.userSearchBloc);
+    _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc, userSearchBloc: widget.userSearchBloc, presenceTracker: widget.presenceTracker);
     _ledgerTab = _LedgerTab(h: h);
     _academyTab = _AcademyTab(h: h);
     _identityTab = _IdentityTab(h: h);
@@ -1606,7 +1626,8 @@ class _VaultTab extends StatefulWidget {
   final String username;
   final RelayMessagingBloc? relayBloc;
   final UserSearchBloc userSearchBloc;
-  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc, required this.userSearchBloc});
+  final PresenceTracker? presenceTracker;
+  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc, required this.userSearchBloc, this.presenceTracker});
   @override
   State<_VaultTab> createState() => _VaultTabState();
 }
@@ -1614,10 +1635,22 @@ class _VaultTab extends StatefulWidget {
 class _VaultTabState extends State<_VaultTab> {
   final _nav = GlobalKey<NavigatorState>();
   late final MessageSearchBloc _searchBloc;
+  Set<String> _onlineUsers = {};
+  StreamSubscription<PresenceSnapshot>? _presenceSub;
 
   @override
   void initState() {
     super.initState();
+    // Subscribe to presence updates.
+    final tracker = widget.presenceTracker;
+    if (tracker != null) {
+      _onlineUsers = tracker.onlineUsers;
+      _presenceSub = tracker.snapshots.listen((snapshot) {
+        if (mounted) {
+          setState(() => _onlineUsers = snapshot.onlineUsers);
+        }
+      });
+    }
     final searchRepo = InMemoryMessageSearchRepository(
       messages: [],
       contentProvider: (msg) {
@@ -1629,6 +1662,12 @@ class _VaultTabState extends State<_VaultTab> {
       },
     );
     _searchBloc = MessageSearchBloc(repo: searchRepo);
+  }
+
+  @override
+  void dispose() {
+    _presenceSub?.cancel();
+    super.dispose();
   }
 
   void _openConversationFromSearch(String convId) async {
@@ -1741,6 +1780,7 @@ class _VaultTabState extends State<_VaultTab> {
           requestsBloc: widget.h.connectionRequestsBloc,
           usernameDirectory: widget.h.usernameDirectory,
           contextMeta: widget.username,
+          onlineUsers: _onlineUsers,
           onNewConversation: _showNewConversationSheet,
           onSettings: () => _navPush(
             _nav,

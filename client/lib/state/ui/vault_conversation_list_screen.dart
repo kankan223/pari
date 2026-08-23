@@ -48,6 +48,7 @@ class VaultConversationListScreen extends StatefulWidget {
     this.onAcceptRequest,
     this.secureFlagService,
     this.rootDetectionService,
+    this.onlineUsers = const {},
   });
 
   final ConversationBloc bloc;
@@ -83,6 +84,9 @@ class VaultConversationListScreen extends StatefulWidget {
   final ValueChanged<String>? onAcceptRequest;
   final SecureFlagService? secureFlagService;
   final RootDetectionService? rootDetectionService;
+
+  /// Set of blind_hash_ids currently online (from PresenceTracker).
+  final Set<String> onlineUsers;
 
   @override
   State<VaultConversationListScreen> createState() =>
@@ -232,6 +236,7 @@ class _VaultConversationListScreenState
             _ConversationTile(
               participantHash: conversation.participantHash,
               directory: widget.usernameDirectory,
+              isOnline: widget.onlineUsers.contains(conversation.participantHash),
               onTap: onConversationTap == null
                   ? null
                   : () => onConversationTap(conversation.id),
@@ -252,11 +257,13 @@ class _ConversationTile extends StatelessWidget {
     required this.participantHash,
     this.directory,
     this.onTap,
+    this.isOnline = false,
   });
 
   final String participantHash;
   final UsernameDirectory? directory;
   final VoidCallback? onTap;
+  final bool isOnline;
 
   @override
   Widget build(BuildContext context) {
@@ -278,8 +285,43 @@ class _ConversationTile extends StatelessWidget {
       );
     }
     return ListTile(
-      leading: const Icon(Icons.lock_rounded, color: VaultTheme.vaultBlue),
-      title: title,
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.lock_rounded, color: VaultTheme.vaultBlue),
+          // Online indicator dot.
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: isOnline ? Colors.green : Colors.grey[400],
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+        ],
+      ),
+      title: Row(
+        children: [
+          Expanded(child: title),
+          if (isOnline)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                'Online',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.green[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+        ],
+      ),
       subtitle: const Text(
         'Preview: [end-to-end encrypted]',
         style: TextStyle(
