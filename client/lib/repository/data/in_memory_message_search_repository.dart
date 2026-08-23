@@ -4,17 +4,29 @@ import '../domain/message_search_result.dart';
 
 /// In-memory implementation of [MessageSearchRepository].
 ///
-/// Searches through a shared message list. For dev/test use — production
-/// would use SQLCipher FTS5 for full-text search.
+/// Searches through decrypted message content. The [contentProvider] callback
+/// decodes each message's ciphertext into plaintext for search indexing.
+/// For dev/test use — production would use SQLCipher FTS5 for full-text search.
 class InMemoryMessageSearchRepository implements MessageSearchRepository {
   final List<Message> _messages;
   final Map<String, String> _conversationParticipants;
+  final String Function(Message) _contentProvider;
 
   InMemoryMessageSearchRepository({
     required List<Message> messages,
     Map<String, String>? conversationParticipants,
+    String Function(Message)? contentProvider,
   })  : _messages = messages,
-        _conversationParticipants = conversationParticipants ?? {};
+        _conversationParticipants = conversationParticipants ?? {},
+        _contentProvider = contentProvider ?? _defaultContentProvider;
+
+  static String _defaultContentProvider(Message m) {
+    try {
+      return String.fromCharCodes(m.ciphertext);
+    } catch (_) {
+      return '';
+    }
+  }
 
   /// Set the participant hash for a conversation (for search results).
   void setParticipant(String conversationId, String participantHash) {
@@ -41,13 +53,9 @@ class InMemoryMessageSearchRepository implements MessageSearchRepository {
         continue;
       }
 
-      // Decode the message content (in dev mode, ciphertext is raw text).
-      String content;
-      try {
-        content = String.fromCharCodes(msg.ciphertext);
-      } catch (_) {
-        continue;
-      }
+      // Decode the message content via the content provider.
+      final content = _contentProvider(msg);
+      if (content.isEmpty) continue;
 
       // Case-insensitive substring search.
       final lowerContent = content.toLowerCase();
@@ -92,12 +100,7 @@ class InMemoryMessageSearchRepository implements MessageSearchRepository {
       ..sort((a, b) => b.id.compareTo(a.id)); // Rough sort by ID
 
     return sorted.take(limit).map((msg) {
-      String content;
-      try {
-        content = String.fromCharCodes(msg.ciphertext);
-      } catch (_) {
-        content = '';
-      }
+      final content = _contentProvider(msg);
 
       return MessageSearchResult(
         messageId: msg.id,

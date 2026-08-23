@@ -73,6 +73,16 @@ class VaultMasthead extends StatelessWidget {
                   ),
                 ),
               ],
+              if (onSearch != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onSearch,
+                  icon: const Icon(Icons.search_rounded,
+                      color: Colors.white70, size: 20),
+                  tooltip: 'Search messages',
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
               if (onSettings != null) ...[
                 const SizedBox(width: 4),
                 IconButton(

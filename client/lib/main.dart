@@ -127,6 +127,9 @@ import 'relay/data/prekey_publisher.dart';
 import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/domain/relay_wire.dart';
 import 'relay/relay_messaging_bloc.dart';
+import 'repository/data/in_memory_message_search_repository.dart';
+import 'state/domain/message_search_bloc.dart';
+import 'state/ui/message_search_screen.dart';
 import 'repository/data/in_memory_voice_player.dart';
 import 'repository/data/in_memory_voice_recorder.dart';
 import 'state/domain/voice_message_bloc.dart';
@@ -1604,6 +1607,50 @@ class _VaultTab extends StatefulWidget {
 
 class _VaultTabState extends State<_VaultTab> {
   final _nav = GlobalKey<NavigatorState>();
+  late final MessageSearchBloc _searchBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    final searchRepo = InMemoryMessageSearchRepository(
+      messages: [],
+      contentProvider: (msg) {
+        try {
+          return String.fromCharCodes(msg.ciphertext);
+        } catch (_) {
+          return '';
+        }
+      },
+    );
+    _searchBloc = MessageSearchBloc(repo: searchRepo);
+  }
+
+  void _openConversationFromSearch(String convId) async {
+    final conv = await widget.h.conversationStore.getById(convId);
+    final participantHash = conv?.participantHash ?? widget.h.peerHash;
+    final messageBloc = LocalMessageBloc(
+      repository: LocalMessageRepository(
+        store: widget.h.messageStore,
+        syncQueue: widget.h.syncQueue,
+        sink: _NoopSyncSink(),
+      ),
+      database: widget.h.messageDb,
+      conversationId: convId,
+      participantHash: participantHash,
+    );
+    await messageBloc.start();
+    _navPush(
+      _nav,
+      _VaultConversationDetailWrapper(
+        messageBloc: messageBloc,
+        conversationBloc: widget.h.conversationBloc,
+        conversationId: convId,
+        peerHash: participantHash,
+        relayBloc: widget.relayBloc,
+        usernameDirectory: widget.h.usernameDirectory,
+      ),
+    );
+  }
 
   void _showNewConversationSheet() {
     showModalBottomSheet<void>(
@@ -1722,10 +1769,21 @@ class _VaultTabState extends State<_VaultTab> {
               ),
             );
           },
+          onSearch: () {
+            _navPush(
+              _nav,
+              MessageSearchScreen(
+                searchBloc: _searchBloc,
+                onResultTap: (convId, msgId) {
+                  // Navigate to the conversation containing the result.
+                  _openConversationFromSearch(convId);
+                },
+              ),
+            );
+          },
         ),
       ),
-    );
-  }
+    );  }
 }
 
 /// Wrapper that wires the relay messaging to the conversation detail screen.
