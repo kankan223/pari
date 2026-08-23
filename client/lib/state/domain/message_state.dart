@@ -38,6 +38,12 @@ class MessageSummary {
   /// When this message was last edited (null if never edited).
   final DateTime? editedAt;
 
+  /// Emoji reactions on this message.
+  final List<MessageReaction> reactions;
+
+  /// Whether this message is pinned.
+  final bool isPinned;
+
   /// Whether the message can be edited (sent within 15 minutes).
   bool get canBeEdited {
     if (direction != MessageDirection.sent || isDeleted) return false;
@@ -55,6 +61,8 @@ class MessageSummary {
     this.replyToContent,
     this.isDeleted = false,
     this.editedAt,
+    this.reactions = const [],
+    this.isPinned = false,
   }) : sentAt = sentAt ?? DateTime.now().toUtc();
 
   factory MessageSummary.from(Message m) => MessageSummary(
@@ -67,6 +75,8 @@ class MessageSummary {
         replyToContent: m.replyToContent,
         isDeleted: m.isDeleted,
         editedAt: m.editedAt,
+        reactions: m.reactions,
+        isPinned: m.isPinned,
       );
 
   /// Sentinel so [copyWith] can explicitly clear [content] back to null
@@ -84,6 +94,8 @@ class MessageSummary {
     String? replyToContent,
     bool? isDeleted,
     DateTime? editedAt,
+    List<MessageReaction>? reactions,
+    bool? isPinned,
   }) =>
       MessageSummary(
         id: id,
@@ -96,6 +108,8 @@ class MessageSummary {
         replyToContent: replyToContent ?? this.replyToContent,
         isDeleted: isDeleted ?? this.isDeleted,
         editedAt: editedAt ?? this.editedAt,
+        reactions: reactions ?? this.reactions,
+        isPinned: isPinned ?? this.isPinned,
       );
 }
 

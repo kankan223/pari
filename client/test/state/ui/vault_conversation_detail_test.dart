@@ -66,6 +66,12 @@ class _FakeMessageBloc implements MessageBloc {
   void setLastReadMsgId(String? msgId) {}
 
   @override
+  Future<void> toggleReaction(String messageId, String emoji, String myHash) async {}
+
+  @override
+  Future<void> togglePin(String messageId) async {}
+
+  @override
   Future<void> close() async {
     await _controller.close();
   }

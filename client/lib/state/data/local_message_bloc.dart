@@ -164,6 +164,46 @@ class LocalMessageBloc implements MessageBloc {
   MessageState? _lastState;
 
   @override
+  Future<void> toggleReaction(String messageId, String emoji, String myHash) async {
+    final messages = await _repository.getAll();
+    final idx = messages.indexWhere((m) => m.id == messageId);
+    if (idx < 0) return;
+    final msg = messages[idx];
+    // Check if user already reacted with this emoji — if so, remove it.
+    final existing = msg.reactions.indexWhere(
+      (r) => r.emoji == emoji && r.reactorHash == myHash,
+    );
+    List<MessageReaction> newReactions;
+    if (existing >= 0) {
+      newReactions = List<MessageReaction>.from(msg.reactions)..removeAt(existing);
+    } else {
+      newReactions = List<MessageReaction>.from(msg.reactions)
+        ..add(MessageReaction(
+          emoji: emoji,
+          reactorHash: myHash,
+          createdAt: DateTime.now().toUtc(),
+        ));
+    }
+    await _repository.update(msg.copyWith(reactions: newReactions));
+    _notifyDb();
+  }
+
+  @override
+  Future<void> togglePin(String messageId) async {
+    final messages = await _repository.getAll();
+    final idx = messages.indexWhere((m) => m.id == messageId);
+    if (idx < 0) return;
+    final msg = messages[idx];
+    await _repository.update(msg.copyWith(isPinned: !msg.isPinned));
+    _notifyDb();
+  }
+
+  void _notifyDb() {
+    // Use the same refresh pattern as send/delete/edit.
+    refresh();
+  }
+
+  @override
   Future<void> close() async {
     await _sub?.cancel();
     await _controller.close();

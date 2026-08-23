@@ -44,6 +44,12 @@ abstract class MessageBloc {
   /// Update the last read message ID from the peer.
   void setLastReadMsgId(String? msgId);
 
+  /// Add or toggle an emoji reaction on a message.
+  Future<void> toggleReaction(String messageId, String emoji, String myHash);
+
+  /// Pin or unpin a message.
+  Future<void> togglePin(String messageId);
+
   /// Releases resources.
   Future<void> close();
 }

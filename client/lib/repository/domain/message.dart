@@ -1,5 +1,31 @@
 import 'dart:typed_data';
 
+/// A single emoji reaction on a message.
+class MessageReaction {
+  final String emoji;
+  final String reactorHash; // blind_hash_id of the user who reacted
+  final DateTime createdAt;
+
+  const MessageReaction({
+    required this.emoji,
+    required this.reactorHash,
+    required this.createdAt,
+  });
+}
+
+/// Aggregated reaction info for display.
+class ReactionSummary {
+  final String emoji;
+  final int count;
+  final bool isOwnReaction;
+
+  const ReactionSummary({
+    required this.emoji,
+    required this.count,
+    required this.isOwnReaction,
+  });
+}
+
 /// Explicit direction of a Vault message (Task 6.3).
 ///
 /// Replaces the implicit delivered-based heuristic (`delivered ? received :
@@ -64,6 +90,12 @@ class Message {
   /// When this message was last edited (null if never edited).
   final DateTime? editedAt;
 
+  /// Emoji reactions on this message.
+  final List<MessageReaction> reactions;
+
+  /// Whether this message is pinned in the conversation.
+  final bool isPinned;
+
   Message({
     required this.id,
     required this.conversationId,
@@ -76,6 +108,8 @@ class Message {
     this.replyToContent,
     this.isDeleted = false,
     this.editedAt,
+    this.reactions = const [],
+    this.isPinned = false,
   }) : sentAt = sentAt ?? DateTime.now().toUtc();
 
   /// Whether this message can be edited (sent within the last 15 minutes).
@@ -95,6 +129,8 @@ class Message {
     bool? isDeleted,
     DateTime? editedAt,
     Uint8List? ciphertext,
+    List<MessageReaction>? reactions,
+    bool? isPinned,
   }) =>
       Message(
         id: id,
@@ -108,5 +144,24 @@ class Message {
         replyToContent: clearReplyToId ? null : (replyToContent ?? this.replyToContent),
         isDeleted: isDeleted ?? this.isDeleted,
         editedAt: editedAt ?? this.editedAt,
+        reactions: reactions ?? this.reactions,
+        isPinned: isPinned ?? this.isPinned,
       );
+
+  /// Aggregated reactions for display (emoji → count + own status).
+  List<ReactionSummary> get reactionSummaries {
+    final map = <String, int>{};
+    final own = <String>{};
+    for (final r in reactions) {
+      map[r.emoji] = (map[r.emoji] ?? 0) + 1;
+      // Note: isOwnReaction requires the current user's hash — handled by UI.
+    }
+    return map.entries
+        .map((e) => ReactionSummary(
+              emoji: e.key,
+              count: e.value,
+              isOwnReaction: false,
+            ))
+        .toList();
+  }
 }

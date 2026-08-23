@@ -2224,6 +2224,57 @@ class _VaultConversationDetailWrapperState
     }
   }
 
+  /// Aggregate reactions by emoji for display.
+  List<ReactionSummary> _aggregateReactions(List<MessageReaction> reactions) {
+    final map = <String, int>{};
+    for (final r in reactions) {
+      map[r.emoji] = (map[r.emoji] ?? 0) + 1;
+    }
+    return map.entries
+        .map((e) => ReactionSummary(
+              emoji: e.key,
+              count: e.value,
+              isOwnReaction: false,
+            ))
+        .toList();
+  }
+
+  /// Toggle an emoji reaction on a message.
+  void _toggleReaction(String messageId, String emoji) async {
+    final auth = widget.relayBloc;
+    // Use a fixed hash for now — in production, get from auth state.
+    final myHash = 'current-user';
+    widget.messageBloc.toggleReaction(messageId, emoji, myHash);
+  }
+
+  void _showReactionPicker(BuildContext context, String messageId) {
+    final emojis = ['❤️', '👍', '😂', '😮', '😢', '🔥', '👏', '🎉'];
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (final emoji in emojis)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleReaction(messageId, emoji);
+                  },
+                  child: Text(
+                    emoji,
+                    style: const TextStyle(fontSize: 28),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showMessageActions(BuildContext context, MessageSummary msg) {
     final isOwnMessage = msg.direction == MessageDirection.sent;
     // For received messages, the peer is the sender.
@@ -2241,6 +2292,14 @@ class _VaultConversationDetailWrapperState
                 onTap: () {
                   Navigator.pop(ctx);
                   _startReply(msg);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.emoji_emotions_outlined),
+                title: const Text('React'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showReactionPicker(context, msg.id);
                 },
               ),
               if (isOwnMessage)
@@ -2261,6 +2320,17 @@ class _VaultConversationDetailWrapperState
                     _startEdit(msg);
                   },
                 ),
+              ListTile(
+                leading: Icon(
+                  msg.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  color: msg.isPinned ? VaultTheme.vaultBlue : null,
+                ),
+                title: Text(msg.isPinned ? 'Unpin' : 'Pin'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  widget.messageBloc.togglePin(msg.id);
+                },
+              ),
             ],
             if (isOwnMessage)
               ListTile(
@@ -2578,6 +2648,7 @@ class _VaultConversationDetailWrapperState
                           summary.direction == MessageDirection.sent;
                       return GestureDetector(
                         onLongPress: () => _showMessageActions(context, summary),
+                        onDoubleTap: () => _toggleReaction(summary.id, '❤️'),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: Align(
@@ -2686,6 +2757,39 @@ class _VaultConversationDetailWrapperState
                                     fontSize: 15,
                                   ),
                                 ),
+                                // Reaction chips.
+                                if (summary.reactions.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 4,
+                                    runSpacing: 2,
+                                    children: [
+                                      for (final r in _aggregateReactions(summary.reactions))
+                                        GestureDetector(
+                                          onTap: () => _toggleReaction(summary.id, r.emoji),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isSent
+                                                  ? Colors.white.withValues(alpha: 0.2)
+                                                  : VaultTheme.vaultBlue.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(
+                                                color: isSent ? Colors.white30 : VaultTheme.vaultBlue.withValues(alpha: 0.3),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              '${r.emoji} ${r.count > 1 ? r.count : ''}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isSent ? Colors.white : VaultTheme.vaultBlue,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
                                 const SizedBox(height: 4),
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
