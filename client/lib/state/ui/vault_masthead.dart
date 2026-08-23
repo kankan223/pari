@@ -20,6 +20,7 @@ class VaultMasthead extends StatelessWidget {
     this.contextMeta,
     this.onAction,
     this.onSettings,
+    this.onSearch,
   });
 
   /// Optional trailing identity line, e.g. the local user's display handle
@@ -32,6 +33,9 @@ class VaultMasthead extends StatelessWidget {
 
   /// Optional settings action. When null, the settings button is not rendered.
   final VoidCallback? onSettings;
+
+  /// Optional search action. When null, the search button is not rendered.
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {

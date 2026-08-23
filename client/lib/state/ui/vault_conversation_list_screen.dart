@@ -43,6 +43,7 @@ class VaultConversationListScreen extends StatefulWidget {
     this.onNewConversation,
     this.onConversationTap,
     this.onSettings,
+    this.onSearch,
     this.pendingRequests = const [],
     this.onAcceptRequest,
     this.secureFlagService,
@@ -70,6 +71,9 @@ class VaultConversationListScreen extends StatefulWidget {
 
   /// Settings action (navigates to profile/general settings).
   final VoidCallback? onSettings;
+
+  /// Search action (navigates to message search screen).
+  final VoidCallback? onSearch;
 
   /// Fallback static inbox (Task 6.1 presentation tests); superseded by
   /// [requestsBloc] when provided.

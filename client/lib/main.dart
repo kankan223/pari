@@ -1818,8 +1818,10 @@ class _VaultConversationDetailWrapperState
       final ext = file.name.split('.').last.toLowerCase();
       final mime = _mimeFromExtension(ext);
 
-      // Send file metadata via relay.
+      // Send file via relay (persists + sends).
+      final fileText = '\u{1F4CE} ${file.name}';
       if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+        // Send file metadata first.
         await relay.sendFileAttachment(
           recipientHash: widget.peerHash,
           msgId: msgId,
@@ -1827,12 +1829,15 @@ class _VaultConversationDetailWrapperState
           encryptedSize: file.bytes!.length,
           mimeType: mime,
         );
-        // Send file bytes as an envelope with a text prefix.
+        // Send file message (envelope carries the text label).
         await relay.sendMessage(
           recipientHash: widget.peerHash,
-          text: '\u{1F4CE} ${file.name}',
+          text: fileText,
           conversationId: widget.conversationId,
         );
+      } else {
+        // Offline: persist locally only.
+        await widget.messageBloc.send(fileText);
       }
     } catch (_) {
       // Silently handle — file send is best-effort.
@@ -1840,13 +1845,17 @@ class _VaultConversationDetailWrapperState
   }
 
   void _sendVoiceMessage(List<int> audioBytes) async {
+    final text = '\u{1F3A4} Voice message (${audioBytes.length} bytes)';
     final relay = widget.relayBloc;
     if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
       await relay.sendMessage(
         recipientHash: widget.peerHash,
-        text: '\u{1F3A4} Voice message (${audioBytes.length} bytes)',
+        text: text,
         conversationId: widget.conversationId,
       );
+    } else {
+      // Offline: persist locally only.
+      await widget.messageBloc.send(text);
     }
   }
 
@@ -1866,15 +1875,18 @@ class _VaultConversationDetailWrapperState
     }
 
     try {
-      // 1. Persist locally first (offline-first — UI sees message immediately).
-      await widget.messageBloc.send(text);
-      // 2. Send through the relay for real-time delivery to the peer.
+      // Send through the relay (persists locally + sends via WebSocket).
+      // The relay's sendMessage handles both local persistence and
+      // network delivery, so we don't also call messageBloc.send().
       if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
         await relay.sendMessage(
           recipientHash: widget.peerHash,
           text: text,
           conversationId: widget.conversationId,
         );
+      } else {
+        // Offline: persist locally only so the message appears immediately.
+        await widget.messageBloc.send(text);
       }
     } catch (_) {
       // Silently handle — message stays in local store.
