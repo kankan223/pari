@@ -220,17 +220,28 @@ bool _isImageFile(MessageSummary msg) {
       lower.endsWith('.webp');
 }
 
-/// Whether the peer has read this sent message (read receipt).
-bool _isReadByPeer(MessageSummary msg, MessageState state) {
-  if (msg.direction != MessageDirection.sent) return false;
+/// Read receipt state for a sent message.
+enum _ReadState {
+  /// Message sent but not yet acknowledged by the relay.
+  pending,
+
+  /// Relay accepted the message (single checkmark).
+  sent,
+
+  /// Peer has read the message (double blue checkmarks).
+  read,
+}
+
+/// Returns the read receipt state for a sent message.
+_ReadState _readState(MessageSummary msg, MessageState state) {
+  if (msg.direction != MessageDirection.sent) return _ReadState.pending;
+  if (!msg.delivered) return _ReadState.pending;
   final readId = state.lastReadMsgId;
-  if (readId == null || readId.isEmpty) return false;
-  // Simple heuristic: if the peer's last read msg is at or after this msg's
-  // position in the list, the message has been read.
+  if (readId == null || readId.isEmpty) return _ReadState.sent;
   final idx = state.messages.indexWhere((m) => m.id == msg.id);
   final readIdx = state.messages.indexWhere((m) => m.id == readId);
-  if (idx < 0 || readIdx < 0) return false;
-  return readIdx >= idx;
+  if (idx < 0 || readIdx < 0) return _ReadState.sent;
+  return readIdx >= idx ? _ReadState.read : _ReadState.sent;
 }
 
 Future<void> main() async {
@@ -1742,11 +1753,15 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
 }
 
 class _VaultConversationDetailWrapperState
-    extends State<_VaultConversationDetailWrapper> {
+    extends State<_VaultConversationDetailWrapper>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   bool _sending = false;
   bool _isTyping = false;
+  bool _showScrollDown = false;
   late final VoiceMessageBloc _voiceBloc;
+  late final AnimationController _typingAnimController;
 
   StreamSubscription<RelayTypingFrame>? _typingSub;
   StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
@@ -1755,6 +1770,11 @@ class _VaultConversationDetailWrapperState
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    _scrollController.addListener(_onScroll);
+    _typingAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
     _voiceBloc = VoiceMessageBloc(
       recorder: InMemoryVoiceRecorder(),
       player: InMemoryVoicePlayer(),
@@ -1788,18 +1808,39 @@ class _VaultConversationDetailWrapperState
     }
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final atBottom = _scrollController.offset >=
+        _scrollController.position.maxScrollExtent - 80;
+    if (atBottom != _showScrollDown) {
+      setState(() => _showScrollDown = !atBottom);
+    }
+  }
+
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   void dispose() {
     _controller.removeListener(_onTextChanged);
+    _scrollController.removeListener(_onScroll);
     _typingSub?.cancel();
     _readReceiptSub?.cancel();
     _voiceBloc.close();
+    _typingAnimController.dispose();
     // Send typing stopped when leaving the chat.
     final relay = widget.relayBloc;
     if (relay != null && _isTyping) {
       relay.sendTyping(widget.peerHash, false);
     }
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -1893,6 +1934,9 @@ class _VaultConversationDetailWrapperState
     });
     _controller.clear();
 
+    // Dismiss keyboard.
+    FocusScope.of(context).unfocus();
+
     // Stop typing indicator.
     final relay = widget.relayBloc;
     if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
@@ -1900,9 +1944,6 @@ class _VaultConversationDetailWrapperState
     }
 
     try {
-      // Send through the relay (persists locally + sends via WebSocket).
-      // The relay's sendMessage handles both local persistence and
-      // network delivery, so we don't also call messageBloc.send().
       if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
         await relay.sendMessage(
           recipientHash: widget.peerHash,
@@ -1910,16 +1951,19 @@ class _VaultConversationDetailWrapperState
           conversationId: widget.conversationId,
         );
       } else {
-        // Offline: persist locally only so the message appears immediately.
-        // The message will be synced when the relay reconnects.
         await widget.messageBloc.send(text);
       }
+      // Auto-scroll to bottom after sending.
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
     } catch (_) {
-      // Attempt offline fallback if relay send failed.
       try {
         await widget.messageBloc.send(text);
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        }
       } catch (_) {
-        // Last resort — show error feedback.
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to send message')),
@@ -1986,25 +2030,60 @@ class _VaultConversationDetailWrapperState
                                 initialData: widget.relayBloc?.currentStatus,
                                 builder: (context, snapshot) {
                                   final status = snapshot.data;
-                                  String label;
                                   if (peerTyping) {
-                                    label = 'typing...';
-                                  } else {
-                                    label = switch (status) {
-                                      RelayMessagingStatus.connected => '\u{1f7e2} Live',
-                                      RelayMessagingStatus.connecting => '\u{1f7e1} Connecting...',
-                                      RelayMessagingStatus.reconnecting => '\u{1f7e0} Reconnecting...',
-                                      RelayMessagingStatus.authFailed => '\u{1f534} Auth failed',
-                                      RelayMessagingStatus.disconnected => '\u26aa Offline',
-                                      null => '\u26aa Offline',
-                                    };
+                                    return Row(
+                                      children: [
+                                        AnimatedBuilder(
+                                          animation: _typingAnimController,
+                                          builder: (_, __) {
+                                            // Three bouncing dots animation.
+                                            final v = _typingAnimController.value;
+                                            return Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: List.generate(3, (i) {
+                                                final offset = (v + i * 0.15) % 1.0;
+                                                final y = offset < 0.5
+                                                    ? -3.0 * (offset * 2)
+                                                    : -3.0 * (1 - (offset - 0.5) * 2);
+                                                return Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                                                  child: Transform.translate(
+                                                    offset: Offset(0, y),
+                                                    child: const CircleAvatar(
+                                                      radius: 2.5,
+                                                      backgroundColor: Colors.white,
+                                                    ),
+                                                  ),
+                                                );
+                                              }),
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Text(
+                                          'typing',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ],
+                                    );
                                   }
+                                  final label = switch (status) {
+                                    RelayMessagingStatus.connected => '\u{1f7e2} Live',
+                                    RelayMessagingStatus.connecting => '\u{1f7e1} Connecting...',
+                                    RelayMessagingStatus.reconnecting => '\u{1f7e0} Reconnecting...',
+                                    RelayMessagingStatus.authFailed => '\u{1f534} Auth failed',
+                                    RelayMessagingStatus.disconnected => '\u26aa Offline',
+                                    null => '\u26aa Offline',
+                                  };
                                   return Text(
                                     label,
-                                    style: TextStyle(
-                                      color: peerTyping ? Colors.white : Colors.white70,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
                                       fontSize: 11,
-                                      fontStyle: peerTyping ? FontStyle.italic : FontStyle.normal,
                                     ),
                                   );
                                 },
@@ -2026,26 +2105,104 @@ class _VaultConversationDetailWrapperState
             ),
             // Message thread.
             Expanded(
-              child: StreamBuilder<MessageState>(
-                stream: widget.messageBloc.state,
-                builder: (context, snapshot) {
-                  final state = snapshot.data;
-                  if (state == null || !state.hasLoaded) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final messages = state.messages;
-                  if (messages.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No messages yet — say hello!',
-                        style: TextStyle(color: Colors.black45),
-                      ),
-                    );
-                  }
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
+              child: Stack(
+                children: [
+                  StreamBuilder<MessageState>(
+                    stream: widget.messageBloc.state,
+                    builder: (context, snapshot) {
+                      final state = snapshot.data;
+                      if (state == null || !state.hasLoaded) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final messages = state.messages;
+                      final peerTyping = state.isPeerTyping;
+                      if (messages.isEmpty && !peerTyping) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 64,
+                                color: Colors.grey[300],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No messages yet',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Say hello to start the conversation!',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      // Auto-scroll to bottom on new messages.
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_scrollController.hasClients &&
+                            !_scrollController.position.isScrollingNotifier.value) {
+                          final atBottom = _scrollController.offset >=
+                              _scrollController.position.maxScrollExtent - 100;
+                          if (atBottom) _scrollToBottom();
+                        }
+                      });
+                      final itemCount = messages.length + (peerTyping ? 1 : 0);
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(12),
+                        itemCount: itemCount,
+                        itemBuilder: (context, index) {
+                          // Typing indicator bubble at the end.
+                          if (peerTyping && index == messages.length) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: AnimatedBuilder(
+                                    animation: _typingAnimController,
+                                    builder: (_, __) {
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: List.generate(3, (i) {
+                                          final offset = (_typingAnimController.value + i * 0.15) % 1.0;
+                                          final opacity = offset < 0.5
+                                              ? 0.3 + offset * 1.4
+                                              : 0.3 + (1 - offset) * 1.4;
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                                            child: CircleAvatar(
+                                              radius: 4,
+                                              backgroundColor: VaultTheme.vaultBlue
+                                                  .withValues(alpha: opacity),
+                                            ),
+                                          );
+                                        }),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
                       final summary = messages[index];
                       final isSent =
                           summary.direction == MessageDirection.sent;
@@ -2139,13 +2296,17 @@ class _VaultConversationDetailWrapperState
                                     if (isSent) ...[
                                       const SizedBox(width: 4),
                                       Icon(
-                                        _isReadByPeer(summary, state)
-                                            ? Icons.done_all_rounded
-                                            : Icons.done_rounded,
+                                        switch (_readState(summary, state)) {
+                                          _ReadState.read => Icons.done_all_rounded,
+                                          _ReadState.sent => Icons.done_all_rounded,
+                                          _ReadState.pending => Icons.access_time_rounded,
+                                        },
                                         size: 12,
-                                        color: _isReadByPeer(summary, state)
-                                            ? Colors.lightBlueAccent
-                                            : Colors.white54,
+                                        color: switch (_readState(summary, state)) {
+                                          _ReadState.read => Colors.lightBlueAccent,
+                                          _ReadState.sent => Colors.white54,
+                                          _ReadState.pending => Colors.white38,
+                                        },
                                       ),
                                     ],
                                   ],
@@ -2158,6 +2319,20 @@ class _VaultConversationDetailWrapperState
                     },
                   );
                 },
+              ),
+                  // Scroll-to-bottom FAB.
+                  if (_showScrollDown)
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: FloatingActionButton.small(
+                        onPressed: _scrollToBottom,
+                        backgroundColor: VaultTheme.vaultBlue,
+                        child: const Icon(Icons.keyboard_arrow_down_rounded,
+                            color: Colors.white),
+                      ),
+                    ),
+                ],
               ),
             ),
             // Composer.
