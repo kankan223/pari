@@ -58,6 +58,12 @@ class Message {
   /// Decrypted preview of the message being replied to (null if not a reply).
   final String? replyToContent;
 
+  /// Whether this message has been deleted (soft-delete, shows placeholder).
+  final bool isDeleted;
+
+  /// When this message was last edited (null if never edited).
+  final DateTime? editedAt;
+
   Message({
     required this.id,
     required this.conversationId,
@@ -68,7 +74,15 @@ class Message {
     DateTime? sentAt,
     this.replyToId,
     this.replyToContent,
+    this.isDeleted = false,
+    this.editedAt,
   }) : sentAt = sentAt ?? DateTime.now().toUtc();
+
+  /// Whether this message can be edited (sent within the last 15 minutes).
+  bool get canBeEdited {
+    if (direction != MessageDirection.sent || isDeleted) return false;
+    return DateTime.now().toUtc().difference(sentAt).inMinutes < 15;
+  }
 
   Message copyWith({
     bool? delivered,
@@ -78,16 +92,21 @@ class Message {
     String? replyToId,
     String? replyToContent,
     bool clearReplyToId = false,
+    bool? isDeleted,
+    DateTime? editedAt,
+    Uint8List? ciphertext,
   }) =>
       Message(
         id: id,
         conversationId: conversationId,
-        ciphertext: ciphertext,
+        ciphertext: ciphertext ?? this.ciphertext,
         direction: direction ?? this.direction,
         delivered: delivered ?? this.delivered,
         expiresAt: expiresAt ?? this.expiresAt,
         sentAt: sentAt ?? this.sentAt,
         replyToId: clearReplyToId ? null : (replyToId ?? this.replyToId),
         replyToContent: clearReplyToId ? null : (replyToContent ?? this.replyToContent),
+        isDeleted: isDeleted ?? this.isDeleted,
+        editedAt: editedAt ?? this.editedAt,
       );
 }

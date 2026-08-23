@@ -32,6 +32,18 @@ class MessageSummary {
   /// Decrypted preview of the message being replied to.
   final String? replyToContent;
 
+  /// Whether this message has been soft-deleted.
+  final bool isDeleted;
+
+  /// When this message was last edited (null if never edited).
+  final DateTime? editedAt;
+
+  /// Whether the message can be edited (sent within 15 minutes).
+  bool get canBeEdited {
+    if (direction != MessageDirection.sent || isDeleted) return false;
+    return DateTime.now().toUtc().difference(sentAt).inMinutes < 15;
+  }
+
   MessageSummary({
     required this.id,
     this.delivered = false,
@@ -41,6 +53,8 @@ class MessageSummary {
     DateTime? sentAt,
     this.replyToId,
     this.replyToContent,
+    this.isDeleted = false,
+    this.editedAt,
   }) : sentAt = sentAt ?? DateTime.now().toUtc();
 
   factory MessageSummary.from(Message m) => MessageSummary(
@@ -51,6 +65,8 @@ class MessageSummary {
         sentAt: m.sentAt,
         replyToId: m.replyToId,
         replyToContent: m.replyToContent,
+        isDeleted: m.isDeleted,
+        editedAt: m.editedAt,
       );
 
   /// Sentinel so [copyWith] can explicitly clear [content] back to null
@@ -66,6 +82,8 @@ class MessageSummary {
     DateTime? sentAt,
     String? replyToId,
     String? replyToContent,
+    bool? isDeleted,
+    DateTime? editedAt,
   }) =>
       MessageSummary(
         id: id,
@@ -76,6 +94,8 @@ class MessageSummary {
         sentAt: sentAt ?? this.sentAt,
         replyToId: replyToId ?? this.replyToId,
         replyToContent: replyToContent ?? this.replyToContent,
+        isDeleted: isDeleted ?? this.isDeleted,
+        editedAt: editedAt ?? this.editedAt,
       );
 }
 

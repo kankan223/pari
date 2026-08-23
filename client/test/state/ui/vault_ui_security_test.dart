@@ -321,6 +321,12 @@ class _EmptyMessageBloc implements MessageBloc {
   Future<void> send(String text, {String? replyToId, String? replyToContent}) async {}
 
   @override
+  Future<void> deleteMessage(String messageId) async {}
+
+  @override
+  Future<void> editMessage(String messageId, String newText) async {}
+
+  @override
   void setPeerTyping(bool isTyping) {}
 
   @override

@@ -30,6 +30,14 @@ abstract class MessageBloc {
   /// sending requires an established key-exchange session.
   Future<void> send(String text, {String? replyToId, String? replyToContent});
 
+  /// Soft-deletes a message by marking it as deleted.
+  /// Only messages with [MessageDirection.sent] can be deleted.
+  Future<void> deleteMessage(String messageId);
+
+  /// Edits a message's content. Only messages sent within the last 15 minutes
+  /// can be edited. Updates the ciphertext and sets [Message.editedAt].
+  Future<void> editMessage(String messageId, String newText);
+
   /// Update the peer typing state for this conversation.
   void setPeerTyping(bool isTyping);
 

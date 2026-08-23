@@ -107,6 +107,37 @@ class LocalMessageBloc implements MessageBloc {
   }
 
   @override
+  Future<void> deleteMessage(String messageId) async {
+    final existing = await _repository.getById(messageId);
+    if (existing == null || existing.direction != MessageDirection.sent) return;
+    await _repository.update(existing.copyWith(isDeleted: true));
+    await refresh();
+  }
+
+  @override
+  Future<void> editMessage(String messageId, String newText) async {
+    final existing = await _repository.getById(messageId);
+    if (existing == null || !existing.canBeEdited) return;
+    final cipher = _cipher;
+    final participantHash = _participantHash;
+    Uint8List sealed;
+    if (cipher != null && participantHash != null) {
+      final plaintext = Uint8List.fromList(utf8.encode(newText));
+      sealed = await cipher.encrypt(
+        participantHash: participantHash,
+        plaintext: plaintext,
+      );
+    } else {
+      sealed = Uint8List.fromList(utf8.encode(newText));
+    }
+    await _repository.update(existing.copyWith(
+      ciphertext: sealed,
+      editedAt: DateTime.now().toUtc(),
+    ));
+    await refresh();
+  }
+
+  @override
   void setPeerTyping(bool isTyping) {
     _isPeerTyping = isTyping;
     _reemitCurrentState();

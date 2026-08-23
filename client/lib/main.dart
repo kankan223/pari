@@ -131,7 +131,7 @@ import 'repository/data/in_memory_message_search_repository.dart';
 import 'state/domain/message_search_bloc.dart';
 import 'state/ui/message_search_screen.dart';
 import 'repository/data/in_memory_voice_player.dart';
-import 'repository/data/in_memory_voice_recorder.dart';
+import 'repository/data/platform_voice_recorder.dart';
 import 'state/domain/voice_message_bloc.dart';
 import 'state/ui/voice_record_button.dart';
 import 'signal/double_ratchet_service.dart';
@@ -435,6 +435,10 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
     final token = await storage.getAccessToken();
     if (token == null || token.isEmpty) return;
 
+    // Use the authenticated user's real blind hash (from the JWT), not the
+    // hardcoded peerHash from the dev harness. This ensures the relay can
+    // route messages to/from the correct identity.
+
     // Create the crypto stack for E2E encryption.
     if (_cipher == null) {
       try {
@@ -518,13 +522,15 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
     // Create the relay messaging bloc if not already created.
     if (_relayBloc == null) {
       final h = widget.harness;
+      // Use the real authenticated blind hash for the relay identity.
+      final myHash = authState.blindHashId ?? h.peerHash;
       _relayBloc = RelayMessagingBloc(
         conversationRepo: h.conversationBloc.repository,
         messageRepo: h.messageBloc.repository,
         conversationStore: h.conversationStore,
         messageDb: h.messageDb,
         cipher: _cipher,
-        myBlindHash: h.peerHash,
+        myBlindHash: myHash,
         deviceId: 'civic-web-${DateTime.now().millisecondsSinceEpoch}',
       );
     }
@@ -1829,6 +1835,9 @@ class _VaultConversationDetailWrapperState
   // Reply state.
   MessageSummary? _replyToMessage;
 
+  // Edit state.
+  String? _editMessageId;
+
   StreamSubscription<RelayTypingFrame>? _typingSub;
   StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
 
@@ -1842,7 +1851,7 @@ class _VaultConversationDetailWrapperState
       duration: const Duration(milliseconds: 1200),
     )..repeat();
     _voiceBloc = VoiceMessageBloc(
-      recorder: InMemoryVoiceRecorder(),
+      recorder: PlatformVoiceRecorder(),
       player: InMemoryVoicePlayer(),
     );
     _voiceBloc.start();
@@ -2042,12 +2051,30 @@ class _VaultConversationDetailWrapperState
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
     final replyTo = _replyToMessage;
+    final editingId = _editMessageId;
     setState(() {
       _sending = true;
       _isTyping = false;
       _replyToMessage = null;
+      _editMessageId = null;
     });
     _controller.clear();
+
+    // Handle edit mode.
+    if (editingId != null) {
+      try {
+        await widget.messageBloc.editMessage(editingId, text);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to edit message')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _sending = false);
+      }
+      return;
+    }
 
     // Dismiss keyboard.
     FocusScope.of(context).unfocus();
@@ -2097,30 +2124,83 @@ class _VaultConversationDetailWrapperState
   }
 
   void _showMessageActions(BuildContext context, MessageSummary msg) {
+    final isOwnMessage = msg.direction == MessageDirection.sent;
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.reply_rounded),
-              title: const Text('Reply'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _startReply(msg);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.forward_rounded),
-              title: const Text('Forward'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _forwardMessage(msg);
-              },
-            ),
+            if (!msg.isDeleted) ...[
+              ListTile(
+                leading: const Icon(Icons.reply_rounded),
+                title: const Text('Reply'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _startReply(msg);
+                },
+              ),
+              if (isOwnMessage)
+                ListTile(
+                  leading: const Icon(Icons.forward_rounded),
+                  title: const Text('Forward'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _forwardMessage(msg);
+                  },
+                ),
+              if (isOwnMessage && msg.canBeEdited)
+                ListTile(
+                  leading: const Icon(Icons.edit_rounded),
+                  title: const Text('Edit'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _startEdit(msg);
+                  },
+                ),
+            ],
+            if (isOwnMessage)
+              ListTile(
+                leading: const Icon(Icons.delete_rounded, color: Colors.red),
+                title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmDelete(msg);
+                },
+              ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _startEdit(MessageSummary msg) {
+    _controller.text = msg.content ?? '';
+    _editMessageId = msg.id;
+    setState(() {});
+    FocusScope.of(context).requestFocus(FocusNode());
+  }
+
+  void _confirmDelete(MessageSummary msg) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete message?'),
+        content: const Text('This message will be deleted for everyone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.messageBloc.deleteMessage(msg.id);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }

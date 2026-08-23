@@ -54,6 +54,12 @@ class _FakeMessageBloc implements MessageBloc {
   }
 
   @override
+  Future<void> deleteMessage(String messageId) async {}
+
+  @override
+  Future<void> editMessage(String messageId, String newText) async {}
+
+  @override
   void setPeerTyping(bool isTyping) {}
 
   @override
