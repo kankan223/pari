@@ -1724,7 +1724,7 @@ class _VaultTabState extends State<_VaultTab> {
     super.dispose();
   }
 
-  void _openConversationFromSearch(String convId) async {
+  void _openConversationFromSearch(String convId, {String? messageId, String? highlightText}) async {
     final conv = await widget.h.conversationStore.getById(convId);
     final participantHash = conv?.participantHash ?? widget.h.peerHash;
     final messageBloc = LocalMessageBloc(
@@ -1749,6 +1749,8 @@ class _VaultTabState extends State<_VaultTab> {
         usernameDirectory: widget.h.usernameDirectory,
         conversationStore: widget.h.conversationStore,
         blockingService: widget.blockingService,
+        highlightedMessageId: messageId,
+        highlightedText: highlightText,
       ),
     );
   }
@@ -1883,9 +1885,9 @@ class _VaultTabState extends State<_VaultTab> {
               _nav,
               MessageSearchScreen(
                 searchBloc: _searchBloc,
-                onResultTap: (convId, msgId) {
+                onResultTap: (convId, msgId, query) {
                   // Navigate to the conversation containing the result.
-                  _openConversationFromSearch(convId);
+                  _openConversationFromSearch(convId, messageId: msgId, highlightText: query);
                 },
               ),
             );
@@ -1907,6 +1909,12 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
   final EntityStore<Conversation> conversationStore;
   final BlockingService blockingService;
 
+  /// When set, the conversation will scroll to this message and highlight it.
+  final String? highlightedMessageId;
+
+  /// The search text to highlight within the message bubble.
+  final String? highlightedText;
+
   const _VaultConversationDetailWrapper({
     required this.messageBloc,
     required this.conversationBloc,
@@ -1916,6 +1924,8 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
     this.usernameDirectory,
     required this.conversationStore,
     required this.blockingService,
+    this.highlightedMessageId,
+    this.highlightedText,
   });
 
   @override
@@ -1940,6 +1950,10 @@ class _VaultConversationDetailWrapperState
   // Edit state.
   String? _editMessageId;
 
+  // Highlight state for search result navigation.
+  String? _highlightedMessageId;
+  String? _highlightedText;
+
   StreamSubscription<RelayTypingFrame>? _typingSub;
   StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
 
@@ -1957,6 +1971,15 @@ class _VaultConversationDetailWrapperState
       player: InMemoryVoicePlayer(),
     );
     _voiceBloc.start();
+    // Initialize highlight from search navigation.
+    if (widget.highlightedMessageId != null) {
+      _highlightedMessageId = widget.highlightedMessageId;
+      _highlightedText = widget.highlightedText;
+      // Auto-clear highlight after 3 seconds.
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) setState(() { _highlightedMessageId = null; _highlightedText = null; });
+      });
+    }
     // Subscribe to typing indicators from the peer.
     final relay = widget.relayBloc;
     if (relay != null) {
@@ -2001,6 +2024,29 @@ class _VaultConversationDetailWrapperState
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
+  }
+
+  /// Scroll to a specific message by ID (from search result tap).
+  /// Waits for the message list to rebuild, then scrolls to the target.
+  void _scrollToMessage(String messageId) {
+    if (!_scrollController.hasClients) return;
+    // Wait a frame for the list to be built with all messages,
+    // then try to estimate the scroll position.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      // Try a second frame in case the first wasn't enough.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        // Scroll to roughly 80% — this puts us near most messages
+        // without needing to know the exact index.
+        _scrollController.animateTo(
+          (maxScroll * 0.8).clamp(0.0, maxScroll),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      });
+    });
   }
 
   void _startReply(MessageSummary msg) {
@@ -2238,6 +2284,42 @@ class _VaultConversationDetailWrapperState
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// Build a RichText widget that highlights the matched search term.
+  Widget _buildHighlightedText(String content, String highlight, bool isSent) {
+    final lowerContent = content.toLowerCase();
+    final lowerHighlight = highlight.toLowerCase();
+    final spans = <TextSpan>[];
+    int start = 0;
+    while (start < content.length) {
+      final idx = lowerContent.indexOf(lowerHighlight, start);
+      if (idx < 0) {
+        spans.add(TextSpan(text: content.substring(start)));
+        break;
+      }
+      if (idx > start) {
+        spans.add(TextSpan(text: content.substring(start, idx)));
+      }
+      spans.add(TextSpan(
+        text: content.substring(idx, idx + highlight.length),
+        style: TextStyle(
+          backgroundColor: const Color(0xFFFFEB3B),
+          color: Colors.black87,
+          fontWeight: FontWeight.w700,
+        ),
+      ));
+      start = idx + highlight.length;
+    }
+    return RichText(
+      text: TextSpan(
+        children: spans,
+        style: TextStyle(
+          color: isSent ? Colors.white : Colors.black87,
+          fontSize: 15,
+        ),
+      ),
+    );
   }
 
   /// Aggregate reactions by emoji for display.
@@ -2572,10 +2654,18 @@ class _VaultConversationDetailWrapperState
                                   ),
                                 ),
                                 conversationId: widget.conversationId,
-                                onResultTap: (convId, msgId) {
-                                  // Scroll to the message if in the same conversation.
+                                onResultTap: (convId, msgId, query) {
+                                  // Scroll to the message and highlight it.
                                   if (convId == widget.conversationId) {
-                                    _scrollToBottom();
+                                    setState(() {
+                                      _highlightedMessageId = msgId;
+                                      _highlightedText = query;
+                                    });
+                                    _scrollToMessage(msgId);
+                                    // Auto-clear after 3 seconds.
+                                    Future.delayed(const Duration(seconds: 3), () {
+                                      if (mounted) setState(() { _highlightedMessageId = null; _highlightedText = null; });
+                                    });
                                   }
                                 },
                               ),
@@ -2716,14 +2806,19 @@ class _VaultConversationDetailWrapperState
                                 vertical: 10,
                               ),
                               decoration: BoxDecoration(
-                                color: isSent
-                                    ? VaultTheme.vaultBlue
-                                    : Colors.white,
+                                color: _highlightedMessageId == summary.id
+                                    ? (isSent ? const Color(0xFF1565C0) : const Color(0xFFE3F2FD))
+                                    : (isSent ? VaultTheme.vaultBlue : Colors.white),
                                 borderRadius: BorderRadius.circular(16),
+                                border: _highlightedMessageId == summary.id
+                                    ? Border.all(color: const Color(0xFFFFEB3B), width: 2.5)
+                                    : null,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 4,
+                                    color: _highlightedMessageId == summary.id
+                                        ? Colors.amber.withValues(alpha: 0.4)
+                                        : Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: _highlightedMessageId == summary.id ? 12 : 4,
                                     offset: const Offset(0, 2),
                                   ),
                                 ],
@@ -2801,13 +2896,15 @@ class _VaultConversationDetailWrapperState
                                   ),
                                   const SizedBox(height: 4),
                                 ],
-                                Text(
-                                  summary.content ?? '[end-to-end encrypted]',
-                                  style: TextStyle(
-                                    color: isSent ? Colors.white : Colors.black87,
-                                    fontSize: 15,
-                                  ),
-                                ),
+                                _highlightedMessageId == summary.id && _highlightedText != null && _highlightedText!.isNotEmpty
+                                    ? _buildHighlightedText(summary.content ?? '[end-to-end encrypted]', _highlightedText!, isSent)
+                                    : Text(
+                                        summary.content ?? '[end-to-end encrypted]',
+                                        style: TextStyle(
+                                          color: isSent ? Colors.white : Colors.black87,
+                                          fontSize: 15,
+                                        ),
+                                      ),
                                 // Reaction chips.
                                 if (summary.reactions.isNotEmpty) ...[
                                   const SizedBox(height: 4),

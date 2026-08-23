@@ -18,7 +18,7 @@ import 'vault_theme.dart';
 class MessageSearchScreen extends StatefulWidget {
   final MessageSearchBloc searchBloc;
   final String? conversationId;
-  final void Function(String conversationId, String messageId)? onResultTap;
+  final void Function(String conversationId, String messageId, String searchQuery)? onResultTap;
 
   const MessageSearchScreen({
     super.key,
@@ -237,7 +237,8 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         style: TextStyle(color: Colors.grey[500], fontSize: 12),
       ),
       onTap: () {
-        widget.onResultTap?.call(result.conversationId, result.messageId);
+        final query = widget.searchBloc.currentState.query;
+        widget.onResultTap?.call(result.conversationId, result.messageId, query);
         Navigator.of(context).pop();
       },
     );
