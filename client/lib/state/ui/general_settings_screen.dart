@@ -4,9 +4,11 @@ import '../../auth/auth_storage.dart';
 import '../../auth/identity_api_client.dart';
 import '../../notification/domain/notification_preferences.dart';
 import '../../notification/domain/notification_type.dart';
+import '../../repository/data/blocking_service.dart';
 import '../../security/ui/secure_screen_wrapper.dart';
 import '../domain/notification_bloc.dart';
 import '../domain/notification_state.dart';
+import 'blocked_users_screen.dart';
 import 'profile_screen.dart';
 import 'vault_theme.dart';
 
@@ -17,10 +19,12 @@ import 'vault_theme.dart';
 /// Wrapped in [SecureScreenWrapper] (FLAG_SECURE).
 class GeneralSettingsScreen extends StatefulWidget {
   final NotificationBloc notificationBloc;
+  final BlockingService? blockingService;
 
   const GeneralSettingsScreen({
     super.key,
     required this.notificationBloc,
+    this.blockingService,
   });
 
   @override
@@ -75,6 +79,21 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 );
               },
             ),
+            if (widget.blockingService != null)
+              _buildNavTile(
+                icon: Icons.block,
+                title: 'Blocked Users',
+                subtitle: 'Manage blocked users',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => BlockedUsersScreen(
+                        blockingService: widget.blockingService!,
+                      ),
+                    ),
+                  );
+                },
+              ),
             const Divider(indent: 16, endIndent: 16),
 
             // Notifications section

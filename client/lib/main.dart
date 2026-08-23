@@ -132,6 +132,9 @@ import 'state/domain/message_search_bloc.dart';
 import 'state/ui/message_search_screen.dart';
 import 'repository/data/in_memory_voice_player.dart';
 import 'relay/domain/presence_tracker.dart';
+import 'repository/data/blocking_service.dart';
+import 'state/ui/blocked_users_screen.dart';
+import 'state/ui/report_user_dialog.dart';
 import 'repository/data/platform_voice_recorder.dart';
 import 'state/domain/voice_message_bloc.dart';
 import 'state/ui/voice_record_button.dart';
@@ -1362,6 +1365,7 @@ class CivicCommonsHarness extends StatefulWidget {
 
 class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   int _tab = 0;
+  late final BlockingService _blockingService;
 
   late final _WarRoomTab _warRoomTab;
   late final _VaultTab _vaultTab;
@@ -1383,9 +1387,10 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   @override
   void initState() {
     super.initState();
+    _blockingService = BlockingService();
     final h = widget.harness;
     _warRoomTab = _WarRoomTab(h: h);
-    _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc, userSearchBloc: widget.userSearchBloc, presenceTracker: widget.presenceTracker);
+    _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc, userSearchBloc: widget.userSearchBloc, presenceTracker: widget.presenceTracker, blockingService: _blockingService);
     _ledgerTab = _LedgerTab(h: h);
     _academyTab = _AcademyTab(h: h);
     _identityTab = _IdentityTab(h: h);
@@ -1627,7 +1632,8 @@ class _VaultTab extends StatefulWidget {
   final RelayMessagingBloc? relayBloc;
   final UserSearchBloc userSearchBloc;
   final PresenceTracker? presenceTracker;
-  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc, required this.userSearchBloc, this.presenceTracker});
+  final BlockingService blockingService;
+  const _VaultTab({required this.h, this.username = 'anonymous', this.relayBloc, required this.userSearchBloc, this.presenceTracker, required this.blockingService});
   @override
   State<_VaultTab> createState() => _VaultTabState();
 }
@@ -1694,6 +1700,7 @@ class _VaultTabState extends State<_VaultTab> {
         relayBloc: widget.relayBloc,
         usernameDirectory: widget.h.usernameDirectory,
         conversationStore: widget.h.conversationStore,
+        blockingService: widget.blockingService,
       ),
     );
   }
@@ -1765,6 +1772,7 @@ class _VaultTabState extends State<_VaultTab> {
           relayBloc: widget.relayBloc,
           usernameDirectory: widget.h.usernameDirectory,
           conversationStore: widget.h.conversationStore,
+          blockingService: widget.blockingService,
         ),
       );
     }
@@ -1786,6 +1794,7 @@ class _VaultTabState extends State<_VaultTab> {
             _nav,
             GeneralSettingsScreen(
               notificationBloc: widget.h.notificationBloc,
+              blockingService: widget.blockingService,
             ),
           ),
           onConversationTap: (id) async {
@@ -1815,6 +1824,7 @@ class _VaultTabState extends State<_VaultTab> {
                 relayBloc: widget.relayBloc,
                 usernameDirectory: widget.h.usernameDirectory,
                 conversationStore: widget.h.conversationStore,
+                blockingService: widget.blockingService,
               ),
             );
           },
@@ -1845,6 +1855,7 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
   final RelayMessagingBloc? relayBloc;
   final UsernameDirectory? usernameDirectory;
   final EntityStore<Conversation> conversationStore;
+  final BlockingService blockingService;
 
   const _VaultConversationDetailWrapper({
     required this.messageBloc,
@@ -1854,6 +1865,7 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
     this.relayBloc,
     this.usernameDirectory,
     required this.conversationStore,
+    required this.blockingService,
   });
 
   @override
@@ -2165,6 +2177,8 @@ class _VaultConversationDetailWrapperState
 
   void _showMessageActions(BuildContext context, MessageSummary msg) {
     final isOwnMessage = msg.direction == MessageDirection.sent;
+    // For received messages, the peer is the sender.
+    final peerHash = widget.peerHash;
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -2208,6 +2222,43 @@ class _VaultConversationDetailWrapperState
                   _confirmDelete(msg);
                 },
               ),
+            if (!isOwnMessage) ...[
+              const Divider(indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.block, color: Colors.orange),
+                title: const Text('Block User'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final blocked = await showBlockDialog(
+                    context: context,
+                    blockingService: widget.blockingService,
+                    targetHashId: peerHash,
+                  );
+                  if (blocked && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('User blocked')),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.flag_outlined, color: Colors.red),
+                title: const Text('Report User'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final reported = await showReportDialog(
+                    context: context,
+                    blockingService: widget.blockingService,
+                    targetHashId: peerHash,
+                  );
+                  if (reported && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Report submitted')),
+                    );
+                  }
+                },
+              ),
+            ],
           ],
         ),
       ),
