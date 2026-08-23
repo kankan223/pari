@@ -127,6 +127,10 @@ import 'relay/data/prekey_publisher.dart';
 import 'relay/data/web_socket_relay_socket.dart';
 import 'relay/domain/relay_wire.dart';
 import 'relay/relay_messaging_bloc.dart';
+import 'repository/data/in_memory_voice_player.dart';
+import 'repository/data/in_memory_voice_recorder.dart';
+import 'state/domain/voice_message_bloc.dart';
+import 'state/ui/voice_record_button.dart';
 import 'signal/double_ratchet_service.dart';
 import 'signal/session_manager.dart';
 import 'signal/secure_session_store.dart';
@@ -196,6 +200,13 @@ String _mimeFromExtension(String ext) => switch (ext) {
   'json' => 'application/json',
   _ => 'application/octet-stream',
 };
+
+/// Whether a message is a voice message (starts with 🎤).
+bool _isVoiceMessage(MessageSummary msg) {
+  final content = msg.content;
+  if (content == null) return false;
+  return content.startsWith('\u{1F3A4} ');
+}
 
 /// Whether a file message is an image (by common extensions).
 bool _isImageFile(MessageSummary msg) {
@@ -1735,6 +1746,7 @@ class _VaultConversationDetailWrapperState
   final TextEditingController _controller = TextEditingController();
   bool _sending = false;
   bool _isTyping = false;
+  late final VoiceMessageBloc _voiceBloc;
 
   StreamSubscription<RelayTypingFrame>? _typingSub;
   StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
@@ -1743,6 +1755,11 @@ class _VaultConversationDetailWrapperState
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    _voiceBloc = VoiceMessageBloc(
+      recorder: InMemoryVoiceRecorder(),
+      player: InMemoryVoicePlayer(),
+    );
+    _voiceBloc.start();
     // Subscribe to typing indicators from the peer.
     final relay = widget.relayBloc;
     if (relay != null) {
@@ -1776,6 +1793,7 @@ class _VaultConversationDetailWrapperState
     _controller.removeListener(_onTextChanged);
     _typingSub?.cancel();
     _readReceiptSub?.cancel();
+    _voiceBloc.close();
     // Send typing stopped when leaving the chat.
     final relay = widget.relayBloc;
     if (relay != null && _isTyping) {
@@ -1818,6 +1836,17 @@ class _VaultConversationDetailWrapperState
       }
     } catch (_) {
       // Silently handle — file send is best-effort.
+    }
+  }
+
+  void _sendVoiceMessage(List<int> audioBytes) async {
+    final relay = widget.relayBloc;
+    if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+      await relay.sendMessage(
+        recipientHash: widget.peerHash,
+        text: '\u{1F3A4} Voice message (${audioBytes.length} bytes)',
+        conversationId: widget.conversationId,
+      );
     }
   }
 
@@ -2003,7 +2032,33 @@ class _VaultConversationDetailWrapperState
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                if (_isFileMessage(summary)) ...[
+                                if (_isVoiceMessage(summary)) ...[
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.mic_rounded,
+                                        size: 20,
+                                        color: isSent ? Colors.white70 : VaultTheme.vaultBlue,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Mini waveform placeholder.
+                                      ...List.generate(12, (i) => Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 1),
+                                        child: Container(
+                                          width: 3,
+                                          height: (4.0 + (i % 3) * 4.0),
+                                          decoration: BoxDecoration(
+                                            color: (isSent ? Colors.white54 : VaultTheme.vaultBlue)
+                                                .withValues(alpha: 0.5 + (i % 3) * 0.15),
+                                            borderRadius: BorderRadius.circular(1),
+                                          ),
+                                        ),
+                                      )),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                ] else if (_isFileMessage(summary)) ...[
                                   Icon(
                                     _isImageFile(summary)
                                         ? Icons.image_rounded
@@ -2083,6 +2138,11 @@ class _VaultConversationDetailWrapperState
                           border: InputBorder.none,
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 4),
+                    VoiceRecordButton(
+                      voiceBloc: _voiceBloc,
+                      onRecorded: _sendVoiceMessage,
                     ),
                     const SizedBox(width: 4),
                     IconButton(
