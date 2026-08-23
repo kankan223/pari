@@ -49,7 +49,7 @@ class _FakeMessageBloc implements MessageBloc {
   }
 
   @override
-  Future<void> send(String text) async {
+  Future<void> send(String text, {String? replyToId, String? replyToContent}) async {
     sent.add(text);
   }
 

@@ -52,6 +52,12 @@ class Message {
   /// When the message was sent (local UTC timestamp).
   final DateTime sentAt;
 
+  /// ID of the message this is a reply to (null if not a reply).
+  final String? replyToId;
+
+  /// Decrypted preview of the message being replied to (null if not a reply).
+  final String? replyToContent;
+
   Message({
     required this.id,
     required this.conversationId,
@@ -60,6 +66,8 @@ class Message {
     this.delivered = false,
     this.expiresAt,
     DateTime? sentAt,
+    this.replyToId,
+    this.replyToContent,
   }) : sentAt = sentAt ?? DateTime.now().toUtc();
 
   Message copyWith({
@@ -67,6 +75,9 @@ class Message {
     DateTime? expiresAt,
     MessageDirection? direction,
     DateTime? sentAt,
+    String? replyToId,
+    String? replyToContent,
+    bool clearReplyToId = false,
   }) =>
       Message(
         id: id,
@@ -76,5 +87,7 @@ class Message {
         delivered: delivered ?? this.delivered,
         expiresAt: expiresAt ?? this.expiresAt,
         sentAt: sentAt ?? this.sentAt,
+        replyToId: clearReplyToId ? null : (replyToId ?? this.replyToId),
+        replyToContent: clearReplyToId ? null : (replyToContent ?? this.replyToContent),
       );
 }

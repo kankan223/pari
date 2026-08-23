@@ -220,6 +220,8 @@ class RelayMessagingBloc {
     required String recipientHash,
     required String text,
     required String conversationId,
+    String? replyToId,
+    String? replyToContent,
   }) async {
     final plaintext = Uint8List.fromList(utf8.encode(text));
     final Uint8List ciphertext;
@@ -244,6 +246,8 @@ class RelayMessagingBloc {
       ciphertext: ciphertext,
       direction: MessageDirection.sent,
       delivered: false,
+      replyToId: replyToId,
+      replyToContent: replyToContent,
     );
     await _messageRepo.create(msg);
     // 2. Send through the relay (if connected).

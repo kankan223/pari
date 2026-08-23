@@ -318,7 +318,7 @@ class _EmptyMessageBloc implements MessageBloc {
   }
 
   @override
-  Future<void> send(String text) async {}
+  Future<void> send(String text, {String? replyToId, String? replyToContent}) async {}
 
   @override
   void setPeerTyping(bool isTyping) {}

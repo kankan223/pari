@@ -1648,6 +1648,7 @@ class _VaultTabState extends State<_VaultTab> {
         peerHash: participantHash,
         relayBloc: widget.relayBloc,
         usernameDirectory: widget.h.usernameDirectory,
+        conversationStore: widget.h.conversationStore,
       ),
     );
   }
@@ -1718,6 +1719,7 @@ class _VaultTabState extends State<_VaultTab> {
           peerHash: peerHash,
           relayBloc: widget.relayBloc,
           usernameDirectory: widget.h.usernameDirectory,
+          conversationStore: widget.h.conversationStore,
         ),
       );
     }
@@ -1766,6 +1768,7 @@ class _VaultTabState extends State<_VaultTab> {
                 peerHash: participantHash,
                 relayBloc: widget.relayBloc,
                 usernameDirectory: widget.h.usernameDirectory,
+                conversationStore: widget.h.conversationStore,
               ),
             );
           },
@@ -1795,6 +1798,7 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
   final String peerHash;
   final RelayMessagingBloc? relayBloc;
   final UsernameDirectory? usernameDirectory;
+  final EntityStore<Conversation> conversationStore;
 
   const _VaultConversationDetailWrapper({
     required this.messageBloc,
@@ -1803,6 +1807,7 @@ class _VaultConversationDetailWrapper extends StatefulWidget {
     required this.peerHash,
     this.relayBloc,
     this.usernameDirectory,
+    required this.conversationStore,
   });
 
   @override
@@ -1820,6 +1825,9 @@ class _VaultConversationDetailWrapperState
   bool _showScrollDown = false;
   late final VoiceMessageBloc _voiceBloc;
   late final AnimationController _typingAnimController;
+
+  // Reply state.
+  MessageSummary? _replyToMessage;
 
   StreamSubscription<RelayTypingFrame>? _typingSub;
   StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
@@ -1882,6 +1890,53 @@ class _VaultConversationDetailWrapperState
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
+  }
+
+  void _startReply(MessageSummary msg) {
+    setState(() => _replyToMessage = msg);
+    FocusScope.of(context).requestFocus(FocusNode());
+  }
+
+  void _cancelReply() {
+    setState(() => _replyToMessage = null);
+  }
+
+  void _forwardMessage(MessageSummary msg) async {
+    // Show a bottom sheet to pick the target conversation.
+    final allConvs = await widget.conversationStore.getAll();
+    if (!mounted || allConvs.isEmpty) return;
+
+    final target = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => _ForwardSheet(
+        conversations: allConvs,
+        usernameDirectory: widget.usernameDirectory,
+        currentConversationId: widget.conversationId,
+      ),
+    );
+
+    if (target == null || !mounted) return;
+
+    // Forward the message text to the target conversation.
+    final text = msg.content ?? '[encrypted]';
+    final forwardedText = '\u{1F4E4} Forwarded\n$text';
+
+    final relay = widget.relayBloc;
+    if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+      await relay.sendMessage(
+        recipientHash: widget.peerHash,
+        text: forwardedText,
+        conversationId: target,
+      );
+    } else {
+      await widget.messageBloc.send(forwardedText);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Message forwarded')),
+      );
+    }
   }
 
   @override
@@ -1986,9 +2041,11 @@ class _VaultConversationDetailWrapperState
   void _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
+    final replyTo = _replyToMessage;
     setState(() {
       _sending = true;
       _isTyping = false;
+      _replyToMessage = null;
     });
     _controller.clear();
 
@@ -2007,9 +2064,15 @@ class _VaultConversationDetailWrapperState
           recipientHash: widget.peerHash,
           text: text,
           conversationId: widget.conversationId,
+          replyToId: replyTo?.id,
+          replyToContent: replyTo?.content,
         );
       } else {
-        await widget.messageBloc.send(text);
+        await widget.messageBloc.send(
+          text,
+          replyToId: replyTo?.id,
+          replyToContent: replyTo?.content,
+        );
       }
       // Auto-scroll to bottom after sending.
       if (mounted) {
@@ -2031,6 +2094,35 @@ class _VaultConversationDetailWrapperState
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _showMessageActions(BuildContext context, MessageSummary msg) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply_rounded),
+              title: const Text('Reply'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _startReply(msg);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.forward_rounded),
+              title: const Text('Forward'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _forwardMessage(msg);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -2264,37 +2356,73 @@ class _VaultConversationDetailWrapperState
                       final summary = messages[index];
                       final isSent =
                           summary.direction == MessageDirection.sent;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Align(
-                          alignment: isSent
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            constraints: BoxConstraints(
-                              maxWidth:
-                                  MediaQuery.of(context).size.width * 0.75,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSent
-                                  ? VaultTheme.vaultBlue
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
+                      return GestureDetector(
+                        onLongPress: () => _showMessageActions(context, summary),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Align(
+                            alignment: isSent
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.75,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSent
+                                    ? VaultTheme.vaultBlue
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  // Reply context preview.
+                                  if (summary.replyToContent != null) ...[
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(8),
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      decoration: BoxDecoration(
+                                        color: isSent
+                                            ? Colors.white.withValues(alpha: 0.15)
+                                            : Colors.grey.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border(
+                                          left: BorderSide(
+                                            color: isSent
+                                                ? Colors.white54
+                                                : VaultTheme.vaultBlue,
+                                            width: 3,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        summary.replyToContent!,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: isSent
+                                              ? Colors.white60
+                                              : Colors.grey[600],
+                                          fontSize: 12,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 if (_isVoiceMessage(summary)) ...[
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -2373,7 +2501,8 @@ class _VaultConversationDetailWrapperState
                             ),
                           ),
                         ),
-                      );
+                      ),
+                    );
                     },
                   );
                 },
@@ -2393,6 +2522,46 @@ class _VaultConversationDetailWrapperState
                 ],
               ),
             ),
+            // Reply preview bar.
+            if (_replyToMessage != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                color: Colors.grey[100],
+                child: Row(
+                  children: [
+                    Icon(Icons.reply_rounded, size: 18, color: VaultTheme.vaultBlue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Replying to message',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: VaultTheme.vaultBlue,
+                            ),
+                          ),
+                          Text(
+                            _replyToMessage!.content ?? '[encrypted]',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _cancelReply,
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
             // Composer.
             SafeArea(
               top: false,
@@ -2451,6 +2620,77 @@ class _VaultConversationDetailWrapperState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet for selecting a conversation to forward a message to.
+class _ForwardSheet extends StatelessWidget {
+  final List<Conversation> conversations;
+  final UsernameDirectory? usernameDirectory;
+  final String currentConversationId;
+
+  const _ForwardSheet({
+    required this.conversations,
+    this.usernameDirectory,
+    required this.currentConversationId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final others = conversations
+        .where((c) => c.id != currentConversationId)
+        .toList();
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.5,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Forward to...',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Divider(height: 1),
+          if (others.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'No other conversations available',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          else
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: others.length,
+                itemBuilder: (context, index) {
+                  final conv = others[index];
+                  return ListTile(
+                    leading: const Icon(Icons.chat_rounded, size: 20),
+                    title: FutureBuilder<String?>(
+                      future: usernameDirectory?.usernameForHash(conv.participantHash),
+                      builder: (context, snapshot) {
+                        final username = snapshot.data;
+                        final display = username != null
+                            ? '@$username'
+                            : formatPeerHandle(conv.participantHash);
+                        return Text(display);
+                      },
+                    ),
+                    onTap: () => Navigator.pop(context, conv.id),
+                  );
+                },
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -26,6 +26,12 @@ class MessageSummary {
   /// When the message was sent (UTC timestamp for display in chat bubbles).
   final DateTime sentAt;
 
+  /// ID of the message this is a reply to.
+  final String? replyToId;
+
+  /// Decrypted preview of the message being replied to.
+  final String? replyToContent;
+
   MessageSummary({
     required this.id,
     this.delivered = false,
@@ -33,6 +39,8 @@ class MessageSummary {
     this.direction = MessageDirection.received,
     this.content,
     DateTime? sentAt,
+    this.replyToId,
+    this.replyToContent,
   }) : sentAt = sentAt ?? DateTime.now().toUtc();
 
   factory MessageSummary.from(Message m) => MessageSummary(
@@ -41,6 +49,8 @@ class MessageSummary {
         expiresAt: m.expiresAt,
         direction: m.direction,
         sentAt: m.sentAt,
+        replyToId: m.replyToId,
+        replyToContent: m.replyToContent,
       );
 
   /// Sentinel so [copyWith] can explicitly clear [content] back to null
@@ -54,6 +64,8 @@ class MessageSummary {
     MessageDirection? direction,
     Object? content = _unset,
     DateTime? sentAt,
+    String? replyToId,
+    String? replyToContent,
   }) =>
       MessageSummary(
         id: id,
@@ -62,6 +74,8 @@ class MessageSummary {
         direction: direction ?? this.direction,
         content: identical(content, _unset) ? this.content : content as String?,
         sentAt: sentAt ?? this.sentAt,
+        replyToId: replyToId ?? this.replyToId,
+        replyToContent: replyToContent ?? this.replyToContent,
       );
 }
 

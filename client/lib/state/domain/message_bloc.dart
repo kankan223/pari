@@ -24,10 +24,11 @@ abstract class MessageBloc {
   /// (offline-first: delivered = false, queued for sync), and republishes
   /// the thread (Task 6.3).
   ///
+  /// [replyToId] optionally links this message as a reply to another message.
   /// Throws [StateError] when message encryption is not wired for the
   /// conversation (no established session) — the composer surfaces that
   /// sending requires an established key-exchange session.
-  Future<void> send(String text);
+  Future<void> send(String text, {String? replyToId, String? replyToContent});
 
   /// Update the peer typing state for this conversation.
   void setPeerTyping(bool isTyping);

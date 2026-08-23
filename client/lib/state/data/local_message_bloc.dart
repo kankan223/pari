@@ -79,7 +79,7 @@ class LocalMessageBloc implements MessageBloc {
   }
 
   @override
-  Future<void> send(String text) async {
+  Future<void> send(String text, {String? replyToId, String? replyToContent}) async {
     final participantHash = _participantHash;
     final cipher = _cipher;
     Uint8List sealed;
@@ -98,6 +98,8 @@ class LocalMessageBloc implements MessageBloc {
       conversationId: _conversationId,
       ciphertext: sealed,
       direction: MessageDirection.sent,
+      replyToId: replyToId,
+      replyToContent: replyToContent,
     );
     await _repository.create(message);
     // The local-first write is persisted + queued; republish the thread.
