@@ -205,7 +205,7 @@ void main() {
               '9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8',
         ),
       ));
-      bloc.emit(const MessageState(
+      bloc.emit(MessageState(
         conversationId: 'c1',
         hasLoaded: true,
         messages: [MessageSummary(id: 'm1')],
@@ -319,6 +319,12 @@ class _EmptyMessageBloc implements MessageBloc {
 
   @override
   Future<void> send(String text) async {}
+
+  @override
+  void setPeerTyping(bool isTyping) {}
+
+  @override
+  void setLastReadMsgId(String? msgId) {}
 
   @override
   Future<void> close() async {

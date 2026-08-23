@@ -69,6 +69,8 @@ class RelayClient {
 
   final _envelopes = StreamController<RelayEnvelope>.broadcast();
   final _phases = StreamController<RelayConnectionPhase>.broadcast();
+  final _typingIndicators = StreamController<RelayTypingFrame>.broadcast();
+  final _readReceipts = StreamController<RelayReadReceiptFrame>.broadcast();
 
   RelaySocket? _socket;
   StreamSubscription<String>? _framesSub;
@@ -113,6 +115,12 @@ class RelayClient {
   /// Connection lifecycle changes.
   Stream<RelayConnectionPhase> get phases => _phases.stream;
 
+  /// Incoming typing indicators from other users.
+  Stream<RelayTypingFrame> get typingIndicators => _typingIndicators.stream;
+
+  /// Incoming read receipts from other users.
+  Stream<RelayReadReceiptFrame> get readReceipts => _readReceipts.stream;
+
   /// Current lifecycle phase.
   RelayConnectionPhase get phase => _phase;
   RelayConnectionPhase _phase = RelayConnectionPhase.disconnected;
@@ -141,6 +149,30 @@ class RelayClient {
       throw StateError('relay client is not connected');
     }
     return socket.send(RelayEnvelopeFrame(envelope).encode());
+  }
+
+  /// Sends a typing indicator to [recipientHash].
+  Future<void> sendTyping(String recipientHash, bool isTyping) {
+    final socket = _socket;
+    if (socket == null || !_authOk) {
+      throw StateError('relay client is not connected');
+    }
+    return socket.send(RelayTypingFrame(
+      recipientHash: recipientHash,
+      isTyping: isTyping,
+    ).encode());
+  }
+
+  /// Sends a read receipt to [senderHash] indicating we've seen up to [lastMsgId].
+  Future<void> sendReadReceipt(String senderHash, String lastMsgId) {
+    final socket = _socket;
+    if (socket == null || !_authOk) {
+      throw StateError('relay client is not connected');
+    }
+    return socket.send(RelayReadReceiptFrame(
+      senderHash: senderHash,
+      lastMsgId: lastMsgId,
+    ).encode());
   }
 
   /// Acknowledges delivery of [msgId]. Called automatically for inbound
@@ -277,6 +309,18 @@ class RelayClient {
         // Auto-ack: the message is now durably handled client-side; this
         // purges it from the relay's offline queue (Task 4.4).
         unawaited(socket.send(RelayAckFrame(envelope.msgId).encode()));
+      case RelayTypingFrame(:final recipientHash, :final isTyping):
+        // Typing indicators from other users — surface to the UI.
+        _typingIndicators.add(RelayTypingFrame(
+          recipientHash: recipientHash,
+          isTyping: isTyping,
+        ));
+      case RelayReadReceiptFrame(:final senderHash, :final lastMsgId):
+        // Read receipts from other users — surface to the UI.
+        _readReceipts.add(RelayReadReceiptFrame(
+          senderHash: senderHash,
+          lastMsgId: lastMsgId,
+        ));
       case RelayAckFrame():
       case RelayErrorFrame():
       case RelayAuthFrame():
@@ -346,5 +390,7 @@ class RelayClient {
     await stop();
     await _envelopes.close();
     await _phases.close();
+    await _typingIndicators.close();
+    await _readReceipts.close();
   }
 }

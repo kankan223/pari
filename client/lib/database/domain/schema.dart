@@ -87,6 +87,8 @@ class AppSchema {
     DbColumn('direction', 'TEXT', notNull: true),
     DbColumn('delivered', 'INTEGER', notNull: true),
     DbColumn('expires_at', 'INTEGER'),
+    // UTC milliseconds epoch when the message was sent (Task: timestamps).
+    DbColumn('sent_at', 'INTEGER'),
   ]);
 
   static const DbTable connectionRequests = DbTable('connection_requests', [
@@ -514,7 +516,7 @@ class AppSchema {
   /// v19 (Task 11.3): `rate_limit_buckets` / `abuse_events` — rate
   /// limiting and abuse prevention tracking (per-policy request counts
   /// + sliding windows + abuse detection events; zero identity columns).
-  static const int currentVersion = 19;
+  static const int currentVersion = 20; // v20: messages.sent_at
 
   /// Builds the CREATE TABLE statement for [table].
   static String createTableSql(DbTable table) {

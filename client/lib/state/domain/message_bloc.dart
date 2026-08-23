@@ -29,6 +29,12 @@ abstract class MessageBloc {
   /// sending requires an established key-exchange session.
   Future<void> send(String text);
 
+  /// Update the peer typing state for this conversation.
+  void setPeerTyping(bool isTyping);
+
+  /// Update the last read message ID from the peer.
+  void setLastReadMsgId(String? msgId);
+
   /// Releases resources.
   Future<void> close();
 }

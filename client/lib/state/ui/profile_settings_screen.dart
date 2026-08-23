@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../auth/auth_bloc.dart';
-import '../../auth/auth_storage.dart';
 import '../../security/ui/secure_screen_wrapper.dart';
 import 'vault_theme.dart';
 

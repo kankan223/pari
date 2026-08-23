@@ -18,6 +18,8 @@ message ClientFrame {
     AuthRequest auth = 1;
     Envelope envelope = 2;
     DeliveryAck ack = 3;
+    TypingIndicator typing = 4;
+    ReadReceipt read_receipt = 5;
   }
 }
 
@@ -28,6 +30,8 @@ message ServerFrame {
     Envelope envelope = 2;
     DeliveryAck ack = 3;
     ErrorMessage error = 4;
+    TypingIndicator typing = 5;
+    ReadReceipt read_receipt = 6;
   }
 }
 
@@ -63,4 +67,18 @@ message DeliveryAck {
 message ErrorMessage {
   string code = 1;
   string message = 2;
+}
+
+// Typing indicator — the sender is actively composing a message.
+// Routed to the recipient; never queued offline (ephemeral).
+message TypingIndicator {
+  string recipient_hash = 1;  // target blind_hash_id
+  bool is_typing = 2;         // true = started, false = stopped
+}
+
+// Read receipt — the recipient has seen messages up to [last_msg_id].
+// Routed to the sender; never queued offline (ephemeral).
+message ReadReceipt {
+  string sender_hash = 1;      // the original sender (receipt target)
+  string last_msg_id = 2;      // the most recent msg_id the reader has seen
 }

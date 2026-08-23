@@ -48,10 +48,16 @@ class RelayMessagingBloc {
   RelayClient? _client;
   StreamSubscription<RelayEnvelope>? _envelopeSub;
   StreamSubscription<RelayConnectionPhase>? _phaseSub;
+  StreamSubscription<RelayTypingFrame>? _typingSub;
+  StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
 
   final _statusController =
       StreamController<RelayMessagingStatus>.broadcast();
   final _incomingController = StreamController<RelayEnvelope>.broadcast();
+  final _typingController =
+      StreamController<RelayTypingFrame>.broadcast();
+  final _readReceiptController =
+      StreamController<RelayReadReceiptFrame>.broadcast();
 
   RelayMessagingStatus _status = RelayMessagingStatus.disconnected;
 
@@ -77,6 +83,12 @@ class RelayMessagingBloc {
 
   /// Incoming envelopes from the relay (broadcast).
   Stream<RelayEnvelope> get incomingEnvelopes => _incomingController.stream;
+
+  /// Incoming typing indicators from other users.
+  Stream<RelayTypingFrame> get typingIndicators => _typingController.stream;
+
+  /// Incoming read receipts from other users.
+  Stream<RelayReadReceiptFrame> get readReceipts => _readReceiptController.stream;
 
   /// Connect to the relay WebSocket. Call after successful login.
   void connect({
@@ -110,6 +122,12 @@ class RelayMessagingBloc {
     });
 
     _envelopeSub = _client!.envelopes.listen(_onIncomingEnvelope);
+    _typingSub = _client!.typingIndicators.listen((typing) {
+      _typingController.add(typing);
+    });
+    _readReceiptSub = _client!.readReceipts.listen((receipt) {
+      _readReceiptController.add(receipt);
+    });
 
     _client!.start();
   }
@@ -120,10 +138,38 @@ class RelayMessagingBloc {
     _envelopeSub = null;
     await _phaseSub?.cancel();
     _phaseSub = null;
+    await _typingSub?.cancel();
+    _typingSub = null;
+    await _readReceiptSub?.cancel();
+    _readReceiptSub = null;
     await _client?.stop();
     _client = null;
     _status = RelayMessagingStatus.disconnected;
     _statusController.add(_status);
+  }
+
+  /// Send a typing indicator to [recipientHash].
+  Future<void> sendTyping(String recipientHash, bool isTyping) async {
+    final client = _client;
+    if (client != null && _status == RelayMessagingStatus.connected) {
+      try {
+        await client.sendTyping(recipientHash, isTyping);
+      } catch (_) {
+        // Best-effort — typing indicators are ephemeral.
+      }
+    }
+  }
+
+  /// Send a read receipt indicating we've seen up to [lastMsgId] for [senderHash].
+  Future<void> sendReadReceipt(String senderHash, String lastMsgId) async {
+    final client = _client;
+    if (client != null && _status == RelayMessagingStatus.connected) {
+      try {
+        await client.sendReadReceipt(senderHash, lastMsgId);
+      } catch (_) {
+        // Best-effort — read receipts are ephemeral.
+      }
+    }
   }
 
   /// Send a message to [recipientHash] through the relay.
@@ -260,5 +306,7 @@ class RelayMessagingBloc {
     await disconnect();
     await _statusController.close();
     await _incomingController.close();
+    await _typingController.close();
+    await _readReceiptController.close();
   }
 }

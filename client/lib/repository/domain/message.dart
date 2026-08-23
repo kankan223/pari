@@ -49,19 +49,24 @@ class Message {
 
   final DateTime? expiresAt;
 
-  const Message({
+  /// When the message was sent (local UTC timestamp).
+  final DateTime sentAt;
+
+  Message({
     required this.id,
     required this.conversationId,
     required this.ciphertext,
     required this.direction,
     this.delivered = false,
     this.expiresAt,
-  });
+    DateTime? sentAt,
+  }) : sentAt = sentAt ?? DateTime.now().toUtc();
 
   Message copyWith({
     bool? delivered,
     DateTime? expiresAt,
     MessageDirection? direction,
+    DateTime? sentAt,
   }) =>
       Message(
         id: id,
@@ -70,5 +75,6 @@ class Message {
         direction: direction ?? this.direction,
         delivered: delivered ?? this.delivered,
         expiresAt: expiresAt ?? this.expiresAt,
+        sentAt: sentAt ?? this.sentAt,
       );
 }

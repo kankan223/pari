@@ -54,6 +54,12 @@ class _FakeMessageBloc implements MessageBloc {
   }
 
   @override
+  void setPeerTyping(bool isTyping) {}
+
+  @override
+  void setLastReadMsgId(String? msgId) {}
+
+  @override
   Future<void> close() async {
     await _controller.close();
   }
@@ -159,7 +165,7 @@ void main() {
       final bloc = _FakeMessageBloc();
       // Emit BEFORE the widget mounts (broadcast stream, no replay): the
       // screen must pull the current state via refresh() on init.
-      bloc.emit(const MessageState(
+      bloc.emit(MessageState(
         conversationId: 'c1',
         hasLoaded: true,
         messages: [MessageSummary(id: 'm1', delivered: false)],

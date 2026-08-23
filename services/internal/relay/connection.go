@@ -53,6 +53,16 @@ func (p *wsPeer) WriteEnvelope(ctx context.Context, env *proto.Envelope) error {
 	})
 }
 
+// WriteFrame implements Peer for arbitrary server frames (typing, read
+// receipts).
+func (p *wsPeer) WriteFrame(ctx context.Context, frame *proto.ServerFrame) error {
+	p.wmu.Lock()
+	defer p.wmu.Unlock()
+	wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+	defer cancel()
+	return writeFrame(wctx, p.conn, frame)
+}
+
 // Close implements Peer.
 func (p *wsPeer) Close(code websocket.StatusCode, reason string) {
 	p.wmu.Lock()
@@ -242,6 +252,22 @@ func (s *Server) handleClientFrame(ctx context.Context, frame *proto.ClientFrame
 		if err := s.hub.Ack(ctx, blindHashID, frame.GetAck().MsgId); err != nil {
 			s.log.Error("ws ack failed", "error", err.Error())
 		}
+		return true
+
+	case frame.GetTyping() != nil:
+		typing := frame.GetTyping()
+		if typing.RecipientHash == "" {
+			return true // malformed — drop, connection stays
+		}
+		s.hub.ForwardTyping(ctx, typing.RecipientHash, typing)
+		return true
+
+	case frame.GetReadReceipt() != nil:
+		receipt := frame.GetReadReceipt()
+		if receipt.SenderHash == "" || receipt.LastMsgId == "" {
+			return true // malformed — drop, connection stays
+		}
+		s.hub.ForwardReadReceipt(ctx, receipt.SenderHash, receipt)
 		return true
 
 	default:

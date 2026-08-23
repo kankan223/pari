@@ -13,7 +13,7 @@ import 'fakes.dart';
 void main() {
   group('MessageSummary - content semantics (Task 6.3)', () {
     test('copyWith can clear content back to null explicitly', () {
-      const withContent = MessageSummary(id: 'm1', content: 'stale');
+      final withContent = MessageSummary(id: 'm1', content: 'stale');
 
       final cleared = withContent.copyWith(content: null);
 
@@ -21,7 +21,7 @@ void main() {
     });
 
     test('copyWith without a content arg preserves the existing content', () {
-      const withContent = MessageSummary(
+      final withContent = MessageSummary(
         id: 'm1',
         content: 'kept',
         direction: MessageDirection.sent,
@@ -271,13 +271,17 @@ void main() {
       expect(states.last.messages.single.direction, MessageDirection.sent);
     });
 
-    test('send() without a cipher throws StateError', () async {
+    test('send() without a cipher persists raw text (dev harness fallback)', () async {
       final plain = LocalMessageBloc(
         repository: repository,
         database: database,
         conversationId: conversationId,
       );
-      await expectLater(plain.send('nope'), throwsA(isA<StateError>()));
+      await plain.send('raw message');
+      final all = await repository.getAll();
+      expect(all.length, 1);
+      expect(all.single.conversationId, conversationId);
+      expect(all.single.direction, MessageDirection.sent);
       await plain.close();
     });
 

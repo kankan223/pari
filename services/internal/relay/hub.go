@@ -18,6 +18,9 @@ type Peer interface {
 	DeviceID() string
 	// WriteEnvelope sends one envelope frame; must be safe for concurrent use.
 	WriteEnvelope(ctx context.Context, env *proto.Envelope) error
+	// WriteFrame sends an arbitrary server frame; used for ephemeral signals
+	// (typing indicators, read receipts) that are not ciphertext envelopes.
+	WriteFrame(ctx context.Context, frame *proto.ServerFrame) error
 	// Close tears the connection down with a WebSocket close frame.
 	Close(code websocket.StatusCode, reason string)
 }
@@ -256,4 +259,42 @@ func hashOf(h *Hub, p Peer) string {
 		}
 	}
 	return ""
+}
+
+// ForwardTyping sends a typing indicator to the recipient's live devices.
+// Typing indicators are EPHEMERAL: they are never queued offline.
+func (h *Hub) ForwardTyping(ctx context.Context, recipientHash string, typing *proto.TypingIndicator) {
+	h.mu.Lock()
+	devs := h.devices[recipientHash]
+	h.mu.Unlock()
+	for _, p := range devs {
+		wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+		err := p.WriteFrame(wctx, &proto.ServerFrame{
+			Payload: &proto.ServerFrame_Typing{Typing: typing},
+		})
+		cancel()
+		if err != nil {
+			h.Unregister(hashOf(h, p), p.DeviceID(), p)
+			go p.Close(websocket.StatusInternalError, "typing forward failed")
+		}
+	}
+}
+
+// ForwardReadReceipt sends a read receipt to the sender's live devices.
+// Read receipts are EPHEMERAL: they are never queued offline.
+func (h *Hub) ForwardReadReceipt(ctx context.Context, senderHash string, receipt *proto.ReadReceipt) {
+	h.mu.Lock()
+	devs := h.devices[senderHash]
+	h.mu.Unlock()
+	for _, p := range devs {
+		wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+		err := p.WriteFrame(wctx, &proto.ServerFrame{
+			Payload: &proto.ServerFrame_ReadReceipt{ReadReceipt: receipt},
+		})
+		cancel()
+		if err != nil {
+			h.Unregister(hashOf(h, p), p.DeviceID(), p)
+			go p.Close(websocket.StatusInternalError, "read receipt forward failed")
+		}
+	}
 }

@@ -33,6 +33,15 @@ func (f *fakePeer) WriteEnvelope(_ context.Context, env *proto.Envelope) error {
 	return nil
 }
 
+func (f *fakePeer) WriteFrame(_ context.Context, _ *proto.ServerFrame) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.failWrite {
+		return errors.New("write failed")
+	}
+	return nil
+}
+
 func (f *fakePeer) Close(_ websocket.StatusCode, _ string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

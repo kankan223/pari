@@ -127,7 +127,13 @@ enum RelayFrameType {
   ack('ack'),
 
   /// Server → client: relay error.
-  error('error');
+  error('error'),
+
+  /// Bidirectional: typing indicator.
+  typing('typing'),
+
+  /// Bidirectional: read receipt.
+  readReceipt('read_receipt');
 
   const RelayFrameType(this.wireName);
 
@@ -195,6 +201,10 @@ sealed class RelayFrame {
         return RelayAckFrame.fromJson(body);
       case RelayFrameType.error:
         return RelayErrorFrame.fromJson(body);
+      case RelayFrameType.typing:
+        return RelayTypingFrame.fromJson(body);
+      case RelayFrameType.readReceipt:
+        return RelayReadReceiptFrame.fromJson(body);
     }
   }
 }
@@ -314,5 +324,57 @@ class RelayErrorFrame extends RelayFrame {
       return null;
     }
     return RelayErrorFrame(code: code, message: message);
+  }
+}
+
+/// `typing` — ephemeral typing indicator (never queued offline).
+class RelayTypingFrame extends RelayFrame {
+  final String recipientHash;
+  final bool isTyping;
+
+  const RelayTypingFrame({required this.recipientHash, required this.isTyping});
+
+  @override
+  RelayFrameType get type => RelayFrameType.typing;
+
+  @override
+  Map<String, Object?> payload() => {
+        'recipient_hash': recipientHash,
+        'is_typing': isTyping,
+      };
+
+  static RelayTypingFrame? fromJson(Map<String, Object?> json) {
+    final recipientHash = json['recipient_hash'];
+    final isTyping = json['is_typing'];
+    if (recipientHash is! String || isTyping is! bool) {
+      return null;
+    }
+    return RelayTypingFrame(recipientHash: recipientHash, isTyping: isTyping);
+  }
+}
+
+/// `read_receipt` — ephemeral read receipt (never queued offline).
+class RelayReadReceiptFrame extends RelayFrame {
+  final String senderHash;
+  final String lastMsgId;
+
+  const RelayReadReceiptFrame({required this.senderHash, required this.lastMsgId});
+
+  @override
+  RelayFrameType get type => RelayFrameType.readReceipt;
+
+  @override
+  Map<String, Object?> payload() => {
+        'sender_hash': senderHash,
+        'last_msg_id': lastMsgId,
+      };
+
+  static RelayReadReceiptFrame? fromJson(Map<String, Object?> json) {
+    final senderHash = json['sender_hash'];
+    final lastMsgId = json['last_msg_id'];
+    if (senderHash is! String || lastMsgId is! String) {
+      return null;
+    }
+    return RelayReadReceiptFrame(senderHash: senderHash, lastMsgId: lastMsgId);
   }
 }

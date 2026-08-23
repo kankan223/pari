@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:typed_data';
 
@@ -104,7 +105,6 @@ import 'state/ui/ledger_feed_screen.dart';
 import 'state/ui/ledger_post_detail_screen.dart';
 import 'state/ui/quick_exit_safe_screen.dart';
 import 'state/ui/vault_conversation_list_screen.dart';
-import 'state/ui/profile_settings_screen.dart';
 import 'state/ui/general_settings_screen.dart';
 import 'state/ui/verified_intel_report_sheet.dart';
 import 'state/ui/war_case_detail_screen.dart';
@@ -124,6 +124,7 @@ import 'auth/user_search_api_client.dart';import 'relay/data/api_prekey_bundle_s
 import 'relay/data/otpk_replenisher.dart';
 import 'relay/data/prekey_publisher.dart';
 import 'relay/data/web_socket_relay_socket.dart';
+import 'relay/domain/relay_wire.dart';
 import 'relay/relay_messaging_bloc.dart';
 import 'signal/double_ratchet_service.dart';
 import 'signal/session_manager.dart';
@@ -163,6 +164,29 @@ import 'state/ui/vault_theme.dart';
 /// - Queued mutations (votes, drafts, evidence) go through the same sealed
 ///   [AesGcmQueuePayloadCipher] the production data layer uses.
 /// - No networking, no logging of sensitive material anywhere in this file.
+
+/// Formats a [DateTime] as a short chat timestamp (no PII).
+String _formatChatTime(DateTime dt) {
+  final now = DateTime.now().toUtc();
+  final diff = now.difference(dt);
+  if (diff.inMinutes < 1) return 'now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  return '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+/// Whether the peer has read this sent message (read receipt).
+bool _isReadByPeer(MessageSummary msg, MessageState state) {
+  if (msg.direction != MessageDirection.sent) return false;
+  final readId = state.lastReadMsgId;
+  if (readId == null || readId.isEmpty) return false;
+  // Simple heuristic: if the peer's last read msg is at or after this msg's
+  // position in the list, the message has been read.
+  final idx = state.messages.indexWhere((m) => m.id == msg.id);
+  final readIdx = state.messages.indexWhere((m) => m.id == readId);
+  if (idx < 0 || readIdx < 0) return false;
+  return readIdx >= idx;
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1676,9 +1700,53 @@ class _VaultConversationDetailWrapperState
     extends State<_VaultConversationDetailWrapper> {
   final TextEditingController _controller = TextEditingController();
   bool _sending = false;
+  bool _isTyping = false;
+
+  StreamSubscription<RelayTypingFrame>? _typingSub;
+  StreamSubscription<RelayReadReceiptFrame>? _readReceiptSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onTextChanged);
+    // Subscribe to typing indicators from the peer.
+    final relay = widget.relayBloc;
+    if (relay != null) {
+      _typingSub = relay.typingIndicators.listen((typing) {
+        if (typing.recipientHash == widget.peerHash &&
+            mounted) {
+          widget.messageBloc.setPeerTyping(typing.isTyping);
+        }
+      });
+      _readReceiptSub = relay.readReceipts.listen((receipt) {
+        if (receipt.senderHash == widget.peerHash && mounted) {
+          widget.messageBloc.setLastReadMsgId(receipt.lastMsgId);
+        }
+      });
+    }
+  }
+
+  void _onTextChanged() {
+    final hasText = _controller.text.trim().isNotEmpty;
+    if (hasText != _isTyping) {
+      _isTyping = hasText;
+      final relay = widget.relayBloc;
+      if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+        relay.sendTyping(widget.peerHash, _isTyping);
+      }
+    }
+  }
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
+    _typingSub?.cancel();
+    _readReceiptSub?.cancel();
+    // Send typing stopped when leaving the chat.
+    final relay = widget.relayBloc;
+    if (relay != null && _isTyping) {
+      relay.sendTyping(widget.peerHash, false);
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -1686,14 +1754,22 @@ class _VaultConversationDetailWrapperState
   void _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+      _isTyping = false;
+    });
     _controller.clear();
+
+    // Stop typing indicator.
+    final relay = widget.relayBloc;
+    if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+      relay.sendTyping(widget.peerHash, false);
+    }
 
     try {
       // 1. Persist locally first (offline-first — UI sees message immediately).
       await widget.messageBloc.send(text);
       // 2. Send through the relay for real-time delivery to the peer.
-      final relay = widget.relayBloc;
       if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
         await relay.sendMessage(
           recipientHash: widget.peerHash,
@@ -1753,25 +1829,38 @@ class _VaultConversationDetailWrapperState
                               );
                             },
                           ),
-                          StreamBuilder<RelayMessagingStatus>(
-                            stream: widget.relayBloc?.status,
-                            initialData: widget.relayBloc?.currentStatus,
-                            builder: (context, snapshot) {
-                              final status = snapshot.data;
-                              final label = switch (status) {
-                                RelayMessagingStatus.connected => '🟢 Live',
-                                RelayMessagingStatus.connecting => '🟡 Connecting...',
-                                RelayMessagingStatus.reconnecting => '🟠 Reconnecting...',
-                                RelayMessagingStatus.authFailed => '🔴 Auth failed',
-                                RelayMessagingStatus.disconnected => '⚪ Offline',
-                                null => '⚪ Offline',
-                              };
-                              return Text(
-                                label,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11,
-                                ),
+                          StreamBuilder<MessageState>(
+                            stream: widget.messageBloc.state,
+                            builder: (context, msgSnapshot) {
+                              final msgState = msgSnapshot.data;
+                              final peerTyping = msgState?.isPeerTyping ?? false;
+                              return StreamBuilder<RelayMessagingStatus>(
+                                stream: widget.relayBloc?.status,
+                                initialData: widget.relayBloc?.currentStatus,
+                                builder: (context, snapshot) {
+                                  final status = snapshot.data;
+                                  String label;
+                                  if (peerTyping) {
+                                    label = 'typing...';
+                                  } else {
+                                    label = switch (status) {
+                                      RelayMessagingStatus.connected => '\u{1f7e2} Live',
+                                      RelayMessagingStatus.connecting => '\u{1f7e1} Connecting...',
+                                      RelayMessagingStatus.reconnecting => '\u{1f7e0} Reconnecting...',
+                                      RelayMessagingStatus.authFailed => '\u{1f534} Auth failed',
+                                      RelayMessagingStatus.disconnected => '\u26aa Offline',
+                                      null => '\u26aa Offline',
+                                    };
+                                  }
+                                  return Text(
+                                    label,
+                                    style: TextStyle(
+                                      color: peerTyping ? Colors.white : Colors.white70,
+                                      fontSize: 11,
+                                      fontStyle: peerTyping ? FontStyle.italic : FontStyle.normal,
+                                    ),
+                                  );
+                                },
                               );
                             },
                           ),
@@ -1841,12 +1930,44 @@ class _VaultConversationDetailWrapperState
                                 ),
                               ],
                             ),
-                            child: Text(
-                              summary.content ?? '[end-to-end encrypted]',
-                              style: TextStyle(
-                                color: isSent ? Colors.white : Colors.black87,
-                                fontSize: 15,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  summary.content ?? '[end-to-end encrypted]',
+                                  style: TextStyle(
+                                    color: isSent ? Colors.white : Colors.black87,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _formatChatTime(summary.sentAt),
+                                      style: TextStyle(
+                                        color: isSent
+                                            ? Colors.white54
+                                            : Colors.black38,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                    if (isSent) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        _isReadByPeer(summary, state)
+                                            ? Icons.done_all_rounded
+                                            : Icons.done_rounded,
+                                        size: 12,
+                                        color: _isReadByPeer(summary, state)
+                                            ? Colors.lightBlueAccent
+                                            : Colors.white54,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ),

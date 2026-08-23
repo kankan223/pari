@@ -40,7 +40,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final prefs = _last?.preferences ?? const NotificationPreferences.allEnabled();
 
     return SecureScreenWrapper(

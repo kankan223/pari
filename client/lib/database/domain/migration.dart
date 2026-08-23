@@ -377,6 +377,17 @@ final class AppMigrations {
         'DROP TABLE rate_limit_buckets',
       ],
     ),
+    const Migration(
+      version: 20,
+      description: 'Add messages.sent_at for chat timestamps',
+      upStatements: [
+        'ALTER TABLE messages ADD COLUMN sent_at INTEGER',
+      ],
+      downStatements: [
+        // SQLite does not support DROP COLUMN before 3.35;
+        // acceptable data loss on downgrade for this non-critical column.
+      ],
+    ),
   ];
 }
 

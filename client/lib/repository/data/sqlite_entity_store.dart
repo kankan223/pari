@@ -120,6 +120,7 @@ Map<String, Object?> messageToRow(Message m) => {
       'direction': m.direction.wireName,
       'delivered': m.delivered ? 1 : 0,
       'expires_at': m.expiresAt?.millisecondsSinceEpoch,
+      'sent_at': m.sentAt.millisecondsSinceEpoch,
     };
 
 Message messageFromRow(Map<String, Object?> row) => Message(
@@ -131,6 +132,9 @@ Message messageFromRow(Map<String, Object?> row) => Message(
       expiresAt: row['expires_at'] == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(row['expires_at']! as int),
+      sentAt: row['sent_at'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(row['sent_at']! as int),
     );
 
 /// Row codec for the `connection_requests` table (Task 6.2).

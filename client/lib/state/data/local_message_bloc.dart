@@ -34,6 +34,12 @@ class LocalMessageBloc implements MessageBloc {
   /// computation may emit.
   int _seq = 0;
 
+  /// Peer typing state for this conversation.
+  bool _isPeerTyping = false;
+
+  /// Last message ID the peer has read.
+  String? _lastReadMsgId;
+
   LocalMessageBloc({
     required MessageRepository repository,
     required LocalDataStream<Message> database,
@@ -99,6 +105,32 @@ class LocalMessageBloc implements MessageBloc {
   }
 
   @override
+  void setPeerTyping(bool isTyping) {
+    _isPeerTyping = isTyping;
+    _reemitCurrentState();
+  }
+
+  @override
+  void setLastReadMsgId(String? msgId) {
+    _lastReadMsgId = msgId;
+    _reemitCurrentState();
+  }
+
+  /// Re-emits the current state with updated typing/read fields.
+  void _reemitCurrentState() {
+    final lastState = _lastState;
+    if (lastState != null) {
+      _controller.add(lastState.copyWith(
+        isPeerTyping: _isPeerTyping,
+        lastReadMsgId: _lastReadMsgId,
+        clearLastReadMsgId: _lastReadMsgId == null,
+      ));
+    }
+  }
+
+  MessageState? _lastState;
+
+  @override
   Future<void> close() async {
     await _sub?.cancel();
     await _controller.close();
@@ -146,12 +178,14 @@ class LocalMessageBloc implements MessageBloc {
       // computation so an older pull can never overwrite a fresher push.
       return;
     }
-    _controller.add(
-      MessageState(
-        conversationId: _conversationId,
-        messages: summaries,
-        hasLoaded: true,
-      ),
+    final state = MessageState(
+      conversationId: _conversationId,
+      messages: summaries,
+      hasLoaded: true,
+      isPeerTyping: _isPeerTyping,
+      lastReadMsgId: _lastReadMsgId,
     );
+    _lastState = state;
+    _controller.add(state);
   }
 }

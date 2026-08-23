@@ -23,19 +23,24 @@ class MessageSummary {
   /// fallback in the UI). Never the raw ciphertext.
   final String? content;
 
-  const MessageSummary({
+  /// When the message was sent (UTC timestamp for display in chat bubbles).
+  final DateTime sentAt;
+
+  MessageSummary({
     required this.id,
     this.delivered = false,
     this.expiresAt,
     this.direction = MessageDirection.received,
     this.content,
-  });
+    DateTime? sentAt,
+  }) : sentAt = sentAt ?? DateTime.now().toUtc();
 
   factory MessageSummary.from(Message m) => MessageSummary(
         id: m.id,
         delivered: m.delivered,
         expiresAt: m.expiresAt,
         direction: m.direction,
+        sentAt: m.sentAt,
       );
 
   /// Sentinel so [copyWith] can explicitly clear [content] back to null
@@ -48,6 +53,7 @@ class MessageSummary {
     DateTime? expiresAt,
     MessageDirection? direction,
     Object? content = _unset,
+    DateTime? sentAt,
   }) =>
       MessageSummary(
         id: id,
@@ -55,8 +61,11 @@ class MessageSummary {
         expiresAt: expiresAt ?? this.expiresAt,
         direction: direction ?? this.direction,
         content: identical(content, _unset) ? this.content : content as String?,
+        sentAt: sentAt ?? this.sentAt,
       );
 }
+
+
 
 /// Const-constructible private sentinel type (see [MessageSummary.copyWith]).
 class _UnsetSentinel {
@@ -69,20 +78,35 @@ class MessageState {
   final List<MessageSummary> messages;
   final bool hasLoaded;
 
+  /// Whether the peer is currently typing in this conversation.
+  final bool isPeerTyping;
+
+  /// The most recent message ID the peer has read (null = unknown).
+  final String? lastReadMsgId;
+
   const MessageState({
     required this.conversationId,
     this.messages = const [],
     this.hasLoaded = false,
+    this.isPeerTyping = false,
+    this.lastReadMsgId,
   });
 
   MessageState copyWith({
     String? conversationId,
     List<MessageSummary>? messages,
     bool? hasLoaded,
+    bool? isPeerTyping,
+    String? lastReadMsgId,
+    bool clearLastReadMsgId = false,
   }) =>
       MessageState(
         conversationId: conversationId ?? this.conversationId,
         messages: messages ?? this.messages,
         hasLoaded: hasLoaded ?? this.hasLoaded,
+        isPeerTyping: isPeerTyping ?? this.isPeerTyping,
+        lastReadMsgId: clearLastReadMsgId
+            ? null
+            : (lastReadMsgId ?? this.lastReadMsgId),
       );
 }
