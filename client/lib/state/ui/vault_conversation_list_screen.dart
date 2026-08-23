@@ -11,9 +11,11 @@ import '../domain/conversation_bloc.dart';
 import '../domain/conversation_state.dart';
 import '../domain/peer_handle.dart';
 import '../domain/pending_request_summary.dart';
+import '../../repository/data/blocking_service.dart';
 import '../../repository/domain/username_directory.dart';
 import 'vault_empty_state.dart';
 import 'vault_masthead.dart';
+import 'user_profile_view_screen.dart';
 import 'vault_pending_requests_section.dart';
 import 'vault_theme.dart';
 
@@ -50,6 +52,7 @@ class VaultConversationListScreen extends StatefulWidget {
     this.rootDetectionService,
     this.onlineUsers = const {},
     this.typingUsers = const {},
+    this.blockingService,
   });
 
   final ConversationBloc bloc;
@@ -91,6 +94,9 @@ class VaultConversationListScreen extends StatefulWidget {
 
   /// Set of blind_hash_ids currently typing (from relay typing indicators).
   final Set<String> typingUsers;
+
+  /// Blocking service for profile view actions.
+  final BlockingService? blockingService;
 
   @override
   State<VaultConversationListScreen> createState() =>
@@ -245,6 +251,20 @@ class _VaultConversationListScreenState
               onTap: onConversationTap == null
                   ? null
                   : () => onConversationTap(conversation.id),
+              onUsernameTap: widget.blockingService == null
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => UserProfileViewScreen(
+                            peerHash: conversation.participantHash,
+                            usernameDirectory: widget.usernameDirectory,
+                            blockingService: widget.blockingService!,
+                            isOnline: widget.onlineUsers.contains(conversation.participantHash),
+                          ),
+                        ),
+                      );
+                    },
             ),
       ],
     );
@@ -262,6 +282,7 @@ class _ConversationTile extends StatelessWidget {
     required this.participantHash,
     this.directory,
     this.onTap,
+    this.onUsernameTap,
     this.isOnline = false,
     this.isTyping = false,
   });
@@ -269,6 +290,7 @@ class _ConversationTile extends StatelessWidget {
   final String participantHash;
   final UsernameDirectory? directory;
   final VoidCallback? onTap;
+  final VoidCallback? onUsernameTap;
   final bool isOnline;
   final bool isTyping;
 
@@ -287,7 +309,10 @@ class _ConversationTile extends StatelessWidget {
           final display = username != null
               ? '@$username'
               : formatPeerHandle(participantHash);
-          return _handleText(display, theme);
+          return GestureDetector(
+            onTap: onUsernameTap,
+            child: _handleText(display, theme),
+          );
         },
       );
     }

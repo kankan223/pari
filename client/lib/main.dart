@@ -1838,6 +1838,7 @@ class _VaultTabState extends State<_VaultTab> {
           contextMeta: widget.username,
           onlineUsers: _onlineUsers,
           typingUsers: _typingUsers,
+          blockingService: widget.blockingService,
           onNewConversation: _showNewConversationSheet,
           onSettings: () => _navPush(
             _nav,
