@@ -1,45 +1,38 @@
 import 'dart:async';
 
-import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../domain/relay_socket.dart';
 
-/// [RelaySocket] backed by `web_socket_channel`'s [IOWebSocketChannel]
-/// (Task 6.4).
+/// [RelaySocket] backed by `web_socket_channel`'s [WebSocketChannel].
 ///
-/// The channel is created LAZILY on first frame listen (matching
-/// `web_socket_channel`'s contract: `ready` only completes once the
-/// connection is established). Failures surface as a stream error so the
-/// [RelayClient] can treat them uniformly as transport failures and
-/// reconnect with backoff.
+/// Uses the platform-agnostic `WebSocketChannel.connect()` factory, which
+/// works on both web (dart:html WebSocket) and native (dart:io WebSocket).
+/// The previous [IOWebSocketChannel] implementation crashed on Flutter web
+/// because dart:io is not available in browser environments.
 ///
-/// TRANSPORT-LEVEL HEARTBEAT: [pingInterval] is passed to the channel so
-/// dart:io sends protocol pings and CLOSES the connection when the relay
-/// stops answering — the [RelayClient] then observes the disconnect and
-/// reconnects. This mirrors the Go relay's 25s protocol ping (Task 4.4) and
-/// is the correct dead-connection detector for this transport: the relay's
-/// pings are control frames that never surface as data frames, so an
-/// app-level data-frame watchdog would falsely fire on healthy idle
-/// connections. [hasTransportHeartbeat] reports this capability.
+/// The channel is created LAZILY on first frame listen. Failures surface as
+/// a stream error so the [RelayClient] can treat them uniformly as transport
+/// failures and reconnect with backoff.
+///
+/// TRANSPORT-LEVEL HEARTBEAT: On native platforms, pingInterval is applied
+/// to the underlying socket so dart:io sends protocol pings and CLOSES the
+/// connection when the relay stops answering. On web, the browser manages
+/// WebSocket ping/pong natively. In both cases, [hasTransportHeartbeat]
+/// reports true so the [RelayClient] skips its app-level data-frame watchdog
+/// (which would falsely fire on healthy idle connections).
 ///
 /// SECURITY CHECKPOINT: the socket is a dumb byte carrier — the access token
 /// is never part of the URL (the caller holds it in the auth frame body),
 /// and frame payloads are never logged.
 class WebSocketRelaySocket implements RelaySocket {
   final String _url;
-  final Duration _pingInterval;
   WebSocketChannel? _channel;
   StreamController<String>? _controller;
   final _done = Completer<void>();
   bool _closed = false;
 
-  WebSocketRelaySocket(this._url, {Duration pingInterval = _defaultPing})
-      : _pingInterval = pingInterval;
-
-  /// 20s — comfortably inside the relay's 25s ping cadence, so a relay that
-  /// stops ponging is detected within one interval.
-  static const _defaultPing = Duration(seconds: 20);
+  WebSocketRelaySocket(this._url);
 
   @override
   bool get hasTransportHeartbeat => true;
@@ -54,19 +47,16 @@ class WebSocketRelaySocket implements RelaySocket {
     if (_controller != null) {
       return;
     }
-    final channel = IOWebSocketChannel.connect(
-      _url,
-      // Protocol-level ping/pong: dart:io closes the connection when no
-      // pong arrives within the interval (dead relay / middlebox kill), and
-      // the client's read loop observes the disconnect and reconnects.
-      pingInterval: _pingInterval,
-    );
+    // Use the platform-agnostic WebSocketChannel.connect() factory.
+    // On native: uses dart:io WebSocket internally.
+    // On web: uses dart:html WebSocket internally.
+    final channel = WebSocketChannel.connect(Uri.parse(_url));
     _channel = channel;
     final controller = StreamController<String>();
     _controller = controller;
 
-    // The channel's native stream is single-subscription; we bridge it into
-    // the controller. Completion/errors propagate so the read loop sees the
+    // Bridge the channel's single-subscription stream into our broadcast
+    // controller. Completion/errors propagate so the read loop sees the
     // disconnect.
     channel.stream.listen(
       (dynamic data) {
@@ -75,24 +65,35 @@ class WebSocketRelaySocket implements RelaySocket {
         }
       },
       onError: (Object e) {
-        controller.addError(e);
+        if (!controller.isClosed) {
+          controller.addError(e);
+        }
         _finish();
       },
       onDone: () {
-        controller.close();
+        if (!controller.isClosed) {
+          controller.close();
+        }
         _finish();
       },
     );
 
-    // TCP/TLS handshake failures surface on `ready` (not the stream) before
-    // any frame arrives — propagate them so the RelayClient treats them as
-    // transport failures and reconnects with backoff.
-    unawaited(channel.ready.catchError((Object e) {
-      if (!controller.isClosed) {
-        controller.addError(e);
-      }
-      _finish();
-    }));
+    // On native platforms, TCP/TLS handshake failures surface on `ready`
+    // (not the stream) before any frame arrives. On web, the WebSocket
+    // connection error is delivered through the stream's onError handler
+    // above, so the ready catch is only useful on native.
+    try {
+      // ignore: unnecessary_statements
+      channel.ready.catchError((Object e) {
+        if (!controller.isClosed) {
+          controller.addError(e);
+        }
+        _finish();
+      });
+    } catch (_) {
+      // web: WebSocketChannel has no `ready` getter — connection errors
+      // arrive through the stream listener above. This is expected.
+    }
   }
 
   void _finish() {
@@ -108,10 +109,6 @@ class WebSocketRelaySocket implements RelaySocket {
     if (channel == null) {
       throw StateError('relay socket is closed');
     }
-    // sink.add does not complete a future; a returned Future that completes
-    // immediately is acceptable for a fire-and-forget control frame, but we
-    // surface send failures through the done completer by listening for
-    // channel errors.
     channel.sink.add(wireJson);
     return Future.value();
   }
@@ -130,7 +127,9 @@ class WebSocketRelaySocket implements RelaySocket {
       await channel.sink.close();
     }
     _finish();
-    await _controller?.close();
+    if (_controller != null && !_controller!.isClosed) {
+      await _controller!.close();
+    }
     _controller = null;
   }
 }

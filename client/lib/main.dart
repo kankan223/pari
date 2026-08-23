@@ -1804,13 +1804,14 @@ class _VaultConversationDetailWrapperState
   }
 
   void _pickAndSendFile() async {
+    PlatformFile? file;
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
         allowMultiple: false,
       );
       if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
+      file = result.files.first;
       if (file.bytes == null) return;
 
       final msgId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
@@ -1840,22 +1841,46 @@ class _VaultConversationDetailWrapperState
         await widget.messageBloc.send(fileText);
       }
     } catch (_) {
-      // Silently handle — file send is best-effort.
+      // Offline fallback for file send.
+      if (file != null) {
+        try {
+          await widget.messageBloc.send('\u{1F4CE} ${file.name}');
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to send file')),
+            );
+          }
+        }
+      }
     }
   }
 
   void _sendVoiceMessage(List<int> audioBytes) async {
     final text = '\u{1F3A4} Voice message (${audioBytes.length} bytes)';
     final relay = widget.relayBloc;
-    if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
-      await relay.sendMessage(
-        recipientHash: widget.peerHash,
-        text: text,
-        conversationId: widget.conversationId,
-      );
-    } else {
-      // Offline: persist locally only.
-      await widget.messageBloc.send(text);
+    try {
+      if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+        await relay.sendMessage(
+          recipientHash: widget.peerHash,
+          text: text,
+          conversationId: widget.conversationId,
+        );
+      } else {
+        // Offline: persist locally only.
+        await widget.messageBloc.send(text);
+      }
+    } catch (_) {
+      // Offline fallback.
+      try {
+        await widget.messageBloc.send(text);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to send voice message')),
+          );
+        }
+      }
     }
   }
 
@@ -1886,10 +1911,21 @@ class _VaultConversationDetailWrapperState
         );
       } else {
         // Offline: persist locally only so the message appears immediately.
+        // The message will be synced when the relay reconnects.
         await widget.messageBloc.send(text);
       }
     } catch (_) {
-      // Silently handle — message stays in local store.
+      // Attempt offline fallback if relay send failed.
+      try {
+        await widget.messageBloc.send(text);
+      } catch (_) {
+        // Last resort — show error feedback.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to send message')),
+          );
+        }
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }

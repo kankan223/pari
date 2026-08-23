@@ -246,10 +246,10 @@ class RelayMessagingBloc {
       delivered: false,
     );
     await _messageRepo.create(msg);
-    // Notify the UI stream so per-conversation blocs pick up the message.
-    _notifyStream();
-
     // 2. Send through the relay (if connected).
+    // Notify the UI stream IMMEDIATELY so the message appears in the chat
+    // even if the relay send takes time or fails.
+    _notifyStream();
     final client = _client;
     if (client != null && _status == RelayMessagingStatus.connected) {
       try {
@@ -316,7 +316,15 @@ class RelayMessagingBloc {
     final db = _messageDb;
     if (db != null) {
       // Fetch all messages and emit — subscribers filter by conversationId.
-      _messageRepo.getAll().then((all) => db.emit(all));
+      // Use unawaited to fire-and-forget; errors are swallowed because a
+      // failed stream push should never crash the send path.
+      _messageRepo.getAll().then((all) {
+        try {
+          db.emit(all);
+        } catch (_) {
+          // Controller may be closed — swallow.
+        }
+      }).catchError((_) {});
     }
   }
 
