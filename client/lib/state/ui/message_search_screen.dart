@@ -63,6 +63,22 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         backgroundColor: VaultTheme.vaultBlue,
         foregroundColor: Colors.white,
         elevation: 0,
+        bottom: widget.conversationId != null
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(28),
+                child: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 16, bottom: 6),
+                  child: const Text(
+                    'Searching in this conversation',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              )
+            : null,
       ),
       body: StreamBuilder<MessageSearchState>(
         stream: widget.searchBloc.state,

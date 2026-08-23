@@ -75,7 +75,7 @@ class InMemoryMessageSearchRepository implements MessageSearchRepository {
         snippet: snippet,
         matchStart: idx - start + 3, // +3 for the leading "..."
         matchEnd: idx - start + 3 + query.length,
-        sentAt: DateTime.now().toUtc(), // In-memory: use now
+        sentAt: msg.sentAt,
         direction: msg.direction,
       ));
     }
@@ -112,7 +112,7 @@ class InMemoryMessageSearchRepository implements MessageSearchRepository {
             : content,
         matchStart: 0,
         matchEnd: 0,
-        sentAt: DateTime.now().toUtc(),
+        sentAt: msg.sentAt,
         direction: msg.direction,
       );
     }).toList();

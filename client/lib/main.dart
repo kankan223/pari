@@ -2549,6 +2549,41 @@ class _VaultConversationDetailWrapperState
                         ],
                       ),
                     ),
+                    // Search within this conversation.
+                    Tooltip(
+                      message: 'Search in conversation',
+                      child: IconButton(
+                        icon: const Icon(Icons.search_rounded,
+                            color: Colors.white70, size: 20),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MessageSearchScreen(
+                                searchBloc: MessageSearchBloc(
+                                  repo: InMemoryMessageSearchRepository(
+                                    messages: [],
+                                    contentProvider: (msg) {
+                                      try {
+                                        return String.fromCharCodes(msg.ciphertext);
+                                      } catch (_) {
+                                        return '';
+                                      }
+                                    },
+                                  ),
+                                ),
+                                conversationId: widget.conversationId,
+                                onResultTap: (convId, msgId) {
+                                  // Scroll to the message if in the same conversation.
+                                  if (convId == widget.conversationId) {
+                                    _scrollToBottom();
+                                  }
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                     const Tooltip(
                       message: 'End-to-end encrypted',
                       child: Icon(Icons.lock_rounded,
