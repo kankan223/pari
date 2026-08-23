@@ -33,6 +33,9 @@ dependencies:
   # (security checkpoint: the sync layer's sole outbound path is SyncSink).
   web_socket_channel: ^2.4.0
 
+  # Web Push Notifications: browser Notification API via package:web.
+  web: ^1.0.0
+
   # Device & Media
   geolocator: ^11.0.0
   geocoding: ^3.0.0

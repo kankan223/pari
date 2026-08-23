@@ -132,6 +132,7 @@ import 'state/domain/message_search_bloc.dart';
 import 'state/ui/message_search_screen.dart';
 import 'repository/data/in_memory_voice_player.dart';
 import 'relay/domain/presence_tracker.dart';
+import 'relay/domain/push_notification_service.dart';
 import 'repository/data/blocking_service.dart';
 import 'state/ui/blocked_users_screen.dart';
 import 'state/ui/report_user_dialog.dart';
@@ -409,6 +410,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
   PresenceTracker? _presenceTracker;
   Set<String> _onlineUsers = {};
   late final LocalUserSearchBloc _userSearchBloc;
+  late final PushNotificationService _pushService;
   AuthState? _lastAuthState;
   String _authToken = '';
 
@@ -416,6 +418,8 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
   void initState() {
     super.initState();
     _lastAuthState = widget.authBloc.current;
+    _pushService = PushNotificationService();
+    _pushService.initialize();
     // Create user search bloc synchronously so the vault tab can use it
     // immediately (no async gap between auth and first render).
     final apiClient = UserSearchApiClient(
@@ -550,6 +554,25 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
       relayUrl: 'wss://civic-commons-relay.onrender.com/v1/relay/ws',
       connector: const WebSocketRelaySocketConnector(),
     );
+
+    // Listen for incoming messages and show browser notifications
+    // when the app is in the background.
+    _relayBloc?.incomingEnvelopes.listen((envelope) {
+      // Only show notification for messages from other users.
+      if (envelope.senderHash == authState.blindHashId) return;
+      // Preview: first 50 chars of the ciphertext (encoded as UTF-8).
+      String preview = '';
+      try {
+        preview = String.fromCharCodes(
+          envelope.ciphertext.take(50),
+        );
+      } catch (_) {}
+      if (preview.length > 50) preview = '${preview.substring(0, 50)}...';
+      _pushService.showMessageNotification(
+        senderName: 'New Message',
+        preview: preview.isNotEmpty ? preview : 'You have a new message',
+      );
+    });
 
     // Start presence tracking to show online/offline indicators.
     _presenceTracker?.stop();
