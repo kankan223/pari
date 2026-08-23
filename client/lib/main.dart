@@ -2013,11 +2013,11 @@ class _VaultConversationDetailWrapperState
   }
 
   void _forwardMessage(MessageSummary msg) async {
-    // Show a bottom sheet to pick the target conversation.
+    // Show a bottom sheet to pick target conversations.
     final allConvs = await widget.conversationStore.getAll();
     if (!mounted || allConvs.isEmpty) return;
 
-    final target = await showModalBottomSheet<String>(
+    final targets = await showModalBottomSheet<List<String>>(
       context: context,
       builder: (ctx) => _ForwardSheet(
         conversations: allConvs,
@@ -2026,26 +2026,41 @@ class _VaultConversationDetailWrapperState
       ),
     );
 
-    if (target == null || !mounted) return;
+    if (targets == null || targets.isEmpty || !mounted) return;
 
-    // Forward the message text to the target conversation.
+    // Forward the message text to all selected conversations.
     final text = msg.content ?? '[encrypted]';
     final forwardedText = '\u{1F4E4} Forwarded\n$text';
 
-    final relay = widget.relayBloc;
-    if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
-      await relay.sendMessage(
-        recipientHash: widget.peerHash,
-        text: forwardedText,
-        conversationId: target,
-      );
-    } else {
-      await widget.messageBloc.send(forwardedText);
+    int forwardedCount = 0;
+    for (final targetId in targets) {
+      // Find the participant hash for this conversation.
+      final conv = await widget.conversationStore.getById(targetId);
+      if (conv == null) continue;
+
+      final relay = widget.relayBloc;
+      if (relay != null && relay.currentStatus == RelayMessagingStatus.connected) {
+        await relay.sendMessage(
+          recipientHash: conv.participantHash,
+          text: forwardedText,
+          conversationId: targetId,
+        );
+      } else {
+        // For local-only forwarding, create a message in the target conversation.
+        await widget.messageBloc.send(forwardedText);
+      }
+      forwardedCount++;
     }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message forwarded')),
+        SnackBar(
+          content: Text(
+            forwardedCount == 1
+                ? 'Message forwarded'
+                : 'Message forwarded to $forwardedCount conversations',
+          ),
+        ),
       );
     }
   }
@@ -2950,8 +2965,8 @@ class _VaultConversationDetailWrapperState
   }
 }
 
-/// Bottom sheet for selecting a conversation to forward a message to.
-class _ForwardSheet extends StatelessWidget {
+/// Bottom sheet for selecting one or more conversations to forward a message to.
+class _ForwardSheet extends StatefulWidget {
   final List<Conversation> conversations;
   final UsernameDirectory? usernameDirectory;
   final String currentConversationId;
@@ -2963,23 +2978,45 @@ class _ForwardSheet extends StatelessWidget {
   });
 
   @override
+  State<_ForwardSheet> createState() => _ForwardSheetState();
+}
+
+class _ForwardSheetState extends State<_ForwardSheet> {
+  final Set<String> _selectedIds = {};
+
+  @override
   Widget build(BuildContext context) {
-    final others = conversations
-        .where((c) => c.id != currentConversationId)
+    final others = widget.conversations
+        .where((c) => c.id != widget.currentConversationId)
         .toList();
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.5,
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Forward to...',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Forward to...',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (_selectedIds.isNotEmpty)
+                  Text(
+                    '${_selectedIds.length} selected',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: VaultTheme.vaultBlue,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
             ),
           ),
           const Divider(height: 1),
@@ -2998,10 +3035,21 @@ class _ForwardSheet extends StatelessWidget {
                 itemCount: others.length,
                 itemBuilder: (context, index) {
                   final conv = others[index];
-                  return ListTile(
-                    leading: const Icon(Icons.chat_rounded, size: 20),
+                  final isSelected = _selectedIds.contains(conv.id);
+                  return CheckboxListTile(
+                    value: isSelected,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value == true) {
+                          _selectedIds.add(conv.id);
+                        } else {
+                          _selectedIds.remove(conv.id);
+                        }
+                      });
+                    },
+                    secondary: const Icon(Icons.chat_rounded, size: 20),
                     title: FutureBuilder<String?>(
-                      future: usernameDirectory?.usernameForHash(conv.participantHash),
+                      future: widget.usernameDirectory?.usernameForHash(conv.participantHash),
                       builder: (context, snapshot) {
                         final username = snapshot.data;
                         final display = username != null
@@ -3010,9 +3058,28 @@ class _ForwardSheet extends StatelessWidget {
                         return Text(display);
                       },
                     ),
-                    onTap: () => Navigator.pop(context, conv.id),
+                    activeColor: VaultTheme.vaultBlue,
                   );
                 },
+              ),
+            ),
+          // Forward button
+          if (_selectedIds.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, _selectedIds.toList()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: VaultTheme.vaultBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.all(14),
+                  ),
+                  child: Text(
+                    'Forward to ${_selectedIds.length} conversation${_selectedIds.length == 1 ? '' : 's'}',
+                  ),
+                ),
               ),
             ),
         ],
