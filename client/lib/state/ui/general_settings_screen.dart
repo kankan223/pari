@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../auth/auth_storage.dart';
+import '../../auth/identity_api_client.dart';
 import '../../notification/domain/notification_preferences.dart';
 import '../../notification/domain/notification_type.dart';
 import '../../security/ui/secure_screen_wrapper.dart';
 import '../domain/notification_bloc.dart';
 import '../domain/notification_state.dart';
+import 'profile_screen.dart';
 import 'vault_theme.dart';
 
 /// General settings screen — notification preferences, theme, about, etc.
@@ -53,6 +56,27 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         ),
         body: ListView(
           children: [
+            // Profile section
+            _buildSectionHeader('ACCOUNT'),
+            _buildNavTile(
+              icon: Icons.person_outline,
+              title: 'Profile',
+              subtitle: 'Edit your avatar and status',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProfileScreen(
+                      api: IdentityApiClient(
+                        baseUrl: 'https://civic-commons-identity.onrender.com',
+                      ),
+                      storage: AuthStorage(),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const Divider(indent: 16, endIndent: 16),
+
             // Notifications section
             _buildSectionHeader('NOTIFICATIONS'),
             _buildToggleTile(

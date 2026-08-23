@@ -14,6 +14,9 @@ class AuthStorage {
   static const _refreshTokenKey = 'auth_refresh_token';
   static const _blindHashIdKey = 'auth_blind_hash_id';
   static const _usernameKey = 'auth_username';
+  static const _avatarUrlKey = 'auth_avatar_url';
+  static const _statusTextKey = 'auth_status_text';
+  static const _statusVisibilityKey = 'auth_status_visibility';
 
   AuthStorage({FlutterSecureStorage? secureStorage})
       : _secureStorage = secureStorage ?? const FlutterSecureStorage();
@@ -62,6 +65,36 @@ class AuthStorage {
     await _secureStorage.write(key: _usernameKey, value: username);
   }
 
+  /// Get the stored avatar URL.
+  Future<String?> getAvatarUrl() async {
+    return _secureStorage.read(key: _avatarUrlKey);
+  }
+
+  /// Save avatar URL.
+  Future<void> saveAvatarUrl(String url) async {
+    await _secureStorage.write(key: _avatarUrlKey, value: url);
+  }
+
+  /// Get the stored status text.
+  Future<String?> getStatusText() async {
+    return _secureStorage.read(key: _statusTextKey);
+  }
+
+  /// Save status text.
+  Future<void> saveStatusText(String text) async {
+    await _secureStorage.write(key: _statusTextKey, value: text);
+  }
+
+  /// Get the stored status visibility.
+  Future<String?> getStatusVisibility() async {
+    return _secureStorage.read(key: _statusVisibilityKey);
+  }
+
+  /// Save status visibility.
+  Future<void> saveStatusVisibility(String visibility) async {
+    await _secureStorage.write(key: _statusVisibilityKey, value: visibility);
+  }
+
   /// Clear all auth state (logout).
   Future<void> clearAll() async {
     await Future.wait([
@@ -69,6 +102,9 @@ class AuthStorage {
       _secureStorage.delete(key: _refreshTokenKey),
       _secureStorage.delete(key: _blindHashIdKey),
       _secureStorage.delete(key: _usernameKey),
+      _secureStorage.delete(key: _avatarUrlKey),
+      _secureStorage.delete(key: _statusTextKey),
+      _secureStorage.delete(key: _statusVisibilityKey),
     ]);
   }
 

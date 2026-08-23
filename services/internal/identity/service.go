@@ -514,3 +514,32 @@ func (s *Service) ListUsers(ctx context.Context, limit, offset int) (UserListRes
 	}
 	return result, nil
 }
+
+// ProfileUpdate carries the fields a user may modify in their profile.
+type ProfileUpdate struct {
+	AvatarURL        string `json:"avatar_url"`
+	StatusText       string `json:"status_text"`
+	StatusVisibility string `json:"status_visibility"` // online | away | invisible
+}
+
+// UpdateProfile persists the user's profile fields.
+func (s *Service) UpdateProfile(ctx context.Context, blindHashID string, update ProfileUpdate) error {
+	// Validate status visibility.
+	vis := update.StatusVisibility
+	if vis == "" {
+		vis = "online"
+	}
+	switch vis {
+	case "online", "away", "invisible":
+	default:
+		vis = "online"
+	}
+	// Truncate status text to 140 chars.
+	if len(update.StatusText) > 140 {
+		update.StatusText = update.StatusText[:140]
+	}
+	if err := s.users.SetProfile(ctx, blindHashID, update.AvatarURL, update.StatusText, vis); err != nil {
+		return ErrInternal
+	}
+	return nil
+}

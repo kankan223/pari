@@ -29,7 +29,8 @@ const (
 	routeUsers       = "GET /v1/identity/users"
 	routePreKeyPublish = "POST /v1/identity/prekeys"
 	routePreKeyFetch   = "GET /v1/identity/prekeys/{blind_hash_id}"
-	routeHealth = "GET /health"
+	routeProfile     = "PATCH /v1/identity/profile"
+	routeHealth      = "GET /health"
 )
 
 // maxBodyBytes bounds request bodies (1 MiB).
@@ -60,6 +61,7 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 	s.mux.HandleFunc(routeUsers, s.requireAuth(s.handleUsers))
 	s.mux.HandleFunc(routePreKeyPublish, s.requireAuth(s.handlePreKeyPublish))
 	s.mux.HandleFunc(routePreKeyFetch, s.requireAuth(s.handlePreKeyFetch))
+	s.mux.HandleFunc(routeProfile, s.requireAuth(s.handleUpdateProfile))
 	s.mux.HandleFunc(routeHealth, s.handleHealth)
 
 	return s
@@ -233,6 +235,21 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// Profile update handler
+
+func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	var req ProfileUpdate
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	hashID := mustSubject(r.Context())
+	if err := s.svc.UpdateProfile(r.Context(), hashID, req); err != nil {
+		s.mapError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // ---------------------------------------------------------------------------

@@ -11,9 +11,12 @@ import (
 // User is the minimum-claim identity record. It deliberately contains NO
 // phone number — the only identifier is the Argon2id blind_hash_id.
 type User struct {
-	BlindHashID string    `json:"blind_hash_id"`
-	Username    string    `json:"username,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	BlindHashID      string    `json:"blind_hash_id"`
+	Username         string    `json:"username,omitempty"`
+	AvatarURL        string    `json:"avatar_url,omitempty"`
+	StatusText       string    `json:"status_text,omitempty"`
+	StatusVisibility string    `json:"status_visibility,omitempty"` // online, away, invisible
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 // Sentinel errors for the user store.
@@ -31,6 +34,7 @@ type UserStore interface {
 	Create(ctx context.Context, u User) error
 	Get(ctx context.Context, blindHashID string) (User, error)
 	SetUsername(ctx context.Context, blindHashID, username string) error
+	SetProfile(ctx context.Context, blindHashID string, avatarURL, statusText, statusVisibility string) error
 	// List returns all users. Used by the user-list endpoint.
 	List(ctx context.Context) ([]User, error)
 }
@@ -77,6 +81,21 @@ func (s *InMemoryUserStore) SetUsername(_ context.Context, blindHashID, username
 		return fmt.Errorf("%w: %s", ErrUserNotFound, blindHashID)
 	}
 	u.Username = username
+	s.users[blindHashID] = u
+	return nil
+}
+
+// SetProfile implements UserStore.
+func (s *InMemoryUserStore) SetProfile(_ context.Context, blindHashID string, avatarURL, statusText, statusVisibility string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.users[blindHashID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUserNotFound, blindHashID)
+	}
+	u.AvatarURL = avatarURL
+	u.StatusText = statusText
+	u.StatusVisibility = statusVisibility
 	s.users[blindHashID] = u
 	return nil
 }

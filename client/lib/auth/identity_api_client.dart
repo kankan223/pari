@@ -120,6 +120,36 @@ class IdentityApiClient {
     );
   }
 
+  /// Update the user's profile (avatar, status text, status visibility).
+  Future<void> updateProfile({
+    required String accessToken,
+    required String avatarUrl,
+    required String statusText,
+    required String statusVisibility,
+  }) async {
+    final response = await _client.patch(
+      Uri.parse('$baseUrl/v1/identity/profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+      body: jsonEncode({
+        'avatar_url': avatarUrl,
+        'status_text': statusText,
+        'status_visibility': statusVisibility,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw IdentityApiException(
+        statusCode: response.statusCode,
+        code: body['error']?['code'] as String? ?? 'unknown',
+        message: body['error']?['message'] as String? ?? 'Profile update failed',
+      );
+    }
+  }
+
   void dispose() {
     _client.close();
   }
@@ -169,11 +199,17 @@ class AuthResult {
 class UserProfile {
   final String blindHashId;
   final String? username;
+  final String? avatarUrl;
+  final String? statusText;
+  final String? statusVisibility;
   final DateTime createdAt;
 
   const UserProfile({
     required this.blindHashId,
     this.username,
+    this.avatarUrl,
+    this.statusText,
+    this.statusVisibility,
     required this.createdAt,
   });
 
@@ -181,6 +217,9 @@ class UserProfile {
     return UserProfile(
       blindHashId: json['blind_hash_id'] as String,
       username: json['username'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
+      statusText: json['status_text'] as String?,
+      statusVisibility: json['status_visibility'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

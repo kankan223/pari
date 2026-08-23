@@ -74,6 +74,27 @@ func (p *UserStore) SetUsername(ctx context.Context, blindHashID, username strin
 	})
 }
 
+// SetProfile implements identity.UserStore. Updates the user's avatar URL,
+// status text, and status visibility.
+func (p *UserStore) SetProfile(ctx context.Context, blindHashID string, avatarURL, statusText, statusVisibility string) error {
+	return p.s.withTx(ctx, func(ctx context.Context, tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE users SET avatar_url = $2, status_text = $3, status_visibility = $4, updated_at = now() WHERE blind_hash_id = $1`,
+			blindHashID, nullStr(avatarURL), nullStr(statusText), nullStr(statusVisibility))
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("%w: %s", identity.ErrUserNotFound, blindHashID)
+		}
+		return nil
+	})
+}
+
 // List implements identity.UserStore. Returns all users sorted by created_at.
 func (p *UserStore) List(ctx context.Context) ([]identity.User, error) {
 	var users []identity.User
