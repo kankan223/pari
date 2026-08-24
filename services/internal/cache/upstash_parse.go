@@ -14,11 +14,21 @@ import (
 // Supported formats:
 //   - rediss://default:TOKEN@HOST:PORT → ("https://HOST", TOKEN, true)
 //   - https://HOST (bare URL) → ("https://HOST", "", true)
-//   - Environment variable UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
-//     when REDIS_ADDR contains "upstash" or starts with "https://"
+//   - UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN env vars
+//     (always checked, regardless of REDIS_ADDR format)
 //
-// Returns ("", "", false) for standard Redis addresses.
+// Returns ("", "", false) for standard Redis addresses with no Upstash
+// env vars.
 func ParseUpstashURL(addr string) (baseURL, token string, ok bool) {
+	// ALWAYS check Upstash env vars first — this is the most reliable way
+	// to detect Upstash on Render free tier where REDIS_ADDR may be set to
+	// a RESP IP that times out on port 6389.
+	if upstashURL := os.Getenv("UPSTASH_REDIS_REST_URL"); upstashURL != "" {
+		if upstashToken := os.Getenv("UPSTASH_REDIS_REST_TOKEN"); upstashToken != "" {
+			return upstashURL, upstashToken, true
+		}
+	}
+
 	// Check if REDIS_ADDR is already a rediss:// URL (standard Upstash format)
 	if strings.HasPrefix(addr, "rediss://") || strings.HasPrefix(addr, "redis://") {
 		u, err := url.Parse(addr)
@@ -54,13 +64,6 @@ func ParseUpstashURL(addr string) (baseURL, token string, ok bool) {
 		token = os.Getenv("REDIS_PASSWORD")
 		if token != "" {
 			return addr, token, true
-		}
-	}
-
-	// Check UPSTASH env vars directly (explicit Upstash configuration)
-	if upstashURL := os.Getenv("UPSTASH_REDIS_REST_URL"); upstashURL != "" {
-		if upstashToken := os.Getenv("UPSTASH_REDIS_REST_TOKEN"); upstashToken != "" {
-			return upstashURL, upstashToken, true
 		}
 	}
 
