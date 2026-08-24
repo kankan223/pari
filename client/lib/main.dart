@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -46,6 +47,7 @@ import 'repository/data/aes_gcm_queue_payload_cipher.dart';
 import 'repository/data/local_connection_request_repository.dart';
 import 'repository/data/local_conversation_repository.dart';
 import 'repository/data/local_message_repository.dart';
+import 'repository/data/local_storage.dart';
 import 'repository/data/local_sync_queue_repository.dart';
 import 'repository/data/memory_username_directory.dart';
 import 'repository/domain/connection_request.dart';
@@ -540,6 +542,7 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
         messageRepo: h.messageBloc.repository,
         conversationStore: h.conversationStore,
         messageDb: h.messageDb,
+        conversationDb: h.conversationDb as LocalDataStreamController<Conversation>,
         cipher: _cipher,
         myBlindHash: myHash,
         deviceId: 'civic-web-${DateTime.now().millisecondsSinceEpoch}',
@@ -660,30 +663,96 @@ class _CivicCommonsAppState extends State<CivicCommonsApp> {
 
 class _MemStore<T> implements EntityStore<T> {
   final String Function(T) _idOf;
+  final T Function(Map<String, dynamic>)? _fromJson;
+  final Map<String, dynamic> Function(T)? _toJson;
+  final String? _localStorageKey;
   final Map<String, T> _items = {};
+  bool _loadedFromStorage = false;
 
-  _MemStore(this._idOf);
+  _MemStore(
+    this._idOf, {
+    T Function(Map<String, dynamic>)? fromJson,
+    Map<String, dynamic> Function(T)? toJson,
+    String? localStorageKey,
+  })  : _fromJson = fromJson,
+        _toJson = toJson,
+        _localStorageKey = localStorageKey;
+
+  /// Load persisted data from browser localStorage (web only).
+  void _ensureLoaded() {
+    if (_loadedFromStorage || _localStorageKey == null || _fromJson == null) {
+      return;
+    }
+    _loadedFromStorage = true;
+    try {
+      final storage = LocalStorage();
+      final raw = storage.getItem(_localStorageKey!);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      for (final entry in decoded.entries) {
+        try {
+          final map = entry.value as Map<String, dynamic>;
+          _items[entry.key] = _fromJson!(map);
+        } catch (_) {
+          // Corrupt entry — skip.
+        }
+      }
+    } catch (_) {
+      // localStorage unavailable — fall back to in-memory.
+    }
+  }
+
+  /// Persist all data to browser localStorage (web only).
+  void _persistToStorage() {
+    if (_localStorageKey == null || _toJson == null) return;
+    try {
+      final storage = LocalStorage();
+      final data = <String, dynamic>{};
+      for (final entry in _items.entries) {
+        try {
+          data[entry.key] = _toJson!(entry.value);
+        } catch (_) {
+          // Serialization failure — skip.
+        }
+      }
+      storage.setItem(_localStorageKey!, jsonEncode(data));
+    } catch (_) {
+      // Storage unavailable — swallow.
+    }
+  }
 
   @override
   Future<void> insert(T entity) async {
+    _ensureLoaded();
     _items[_idOf(entity)] = entity;
+    _persistToStorage();
   }
 
   @override
   Future<void> update(T entity) async {
+    _ensureLoaded();
     _items[_idOf(entity)] = entity;
+    _persistToStorage();
   }
 
   @override
   Future<void> delete(String id) async {
+    _ensureLoaded();
     _items.remove(id);
+    _persistToStorage();
   }
 
   @override
-  Future<T?> getById(String id) async => _items[id];
+  Future<T?> getById(String id) async {
+    _ensureLoaded();
+    return _items[id];
+  }
 
   @override
-  Future<List<T>> getAll() async => _items.values.toList(growable: false);
+  Future<List<T>> getAll() async {
+    _ensureLoaded();
+    return _items.values.toList(growable: false);
+  }
 }
 
 /// No-op [SyncSink] — the harness is offline-first by design; the sealed
@@ -980,7 +1049,12 @@ class HarnessDependencies {
     await warRoomBloc.start();
 
     // --- Vault ---------------------------------------------------------
-    final conversationStore = _MemStore<Conversation>((c) => c.id);
+    final conversationStore = _MemStore<Conversation>(
+      (c) => c.id,
+      fromJson: Conversation.fromJson,
+      toJson: (c) => c.toJson(),
+      localStorageKey: 'civic_conversations',
+    );
     final conversationDatabase = LocalDataStreamController<Conversation>();
     final conversationBloc = LocalConversationBloc(
       repository: LocalConversationRepository(
@@ -1000,7 +1074,12 @@ class HarnessDependencies {
       encryptedSessionState: Uint8List.fromList([1, 2, 3, 4]),
     ));
 
-    final messageStore = _MemStore<Message>((m) => m.id);
+    final messageStore = _MemStore<Message>(
+      (m) => m.id,
+      fromJson: Message.fromJson,
+      toJson: (m) => m.toJson(),
+      localStorageKey: 'civic_messages',
+    );
     final messageDatabase = LocalDataStreamController<Message>();
     final messageBloc = LocalMessageBloc(
       repository: LocalMessageRepository(

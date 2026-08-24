@@ -148,6 +148,66 @@ class Message {
         isPinned: isPinned ?? this.isPinned,
       );
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'conversationId': conversationId,
+        'ciphertext': ciphertext,
+        'direction': direction.wireName,
+        'delivered': delivered,
+        'expiresAt': expiresAt?.toIso8601String(),
+        'sentAt': sentAt.toIso8601String(),
+        'replyToId': replyToId,
+        'replyToContent': replyToContent,
+        'isDeleted': isDeleted,
+        'editedAt': editedAt?.toIso8601String(),
+        'reactions': reactions
+            .map((r) => {
+                  'emoji': r.emoji,
+                  'reactorHash': r.reactorHash,
+                  'createdAt': r.createdAt.toIso8601String(),
+                })
+            .toList(),
+        'isPinned': isPinned,
+      };
+
+  factory Message.fromJson(Map<String, dynamic> json) => Message(
+        id: json['id'] as String,
+        conversationId: json['conversationId'] as String,
+        ciphertext: (json['ciphertext'] as List<dynamic>?)
+                ?.map((e) => (e as num).toInt())
+                .toList() !=
+            null
+            ? Uint8List.fromList(
+                (json['ciphertext'] as List<dynamic>)
+                    .map((e) => (e as num).toInt())
+                    .toList())
+            : Uint8List(0),
+        direction:
+            MessageDirection.fromWireName(json['direction'] as String?),
+        delivered: json['delivered'] as bool? ?? false,
+        expiresAt: json['expiresAt'] != null
+            ? DateTime.tryParse(json['expiresAt'] as String)
+            : null,
+        sentAt: json['sentAt'] != null
+            ? DateTime.parse(json['sentAt'] as String)
+            : DateTime.now().toUtc(),
+        replyToId: json['replyToId'] as String?,
+        replyToContent: json['replyToContent'] as String?,
+        isDeleted: json['isDeleted'] as bool? ?? false,
+        editedAt: json['editedAt'] != null
+            ? DateTime.tryParse(json['editedAt'] as String)
+            : null,
+        reactions: (json['reactions'] as List<dynamic>?)
+                ?.map((r) => MessageReaction(
+                      emoji: r['emoji'] as String,
+                      reactorHash: r['reactorHash'] as String,
+                      createdAt: DateTime.parse(r['createdAt'] as String),
+                    ))
+                .toList() ??
+            const [],
+        isPinned: json['isPinned'] as bool? ?? false,
+      );
+
   /// Aggregated reactions for display (emoji → count + own status).
   List<ReactionSummary> get reactionSummaries {
     final map = <String, int>{};

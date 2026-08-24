@@ -41,6 +41,7 @@ class RelayMessagingBloc {
   final MessageRepository _messageRepo;
   final EntityStore<Conversation> _conversationStore;
   final LocalDataStreamController<Message>? _messageDb;
+  final LocalDataStreamController<Conversation>? _conversationDb;
   final MessageCipher? _cipher;
   final String _myBlindHash;
   final String _deviceId;
@@ -69,6 +70,7 @@ class RelayMessagingBloc {
     required MessageRepository messageRepo,
     required EntityStore<Conversation> conversationStore,
     LocalDataStreamController<Message>? messageDb,
+    LocalDataStreamController<Conversation>? conversationDb,
     MessageCipher? cipher,
     required String myBlindHash,
     required String deviceId,
@@ -76,6 +78,7 @@ class RelayMessagingBloc {
         _messageRepo = messageRepo,
         _conversationStore = conversationStore,
         _messageDb = messageDb,
+        _conversationDb = conversationDb,
         _cipher = cipher,
         _myBlindHash = myBlindHash,
         _deviceId = deviceId;
@@ -250,10 +253,10 @@ class RelayMessagingBloc {
       replyToContent: replyToContent,
     );
     await _messageRepo.create(msg);
-    // 2. Send through the relay (if connected).
-    // Notify the UI stream IMMEDIATELY so the message appears in the chat
+    // 2. Notify the UI stream IMMEDIATELY so the message appears in the chat
     // even if the relay send takes time or fails.
-    _notifyStream();
+    await _notifyMessageStream();
+    // Send through the relay (if connected).
     final client = _client;
     if (client != null && _status == RelayMessagingStatus.connected) {
       try {
@@ -290,6 +293,7 @@ class RelayMessagingBloc {
       }
     }
 
+    var isNewConversation = false;
     if (conversationId == null) {
       // First contact — create a new conversation.
       conversationId = 'conv-${_uuidV4().substring(0, 8)}';
@@ -299,6 +303,7 @@ class RelayMessagingBloc {
         encryptedSessionState: Uint8List(0),
       );
       await _conversationRepo.create(conv);
+      isNewConversation = true;
     }
 
     // Persist the incoming message locally.
@@ -310,25 +315,39 @@ class RelayMessagingBloc {
       delivered: true,
     );
     await _messageRepo.create(msg);
-    // Notify the UI stream so per-conversation blocs pick up the message.
-    _notifyStream();
+    // Notify the message UI stream so per-conversation blocs pick up the message.
+    await _notifyMessageStream();
+    // If a new conversation was created, also notify the conversation list UI.
+    if (isNewConversation) {
+      await _notifyConversationStream();
+    }
   }
 
   /// Emit all messages from the shared store so stream subscribers see
   /// messages created by the relay or other code paths.
-  void _notifyStream() {
+  Future<void> _notifyMessageStream() async {
     final db = _messageDb;
     if (db != null) {
-      // Fetch all messages and emit — subscribers filter by conversationId.
-      // Use unawaited to fire-and-forget; errors are swallowed because a
-      // failed stream push should never crash the send path.
-      _messageRepo.getAll().then((all) {
-        try {
-          db.emit(all);
-        } catch (_) {
-          // Controller may be closed — swallow.
-        }
-      }).catchError((_) {});
+      try {
+        final all = await _messageRepo.getAll();
+        db.emit(all);
+      } catch (_) {
+        // Controller may be closed — swallow.
+      }
+    }
+  }
+
+  /// Emit all conversations from the shared store so the conversation list
+  /// UI picks up new conversations created by incoming messages.
+  Future<void> _notifyConversationStream() async {
+    final db = _conversationDb;
+    if (db != null) {
+      try {
+        final all = await _conversationStore.getAll();
+        db.emit(all);
+      } catch (_) {
+        // Controller may be closed — swallow.
+      }
     }
   }
 

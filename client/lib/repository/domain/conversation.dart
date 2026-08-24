@@ -25,4 +25,25 @@ class Conversation {
     required this.participantHash,
     required this.encryptedSessionState,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'participantHash': participantHash,
+        'encryptedSessionState': encryptedSessionState,
+      };
+
+  factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
+        id: json['id'] as String,
+        participantHash: json['participantHash'] as String,
+        encryptedSessionState:
+            (json['encryptedSessionState'] as List<dynamic>?)
+                    ?.map((e) => (e as num).toInt())
+                    .toList() !=
+                null
+            ? Uint8List.fromList(
+                (json['encryptedSessionState'] as List<dynamic>)
+                    .map((e) => (e as num).toInt())
+                    .toList())
+            : Uint8List(0),
+      );
 }
