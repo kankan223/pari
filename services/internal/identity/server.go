@@ -517,11 +517,12 @@ func (s *Server) handleDebugRedis(w http.ResponseWriter, r *http.Request) {
 
 	// Generate a valid 64-hex blind hash ID for testing.
 	hexChars := "0123456789abcdef"
-	var hashBytes [32]byte
-	for i := range hashBytes {
-		hashBytes[i] = hexChars[int(time.Now().UnixNano()+int64(i))%16]
+	now := time.Now().UnixNano()
+	var buf [64]byte
+	for i := range buf {
+		buf[i] = hexChars[(now+int64(i)*7)&0xf]
 	}
-	testHashID := string(hashBytes[:])
+	testHashID := string(buf[:])
 	testVal := "$2a$10$test.bcrypt.hash.value.for.debugging.purposes.only"
 
 	result := map[string]any{
