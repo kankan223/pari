@@ -514,31 +514,48 @@ func mustSubject(ctx context.Context) string {
 // Only available in staging/dev.
 func (s *Server) handleDebugRedis(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	testKey := "debug:otp:test" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	testVal := "test-bcrypt-hash-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+
+	// Generate a valid 64-hex blind hash ID for testing.
+	hexChars := "0123456789abcdef"
+	var hashBytes [32]byte
+	for i := range hashBytes {
+		hashBytes[i] = hexChars[int(time.Now().UnixNano()+int64(i))%16]
+	}
+	testHashID := string(hashBytes[:])
+	testVal := "$2a$10$test.bcrypt.hash.value.for.debugging.purposes.only"
 
 	result := map[string]any{
-		"otp_store_type": fmt.Sprintf("%T", s.svc.otpStore),
+		"otp_store_type":  fmt.Sprintf("%T", s.svc.otpStore),
+		"test_hash_id":    testHashID,
+		"test_hash_len":   len(testHashID),
 	}
 
-	// Try SET
-	if err := s.svc.otpStore.Set(ctx, testKey, testVal, 60*time.Second); err != nil {
+	// Try SET with valid 64-hex key
+	if err := s.svc.otpStore.Set(ctx, testHashID, testVal, 60*time.Second); err != nil {
 		result["set_error"] = err.Error()
 	} else {
 		result["set_ok"] = true
 	}
 
-	// Try GET
-	got, err := s.svc.otpStore.Get(ctx, testKey)
+	// Try GET with same key
+	got, err := s.svc.otpStore.Get(ctx, testHashID)
 	if err != nil {
 		result["get_error"] = err.Error()
 	} else {
 		result["get_ok"] = true
 		result["get_matches"] = got == testVal
+		result["get_value_len"] = len(got)
+	}
+
+	// Try GET with non-existent key (should return not-found)
+	_, err = s.svc.otpStore.Get(ctx, "0000000000000000000000000000000000000000000000000000000000000000")
+	result["get_nonexistent_is_nil"] = err != nil
+	if err != nil {
+		result["get_nonexistent_error"] = err.Error()
 	}
 
 	// Cleanup
-	_ = s.svc.otpStore.Delete(ctx, testKey)
+	_ = s.svc.otpStore.Delete(ctx, testHashID)
 
 	writeJSON(w, http.StatusOK, result)
 }
