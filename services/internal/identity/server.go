@@ -528,7 +528,7 @@ func (s *Server) handleDebugRedis(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{
 		"otp_store_type":  fmt.Sprintf("%T", s.svc.otpStore),
 		"test_hash_id":    testHashID,
-		"test_hash_len":   len(testHashID),
+		"test_hash_id_len": len(testHashID),
 	}
 
 	// Try SET with valid 64-hex key
