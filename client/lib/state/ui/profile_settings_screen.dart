@@ -1,26 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../../auth/auth_bloc.dart';
-import '../../security/ui/secure_screen_wrapper.dart';
 import 'vault_theme.dart';
 
-/// Profile settings screen — shows the user's profile information,
-/// device management, and account actions.
-///
-/// SECURITY CHECKPOINT: renders only the public username, blinded handle,
-/// and karma score. No phone number, no tokens, no raw blind hash in UI.
-/// Wrapped in [SecureScreenWrapper] (FLAG_SECURE).
+/// Consolidated profile & settings screen — combines identity, karma,
+/// consent, audit, security, and app settings into one scrollable screen.
 class ProfileSettingsScreen extends StatefulWidget {
-  final AuthBloc authBloc;
   final String username;
-  final String blindHashId;
+  final int karmaScore;
+  final bool isDarkMode;
+  final ValueChanged<bool>? onThemeToggle;
+  final VoidCallback? onLogout;
 
   const ProfileSettingsScreen({
     super.key,
-    required this.authBloc,
     required this.username,
-    required this.blindHashId,
+    this.karmaScore = 0,
+    this.isDarkMode = false,
+    this.onThemeToggle,
+    this.onLogout,
   });
 
   @override
@@ -28,356 +25,309 @@ class ProfileSettingsScreen extends StatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
-  bool _obscureHash = true;
+  late bool _darkMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _darkMode = widget.isDarkMode;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SecureScreenWrapper(
-      child: Scaffold(
-        backgroundColor: const Color(0xFFFAF6ED),
-        appBar: AppBar(
-          title: const Text('Profile'),
-          backgroundColor: VaultTheme.vaultBlue,
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Avatar + username card
-            _buildProfileCard(theme),
-            const SizedBox(height: 16),
-
-            // Account info
-            _buildSectionHeader('ACCOUNT'),
-            _buildInfoTile(
-              icon: Icons.person_outline,
-              label: 'Username',
-              value: '@${widget.username}',
-              trailing: IconButton(
-                icon: const Icon(Icons.copy, size: 18),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: widget.username));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Username copied')),
-                  );
-                },
-              ),
-            ),
-            _buildInfoTile(
-              icon: Icons.fingerprint,
-              label: 'Identity Hash',
-              value: _obscureHash
-                  ? '${widget.blindHashId.substring(0, 8)}...'
-                  : widget.blindHashId,
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      _obscureHash ? Icons.visibility_off : Icons.visibility,
-                      size: 18,
-                    ),
-                    onPressed: () => setState(() => _obscureHash = !_obscureHash),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy, size: 18),
-                    onPressed: () {
-                      Clipboard.setData(
-                        ClipboardData(text: widget.blindHashId),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Identity hash copied')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Security section
-            _buildSectionHeader('SECURITY'),
-            _buildNavTile(
-              icon: Icons.shield_outlined,
-              label: 'Security Scan',
-              subtitle: 'View security audit results',
-              onTap: () {
-                // Navigate to security scan
-              },
-            ),
-            _buildNavTile(
-              icon: Icons.verified_user_outlined,
-              label: 'Consent Settings',
-              subtitle: 'Manage your DPDP consent preferences',
-              onTap: () {
-                // Navigate to consent settings
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Danger zone
-            _buildSectionHeader('ACCOUNT ACTIONS'),
-            _buildActionTile(
-              icon: Icons.logout,
-              label: 'Log Out',
-              color: Colors.orange,
-              onTap: () => _showLogoutDialog(context),
-            ),
-            _buildActionTile(
-              icon: Icons.delete_outline,
-              label: 'Delete Account',
-              color: Colors.red,
-              onTap: () => _showDeleteDialog(context),
-            ),
-            const SizedBox(height: 24),
-
-            // Privacy notice
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(12),
+    return Scaffold(
+      backgroundColor: VaultTheme.vaultBg,
+      body: CustomScrollView(
+        slivers: [
+          // ── Profile header ──
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE3DCC8)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    VaultTheme.vaultBlue.withValues(alpha: 0.08),
+                    const Color(0xFF1F4D3A).withValues(alpha: 0.05),
+                  ],
+                ),
               ),
-              child: const Row(
+              child: Column(
                 children: [
-                  Icon(Icons.lock_outline, size: 16, color: Color(0xFF6E6A5E)),
-                  SizedBox(width: 8),
-                  Expanded(
+                  // Avatar
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: VaultTheme.vaultBlue.withValues(alpha: 0.15),
                     child: Text(
-                      'Your identity is protected by a blind hash. '
-                      'No phone number or personal data is stored or displayed.',
+                      widget.username.isNotEmpty
+                          ? widget.username[0].toUpperCase()
+                          : '?',
                       style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF6E6A5E),
-                        height: 1.4,
+                        color: VaultTheme.vaultBlue,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '@${widget.username}',
+                    style: TextStyle(
+                      color: VaultTheme.vaultText,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Karma: ${widget.karmaScore}',
+                      style: const TextStyle(
+                        color: Color(0xFF4CAF50),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileCard(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: VaultTheme.vaultBlue,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            child: Text(
-              widget.username.isNotEmpty
-                  ? widget.username[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '@${widget.username}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+
+          // ── Settings sections ──
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionHeader('Account'),
+                  _SettingsTile(
+                    icon: Icons.person_outline,
+                    title: 'Edit Profile',
+                    subtitle: 'Change display name and bio',
+                    onTap: () {},
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Civic Commons Member',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 13,
+                  _SettingsTile(
+                    icon: Icons.lock_outline,
+                    title: 'Privacy',
+                    subtitle: 'Manage who can see your profile',
+                    onTap: () {},
                   ),
-                ),
-              ],
+                  _SettingsTile(
+                    icon: Icons.devices_outlined,
+                    title: 'Linked Devices',
+                    subtitle: 'Manage connected devices',
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+                  _SectionHeader('Appearance'),
+                  _SettingsTile(
+                    icon: Icons.dark_mode_outlined,
+                    title: 'Dark Mode',
+                    subtitle: _darkMode ? 'On' : 'Off',
+                    trailing: Switch(
+                      value: _darkMode,
+                      onChanged: (v) {
+                        setState(() => _darkMode = v);
+                        widget.onThemeToggle?.call(v);
+                      },
+                      activeColor: VaultTheme.vaultBlue,
+                    ),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.text_fields,
+                    title: 'Font Size',
+                    subtitle: 'Default',
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+                  _SectionHeader('Notifications'),
+                  _SettingsTile(
+                    icon: Icons.notifications_outlined,
+                    title: 'Push Notifications',
+                    subtitle: 'Messages, alerts, and updates',
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.volume_up_outlined,
+                    title: 'Sound & Vibration',
+                    subtitle: 'Configure alert sounds',
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+                  _SectionHeader('Security'),
+                  _SettingsTile(
+                    icon: Icons.shield_outlined,
+                    title: 'Two-Factor Authentication',
+                    subtitle: 'Add extra security layer',
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.fingerprint,
+                    title: 'Biometric Lock',
+                    subtitle: 'Use fingerprint or face ID',
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.key_outlined,
+                    title: 'Encryption Keys',
+                    subtitle: 'View and manage E2E keys',
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+                  _SectionHeader('Data & Storage'),
+                  _SettingsTile(
+                    icon: Icons.storage_outlined,
+                    title: 'Storage Usage',
+                    subtitle: 'Manage local data',
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.download_outlined,
+                    title: 'Export Data',
+                    subtitle: 'Download your data',
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.delete_outline,
+                    title: 'Delete Account',
+                    subtitle: 'Permanently remove your data',
+                    onTap: () {},
+                    isDestructive: true,
+                  ),
+
+                  const SizedBox(height: 20),
+                  _SectionHeader('About'),
+                  _SettingsTile(
+                    icon: Icons.info_outline,
+                    title: 'Version',
+                    subtitle: '1.0.0',
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.description_outlined,
+                    title: 'Terms of Service',
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy Policy',
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 24),
+                  // Logout button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onLogout,
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      label: const Text(
+                        'Sign Out',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSectionHeader(String title) {
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
-          color: Color(0xFF6E6A5E),
+        style: TextStyle(
+          color: VaultTheme.vaultText.withValues(alpha: 0.5),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
+}
 
-  Widget _buildInfoTile({
-    required IconData icon,
-    required String label,
-    required String value,
-    Widget? trailing,
-  }) {
+class _SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool isDestructive;
+
+  const _SettingsTile({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDestructive ? Colors.red : VaultTheme.vaultText;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE3DCC8)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: const Color(0xFF1F4D3A)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF6E6A5E),
-                  ),
+      margin: const EdgeInsets.only(bottom: 2),
+      child: ListTile(
+        leading: Icon(icon, color: color.withValues(alpha: 0.7), size: 22),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: color,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle!,
+                style: TextStyle(
+                  color: color.withValues(alpha: 0.5),
+                  fontSize: 12,
                 ),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2430),
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ],
+              )
+            : null,
+        trailing: trailing ??
+            Icon(
+              Icons.chevron_right,
+              color: color.withValues(alpha: 0.3),
+              size: 20,
             ),
-          ),
-          if (trailing != null) trailing,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavTile({
-    required IconData icon,
-    required String label,
-    String? subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF1F4D3A)),
-        title: Text(label),
-        subtitle: subtitle != null ? Text(subtitle, style: const TextStyle(fontSize: 12)) : null,
-        trailing: const Icon(Icons.chevron_right, size: 20),
         onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(color: Color(0xFFE3DCC8)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionTile({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-        trailing: Icon(Icons.chevron_right, size: 20, color: color),
-        onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: color.withValues(alpha: 0.3)),
-        ),
-      ),
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await widget.authBloc.logout();
-              if (context.mounted) {
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              }
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Log Out'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Account'),
-        content: const Text(
-          'This action is permanent and cannot be undone. '
-          'All your data will be permanently deleted.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Account deletion is not yet available'),
-                ),
-              );
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       ),
     );
   }

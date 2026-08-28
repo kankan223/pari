@@ -17,4 +17,27 @@ class VaultTheme {
 
   /// The mono font stack for dense identifier/redaction typography.
   static const String monoFont = 'monospace';
+
+  // ── Extended design tokens ──
+
+  /// Background color for vault screens.
+  static const Color vaultBg = Color(0xFFF5F5F0);
+
+  /// Card/surface background.
+  static const Color vaultCard = Colors.white;
+
+  /// Primary text color.
+  static const Color vaultText = Color(0xFF1A1A1A);
+
+  /// Secondary text color.
+  static const Color vaultTextSecondary = Color(0xFF757575);
+
+  /// Success color.
+  static const Color vaultSuccess = Color(0xFF4CAF50);
+
+  /// Warning color.
+  static const Color vaultWarning = Color(0xFFFF9800);
+
+  /// Error/danger color.
+  static const Color vaultError = Color(0xFFF44336);
 }

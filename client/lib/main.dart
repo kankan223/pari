@@ -78,6 +78,11 @@ import 'state/data/local_consent_bloc.dart';
 import 'performance/data/in_memory_performance_repository.dart';
 import 'performance/data/in_memory_startup_optimizer.dart';
 import 'state/data/local_performance_bloc.dart';
+import 'state/ui/app_theme.dart';
+import 'state/ui/home_screen.dart';
+import 'state/ui/onboarding_screen.dart';
+import 'state/ui/profile_settings_screen.dart';
+import 'state/ui/community_screen.dart';
 import 'cdn/data/in_memory_cdn_repository.dart';
 import 'scaling/data/in_memory_scaling_repository.dart';
 import 'security/data/in_memory_security_scanner.dart';
@@ -1468,12 +1473,16 @@ class CivicCommonsHarness extends StatefulWidget {
 
 class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   int _tab = 0;
+  bool _darkMode = false;
+  bool _showOnboarding = true;
   late final BlockingService _blockingService;
 
+  // ── Core tabs (5 main navigation) ──
   late final _WarRoomTab _warRoomTab;
   late final _VaultTab _vaultTab;
   late final _LedgerTab _ledgerTab;
   late final _AcademyTab _academyTab;
+  // Dev/admin tabs accessible from Profile
   late final _IdentityTab _identityTab;
   late final _KarmaTab _karmaTab;
   late final _NotificationsTab _notificationsTab;
@@ -1512,34 +1521,53 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
 
   @override
   Widget build(BuildContext context) {
+    // Show onboarding on first launch
+    if (_showOnboarding) {
+      return MaterialApp(
+        title: 'Civic Commons',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        home: OnboardingScreen(
+          onComplete: () => setState(() => _showOnboarding = false),
+        ),
+      );
+    }
+
     return MaterialApp(
-      title: 'Civic Commons — Manual Testing Harness',
+      title: 'Civic Commons',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF1F4D3A),
-        scaffoldBackgroundColor: WarRoomTheme.manilaPaper,
-      ),
+      theme: _darkMode ? AppTheme.dark() : AppTheme.light(),
       home: Scaffold(
         body: IndexedStack(
           index: _tab,
           children: [
-            _warRoomTab,
+            // Tab 0: Home (dashboard with War Room + quick actions)
+            HomeScreen(
+              username: widget.username,
+              karmaScore: 0,
+              unreadMessages: 0,
+              activeCases: 0,
+              onOpenWarRoom: () {
+                // Navigate to War Room tab
+                setState(() => _tab = 0);
+              },
+              onOpenMessages: () => setState(() => _tab = 1),
+              onOpenAcademy: () => setState(() => _tab = 3),
+              onOpenProfile: () => setState(() => _tab = 4),
+            ),
+            // Tab 1: Messages (Vault)
             _vaultTab,
+            // Tab 2: Community (Ledger)
             _ledgerTab,
+            // Tab 3: Learn (Academy)
             _academyTab,
-            _identityTab,
-            _karmaTab,
-            _notificationsTab,
-            _transparencyTab,
-            _consentTab,
-            _auditTab,
-            _rateLimitTab,
-            _performanceTab,
-            _cdnTab,
-            _scalingTab,
-            _securityTab,
-            _deploymentTab,
+            // Tab 4: Profile & Settings
+            ProfileSettingsScreen(
+              username: widget.username,
+              isDarkMode: _darkMode,
+              onThemeToggle: (v) => setState(() => _darkMode = v),
+              onLogout: () {},
+            ),
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -1547,84 +1575,29 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
           onDestinationSelected: (i) => setState(() => _tab = i),
           destinations: const [
             NavigationDestination(
-              icon: Icon(Icons.shield_outlined),
-              selectedIcon: Icon(Icons.shield),
-              label: 'War Room',
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
             ),
             NavigationDestination(
               icon: Icon(Icons.lock_outline),
               selectedIcon: Icon(Icons.lock),
-              label: 'Vault',
+              label: 'Messages',
             ),
             NavigationDestination(
               icon: Icon(Icons.newspaper_outlined),
               selectedIcon: Icon(Icons.newspaper),
-              label: 'Ledger',
+              label: 'Community',
             ),
             NavigationDestination(
               icon: Icon(Icons.menu_book_outlined),
               selectedIcon: Icon(Icons.menu_book),
-              label: 'Academy',
+              label: 'Learn',
             ),
             NavigationDestination(
-              icon: Icon(Icons.badge_outlined),
-              selectedIcon: Icon(Icons.badge),
-              label: 'Identity',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.star_outline),
-              selectedIcon: Icon(Icons.star),
-              label: 'Karma',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.notifications_outlined),
-              selectedIcon: Icon(Icons.notifications),
-              label: 'Alerts',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long),
-              label: 'Log',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.privacy_tip_outlined),
-              selectedIcon: Icon(Icons.privacy_tip),
-              label: 'Consent',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.fact_check_outlined),
-              selectedIcon: Icon(Icons.fact_check),
-              label: 'Audit',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.speed_outlined),
-              selectedIcon: Icon(Icons.speed),
-              label: 'Limits',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.analytics_outlined),
-              selectedIcon: Icon(Icons.analytics),
-              label: 'Perf',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.language_outlined),
-              selectedIcon: Icon(Icons.language),
-              label: 'CDN',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.grid_view_outlined),
-              selectedIcon: Icon(Icons.grid_view),
-              label: 'Scale',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.security_outlined),
-              selectedIcon: Icon(Icons.security),
-              label: 'Security',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.rocket_launch_outlined),
-              selectedIcon: Icon(Icons.rocket_launch),
-              label: 'Deploy',
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),
