@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -63,6 +64,7 @@ func NewServer(svc *Service, log *slog.Logger) *Server {
 	s.mux.HandleFunc(routePreKeyFetch, s.requireAuth(s.handlePreKeyFetch))
 	s.mux.HandleFunc(routeProfile, s.requireAuth(s.handleUpdateProfile))
 	s.mux.HandleFunc(routeHealth, s.handleHealth)
+	s.mux.HandleFunc("GET /debug/redis", s.handleDebugRedis)
 
 	return s
 }
@@ -506,4 +508,37 @@ func (s *Server) handlePreKeyFetch(w http.ResponseWriter, r *http.Request) {
 func mustSubject(ctx context.Context) string {
 	hashID, _ := blindHashIDFromContext(ctx)
 	return hashID
+}
+
+// handleDebugRedis tests the OTP store SET/GET cycle.
+// Only available in staging/dev.
+func (s *Server) handleDebugRedis(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	testKey := "debug:otp:test" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	testVal := "test-bcrypt-hash-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+
+	result := map[string]any{
+		"otp_store_type": fmt.Sprintf("%T", s.svc.otpStore),
+	}
+
+	// Try SET
+	if err := s.svc.otpStore.Set(ctx, testKey, testVal, 60*time.Second); err != nil {
+		result["set_error"] = err.Error()
+	} else {
+		result["set_ok"] = true
+	}
+
+	// Try GET
+	got, err := s.svc.otpStore.Get(ctx, testKey)
+	if err != nil {
+		result["get_error"] = err.Error()
+	} else {
+		result["get_ok"] = true
+		result["get_matches"] = got == testVal
+	}
+
+	// Cleanup
+	_ = s.svc.otpStore.Delete(ctx, testKey)
+
+	writeJSON(w, http.StatusOK, result)
 }
