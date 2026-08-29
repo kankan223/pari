@@ -7,16 +7,16 @@ import 'vault_theme.dart';
 class ProfileSettingsScreen extends StatefulWidget {
   final String username;
   final int karmaScore;
-  final bool isDarkMode;
-  final ValueChanged<bool>? onThemeToggle;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
   final VoidCallback? onLogout;
 
   const ProfileSettingsScreen({
     super.key,
     required this.username,
     this.karmaScore = 0,
-    this.isDarkMode = false,
-    this.onThemeToggle,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
     this.onLogout,
   });
 
@@ -25,12 +25,12 @@ class ProfileSettingsScreen extends StatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
-  late bool _darkMode;
+  late ThemeMode _themeMode;
 
   @override
   void initState() {
     super.initState();
-    _darkMode = widget.isDarkMode;
+    _themeMode = widget.themeMode;
   }
 
   @override
@@ -128,19 +128,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                   ),
 
                   const SizedBox(height: 20),
-                  _SectionHeader('Appearance'),
-                  _SettingsTile(
-                    icon: Icons.dark_mode_outlined,
-                    title: 'Dark Mode',
-                    subtitle: _darkMode ? 'On' : 'Off',
-                    trailing: Switch(
-                      value: _darkMode,
-                      onChanged: (v) {
-                        setState(() => _darkMode = v);
-                        widget.onThemeToggle?.call(v);
-                      },
-                      activeColor: VaultTheme.vaultBlue,
-                    ),
+                  const _SectionHeader('Appearance'),
+                  _ThemeModeTile(
+                    currentMode: _themeMode,
+                    onChanged: (mode) {
+                      setState(() => _themeMode = mode);
+                      widget.onThemeModeChanged?.call(mode);
+                    },
                   ),
                   _SettingsTile(
                     icon: Icons.text_fields,
@@ -328,6 +322,78 @@ class _SettingsTile extends StatelessWidget {
         onTap: onTap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      ),
+    );
+  }
+}
+
+/// Three-option theme mode selector (System / Light / Dark).
+class _ThemeModeTile extends StatelessWidget {
+  final ThemeMode currentMode;
+  final ValueChanged<ThemeMode> onChanged;
+
+  const _ThemeModeTile({
+    required this.currentMode,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = VaultTheme.vaultText;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.palette_outlined,
+                  color: color.withValues(alpha: 0.7), size: 22),
+              const SizedBox(width: 12),
+              Text(
+                'Theme',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment<ThemeMode>(
+                value: ThemeMode.system,
+                label: Text('System'),
+                icon: Icon(Icons.brightness_auto, size: 16),
+              ),
+              ButtonSegment<ThemeMode>(
+                value: ThemeMode.light,
+                label: Text('Light'),
+                icon: Icon(Icons.light_mode, size: 16),
+              ),
+              ButtonSegment<ThemeMode>(
+                value: ThemeMode.dark,
+                label: Text('Dark'),
+                icon: Icon(Icons.dark_mode, size: 16),
+              ),
+            ],
+            selected: {currentMode},
+            onSelectionChanged: (selection) {
+              if (selection.isNotEmpty) onChanged(selection.first);
+            },
+            style: ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
       ),
     );
   }

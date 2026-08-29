@@ -80,7 +80,7 @@ void main() {
     await tester.tap(profileFinds.last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Dark Mode'), findsOneWidget);
+    expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Sign Out'), findsOneWidget);
   });
 }
