@@ -1475,6 +1475,9 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   int _tab = 0;
   bool _darkMode = false;
   bool _showOnboarding = true;
+  final _localStorage = LocalStorage();
+
+  static const _kDarkModeKey = 'civic_commons_dark_mode';
   late final BlockingService _blockingService;
 
   // ── Core tabs (5 main navigation) ──
@@ -1500,6 +1503,9 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
   void initState() {
     super.initState();
     _blockingService = BlockingService();
+    // Restore dark mode preference from localStorage.
+    final saved = _localStorage.getItem(_kDarkModeKey);
+    if (saved == 'true') _darkMode = true;
     final h = widget.harness;
     _warRoomTab = _WarRoomTab(h: h);
     _vaultTab = _VaultTab(h: h, username: widget.username, relayBloc: widget.relayBloc, userSearchBloc: widget.userSearchBloc, presenceTracker: widget.presenceTracker, blockingService: _blockingService);
@@ -1565,7 +1571,10 @@ class _CivicCommonsHarnessState extends State<CivicCommonsHarness> {
             ProfileSettingsScreen(
               username: widget.username,
               isDarkMode: _darkMode,
-              onThemeToggle: (v) => setState(() => _darkMode = v),
+              onThemeToggle: (v) {
+                setState(() => _darkMode = v);
+                _localStorage.setItem(_kDarkModeKey, v.toString());
+              },
               onLogout: () {},
             ),
           ],
