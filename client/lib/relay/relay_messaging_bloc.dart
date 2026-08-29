@@ -256,6 +256,8 @@ class RelayMessagingBloc {
     // 2. Notify the UI stream IMMEDIATELY so the message appears in the chat
     // even if the relay send takes time or fails.
     await _notifyMessageStream();
+    // Also refresh the conversation list so the last-message preview updates.
+    await _notifyConversationStream();
     // Send through the relay (if connected).
     final client = _client;
     if (client != null && _status == RelayMessagingStatus.connected) {
@@ -317,10 +319,8 @@ class RelayMessagingBloc {
     await _messageRepo.create(msg);
     // Notify the message UI stream so per-conversation blocs pick up the message.
     await _notifyMessageStream();
-    // If a new conversation was created, also notify the conversation list UI.
-    if (isNewConversation) {
-      await _notifyConversationStream();
-    }
+    // Always notify the conversation list UI so the last-message preview updates.
+    await _notifyConversationStream();
   }
 
   /// Emit all messages from the shared store so stream subscribers see

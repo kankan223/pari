@@ -2245,14 +2245,16 @@ class _VaultConversationDetailWrapperState
           conversationId: widget.conversationId,
         );
       } else {
-        // Offline: persist locally only.
+        // Offline: persist locally and notify the UI.
         await widget.messageBloc.send(fileText);
+        await widget.messageBloc.refresh();
       }
     } catch (_) {
       // Offline fallback for file send.
       if (file != null) {
         try {
           await widget.messageBloc.send('\u{1F4CE} ${file.name}');
+          await widget.messageBloc.refresh();
         } catch (_) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -2275,13 +2277,15 @@ class _VaultConversationDetailWrapperState
           conversationId: widget.conversationId,
         );
       } else {
-        // Offline: persist locally only.
+        // Offline: persist locally and notify the UI.
         await widget.messageBloc.send(text);
+        await widget.messageBloc.refresh();
       }
     } catch (_) {
       // Offline fallback.
       try {
         await widget.messageBloc.send(text);
+        await widget.messageBloc.refresh();
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2345,6 +2349,7 @@ class _VaultConversationDetailWrapperState
           replyToId: replyTo?.id,
           replyToContent: replyTo?.content,
         );
+        await widget.messageBloc.refresh();
       }
       // Auto-scroll to bottom after sending.
       if (mounted) {
@@ -2353,6 +2358,7 @@ class _VaultConversationDetailWrapperState
     } catch (_) {
       try {
         await widget.messageBloc.send(text);
+        await widget.messageBloc.refresh();
         if (mounted) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
         }
