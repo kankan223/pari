@@ -142,6 +142,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                     subtitle: 'Default',
                     onTap: () {},
                   ),
+                  _SettingsTile(
+                    icon: Icons.restore,
+                    title: 'Reset to Defaults',
+                    subtitle: 'Restore system theme and default settings',
+                    onTap: () {
+                      setState(() => _themeMode = ThemeMode.system);
+                      widget.onThemeModeChanged?.call(ThemeMode.system);
+                    },
+                  ),
 
                   const SizedBox(height: 20),
                   _SectionHeader('Notifications'),
